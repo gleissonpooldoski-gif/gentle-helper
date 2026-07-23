@@ -2983,7 +2983,7 @@ function ShopeePanel() {
                   onChange={(e) => {
                     const v = e.target.checked;
                     const next: Record<string, boolean> = {};
-                    SHOPEE_PRODUCTS.forEach((p) => (next[p.id] = v));
+                    products.forEach((p) => (next[p.id] = v));
                     setSelected(next);
                   }}
                   className="h-3.5 w-3.5 accent-[oklch(0.62_0.19_256)]"
