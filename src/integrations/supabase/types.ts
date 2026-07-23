@@ -405,38 +405,50 @@ export type Database = {
       }
       whatsapp_sessions: {
         Row: {
+          browser_id: string | null
+          channel_id: string | null
           connected_at: string | null
           created_at: string
+          expires_at: string | null
           id: string
           last_seen_at: string | null
           name: string
           phone_number: string | null
-          session_key: string
+          session_key: string | null
           status: string
+          token_hash: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
+          browser_id?: string | null
+          channel_id?: string | null
           connected_at?: string | null
           created_at?: string
+          expires_at?: string | null
           id?: string
           last_seen_at?: string | null
           name: string
           phone_number?: string | null
-          session_key: string
+          session_key?: string | null
           status?: string
+          token_hash?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
+          browser_id?: string | null
+          channel_id?: string | null
           connected_at?: string | null
           created_at?: string
+          expires_at?: string | null
           id?: string
           last_seen_at?: string | null
           name?: string
           phone_number?: string | null
-          session_key?: string
+          session_key?: string | null
           status?: string
+          token_hash?: string | null
           updated_at?: string
           user_id?: string
         }
