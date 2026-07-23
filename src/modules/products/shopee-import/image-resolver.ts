@@ -1,32 +1,60 @@
 /**
- * Fetches the main product image for Shopee products imported via CSV.
- * Priority:
- *   1. Shopee public item API using Item Id (+ shop id parsed from Product Link)
- *   2. og:image / twitter:image scraped from the Product Link
- * Best-effort: any failure returns null and the import continues.
+ * Multi-layer image extractor for Shopee product pages.
+ *
+ * Strategy (all best-effort — never throws, never blocks import):
+ *   1. Fetch full HTML with a real browser User-Agent (desktop, then mobile).
+ *   2. Search for patterns, in order:
+ *      a. Full CDN URLs   → https://cf.shopee.com.br/file/<hash>
+ *                            https://down-*.img.susercontent.com/file/<hash>
+ *      b. JSON fields     → "image":"<hash>", "images":["<hash>", ...],
+ *                            image_id / imageId
+ *      c. `br-xxxxxxxx` short hashes anywhere in the HTML
+ *      d. og:image / twitter:image / link[rel=image_src]
+ *   3. When only a hash is found, build https://cf.shopee.com.br/file/<hash>.
+ *   4. On total failure → return null. Caller keeps image_url = null so the
+ *      product is treated as PENDING (retried on next enrichment sweep),
+ *      not as a permanent error.
+ *
+ * Every attempt is logged with the following shape (server console):
+ *   [shopee-image] Produto analisado
+ *     URL: <productUrl>
+ *     Método encontrado: <method | none>
+ *     Imagem encontrada: <url | null>
+ *     Imagem salva: <yes/pending>
  */
 
-const FETCH_TIMEOUT_MS = 7_000;
+const FETCH_TIMEOUT_MS = 8_000;
 const CONCURRENCY = 6;
 
-const UA =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
-const MOBILE_UA =
+// Real Chrome desktop + iOS Safari UAs (matches production browsers).
+const UA_DESKTOP =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.6478.127 Safari/537.36";
+const UA_MOBILE =
   "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1";
+
+const BROWSER_HEADERS: Record<string, string> = {
+  "user-agent": UA_DESKTOP,
+  accept:
+    "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+  "accept-language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+  "accept-encoding": "gzip, deflate, br",
+  "cache-control": "no-cache",
+  pragma: "no-cache",
+  "sec-ch-ua": '"Chromium";v="126", "Google Chrome";v="126", "Not-A.Brand";v="99"',
+  "sec-ch-ua-mobile": "?0",
+  "sec-ch-ua-platform": '"Windows"',
+  "sec-fetch-dest": "document",
+  "sec-fetch-mode": "navigate",
+  "sec-fetch-site": "none",
+  "sec-fetch-user": "?1",
+  "upgrade-insecure-requests": "1",
+};
 
 export type ImageLookup = { itemId: string; productUrl: string };
 
-function extractShopId(url: string): string | null {
-  const iMatch = url.match(/-i\.(\d+)\.(\d+)/);
-  if (iMatch) return iMatch[1]!;
-  const pMatch = url.match(/\/product\/(\d+)\/(\d+)/);
-  if (pMatch) return pMatch[1]!;
-  return null;
-}
-
 async function fetchText(
   url: string,
-  headers: Record<string, string> = {},
+  extra: Record<string, string> = {},
 ): Promise<string | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
@@ -34,12 +62,7 @@ async function fetchText(
     const res = await fetch(url, {
       signal: controller.signal,
       redirect: "follow",
-      headers: {
-        "user-agent": UA,
-        "accept-language": "pt-BR,pt;q=0.9,en;q=0.6",
-        accept: "text/html,application/xhtml+xml,application/json,*/*;q=0.8",
-        ...headers,
-      },
+      headers: { ...BROWSER_HEADERS, ...extra },
     });
     if (!res.ok) return null;
     return await res.text();
@@ -50,100 +73,133 @@ async function fetchText(
   }
 }
 
-function toShopeeImageUrl(hash: string): string {
-  if (/^https?:\/\//i.test(hash)) return hash;
-  // Official Shopee BR CDN pattern.
-  return `https://cf.shopee.com.br/file/${hash}`;
+/** Build a CDN URL from either a full URL or a bare hash. */
+function toShopeeImageUrl(hashOrUrl: string): string {
+  const v = hashOrUrl.trim();
+  if (/^https?:\/\//i.test(v)) return v;
+  return `https://cf.shopee.com.br/file/${v}`;
 }
 
-async function tryShopeeApi(itemId: string, shopId: string): Promise<string | null> {
-  const endpoints = [
-    `https://shopee.com.br/api/v4/item/get?itemid=${itemId}&shopid=${shopId}`,
-    `https://shopee.com.br/api/v2/item/get?itemid=${itemId}&shopid=${shopId}`,
+// ============================================================
+//  Extraction layers
+// ============================================================
+
+/** (a) Full CDN URLs already present in the HTML. */
+const CDN_URL_RE =
+  /https?:\/\/(?:cf\.shopee\.com\.br|down-[a-z0-9-]+\.img\.susercontent\.com|cf\.shopee\.[a-z.]+)\/file\/[a-z0-9_-]+(?:_tn)?/i;
+
+function findCdnUrl(html: string): string | null {
+  const m = html.match(CDN_URL_RE);
+  return m?.[0] ?? null;
+}
+
+/** (b) JSON-embedded hashes: "image", "images", image_id, imageId. */
+function findJsonHash(html: string): string | null {
+  const patterns: RegExp[] = [
+    /"image"\s*:\s*"([a-z0-9_-]{16,})"/i,
+    /"images"\s*:\s*\[\s*"([a-z0-9_-]{16,})"/i,
+    /"image_id"\s*:\s*"([a-z0-9_-]{16,})"/i,
+    /"imageId"\s*:\s*"([a-z0-9_-]{16,})"/i,
+    /"cover"\s*:\s*"([a-z0-9_-]{16,})"/i,
+    /"thumbnail"\s*:\s*"([a-z0-9_-]{16,})"/i,
   ];
-  for (const url of endpoints) {
-    const json = await fetchText(url, {
-      "x-requested-with": "XMLHttpRequest",
-      referer: "https://shopee.com.br/",
-      accept: "application/json",
-    });
-    if (!json) continue;
-    try {
-      const parsed = JSON.parse(json) as {
-        data?: {
-          image?: string;
-          images?: string[];
-          item?: { image?: string; images?: string[] };
-        };
-        item?: { image?: string; images?: string[] };
-      };
-      const node = parsed.data?.item ?? parsed.data ?? parsed.item;
-      // Prefer full images[] list; first entry = main image. Fall back to `image`.
-      const hash =
-        (node?.images && node.images.length > 0 ? node.images[0] : undefined) ??
-        node?.image;
-      if (hash) return toShopeeImageUrl(hash);
-    } catch {
-      /* try next */
-    }
+  for (const re of patterns) {
+    const m = html.match(re);
+    if (m?.[1]) return m[1];
   }
   return null;
 }
 
-const SHOPEE_CDN_RE =
-  /https?:\/\/(?:cf\.shopee\.com\.br|down-[a-z0-9-]+\.img\.susercontent\.com|cf\.shopee\.[a-z.]+)\/file\/[a-z0-9_-]+(?:_tn)?/i;
+/** (c) Bare `br-xxxxxxxx…` hashes anywhere in the HTML. */
+function findBareHash(html: string): string | null {
+  const m = html.match(/\b(br-[a-z0-9]{6,})\b/i);
+  return m?.[1] ?? null;
+}
 
-function findShopeeCdnUrl(html: string): string | null {
-  const direct = html.match(SHOPEE_CDN_RE);
-  if (direct?.[0]) return direct[0];
-  const jsonHash =
-    html.match(/"image"\s*:\s*"([a-f0-9]{20,})"/i) ??
-    html.match(/"images"\s*:\s*\[\s*"([a-f0-9]{20,})"/i);
-  if (jsonHash?.[1]) return toShopeeImageUrl(jsonHash[1]);
+/** (d) Open-Graph / Twitter / link[rel=image_src]. */
+function findMetaImage(html: string): string | null {
+  const patterns: RegExp[] = [
+    /<meta[^>]+property=["']og:image(?::secure_url)?["'][^>]+content=["']([^"']+)["']/i,
+    /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image(?::secure_url)?["']/i,
+    /<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i,
+    /<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image["']/i,
+    /<link[^>]+rel=["']image_src["'][^>]+href=["']([^"']+)["']/i,
+  ];
+  for (const re of patterns) {
+    const m = html.match(re);
+    if (m?.[1]) return m[1];
+  }
   return null;
 }
 
-async function tryPageScrape(productUrl: string): Promise<string | null> {
-  const html =
-    (await fetchText(productUrl)) ??
-    (await fetchText(productUrl, { "user-agent": MOBILE_UA }));
-  if (!html) return null;
+type Attempt = { method: string; image: string | null };
 
-  // 1. Real Shopee CDN URL embedded in page/JSON
-  const cdn = findShopeeCdnUrl(html);
-  if (cdn) return cdn;
+function extractFromHtml(html: string): Attempt {
+  const cdn = findCdnUrl(html);
+  if (cdn) return { method: "cdn-url", image: cdn };
 
-  // 2. Open Graph fallback
-  const og = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i);
-  if (og?.[1]) return og[1];
-  const ogAlt = html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
-  if (ogAlt?.[1]) return ogAlt[1];
-  const tw = html.match(/<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i);
-  if (tw?.[1]) return tw[1];
-  const linkImg = html.match(/<link[^>]+rel=["']image_src["'][^>]+href=["']([^"']+)["']/i);
-  if (linkImg?.[1]) return linkImg[1];
-  return null;
+  const jsonHash = findJsonHash(html);
+  if (jsonHash) return { method: "json-hash", image: toShopeeImageUrl(jsonHash) };
+
+  const bare = findBareHash(html);
+  if (bare) return { method: "bare-hash", image: toShopeeImageUrl(bare) };
+
+  const meta = findMetaImage(html);
+  if (meta) return { method: "og-image", image: meta };
+
+  return { method: "none", image: null };
 }
 
-async function resolveOne(input: ImageLookup): Promise<string | null> {
-  // Affiliate API doesn't expose product images — only scrape the product page.
-  return tryPageScrape(input.productUrl);
+function logAttempt(productUrl: string, attempt: Attempt): void {
+  // Structured server-side log so operators can trace failures per product.
+   
+  console.log(
+    "[shopee-image] Produto analisado\n" +
+      `  URL: ${productUrl}\n` +
+      `  Método encontrado: ${attempt.method}\n` +
+      `  Imagem encontrada: ${attempt.image ?? "null"}\n` +
+      `  Imagem salva: ${attempt.image ? "yes" : "pending"}`,
+  );
 }
+
+async function tryPageScrape(productUrl: string): Promise<Attempt> {
+  // Desktop UA first, then mobile as fallback (some Shopee pages render
+  // different markup per device).
+  const desktopHtml = await fetchText(productUrl);
+  if (desktopHtml) {
+    const a = extractFromHtml(desktopHtml);
+    if (a.image) return a;
+  }
+  const mobileHtml = await fetchText(productUrl, { "user-agent": UA_MOBILE });
+  if (mobileHtml) {
+    const a = extractFromHtml(mobileHtml);
+    if (a.image) return a;
+  }
+  return { method: "none", image: null };
+}
+
+// ============================================================
+//  Public API
+// ============================================================
 
 /**
- * Public single-URL scrape used by the background enrichment job.
+ * Single-URL scrape used by the background enrichment job.
+ * Never throws. Returns null → caller keeps image_url pending.
  */
 export async function scrapeShopeeImage(productUrl: string): Promise<string | null> {
   try {
-    return await tryPageScrape(productUrl);
-  } catch {
+    const attempt = await tryPageScrape(productUrl);
+    logAttempt(productUrl, attempt);
+    return attempt.image;
+  } catch (err) {
+    logAttempt(productUrl, { method: `error:${(err as Error).message}`, image: null });
     return null;
   }
 }
 
 /**
- * Resolves images for the given lookups with bounded concurrency.
- * Returns a map keyed by `itemId`. Missing entries mean "not found".
+ * Batch resolver with bounded concurrency. Returns a map keyed by itemId.
+ * Missing entries → pending (not error).
  */
 export async function resolveImages(lookups: ImageLookup[]): Promise<Map<string, string>> {
   const seen = new Set<string>();
@@ -157,23 +213,17 @@ export async function resolveImages(lookups: ImageLookup[]): Promise<Map<string,
   const result = new Map<string, string>();
   let cursor = 0;
 
-  async function worker(): Promise<void> {
+  const worker = async (): Promise<void> => {
     while (cursor < unique.length) {
       const idx = cursor++;
       const lookup = unique[idx]!;
-      try {
-        const image = await resolveOne(lookup);
-        if (image) result.set(lookup.itemId, image);
-      } catch {
-        /* best-effort */
-      }
+      const image = await scrapeShopeeImage(lookup.productUrl);
+      if (image) result.set(lookup.itemId, image);
     }
-  }
+  };
 
-  const workers = Array.from(
-    { length: Math.min(CONCURRENCY, unique.length) },
-    () => worker(),
+  await Promise.all(
+    Array.from({ length: Math.min(CONCURRENCY, unique.length) }, () => worker()),
   );
-  await Promise.all(workers);
   return result;
 }
