@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { getShopeeConfig, saveShopeeConfig } from "@/lib/shopee-config.functions";
 import { getMLConnection, saveMLConnection } from "@/modules/affiliate/mercado-livre/controller.functions";
-import { loadMagaluLocal, saveMagaluLocal } from "@/modules/affiliate/magalu/local-store";
+import { getMagaluConnection, saveMagaluConnection } from "@/modules/affiliate/magalu/controller.functions";
 
 
 import {
@@ -668,15 +668,27 @@ function MagaluCard() {
   const [status, setStatus] = useState<"connected" | "pending">("pending");
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const load = useServerFn(getMagaluConnection);
+  const save = useServerFn(saveMagaluConnection);
 
   useEffect(() => {
-    const conn = loadMagaluLocal();
-    setStoreName(conn.storeName);
-    setStatus(conn.status);
-    setUpdatedAt(conn.updatedAt);
-  }, []);
+    let alive = true;
+    load()
+      .then((conn) => {
+        if (!alive || !conn) return;
+        setStoreName(conn.storeName);
+        setStatus(conn.status === "connected" ? "connected" : "pending");
+        setUpdatedAt(conn.updatedAt);
+      })
+      .catch(() => {
+        /* The protected save will report authentication errors to the user. */
+      });
+    return () => {
+      alive = false;
+    };
+  }, [load]);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const trimmed = storeName.trim();
     if (!trimmed) {
       toast.error("Informe o nome da loja Magalu.");
@@ -684,9 +696,9 @@ function MagaluCard() {
     }
     setSaving(true);
     try {
-      const conn = saveMagaluLocal(trimmed);
+      const conn = await save({ data: { storeName: trimmed } });
       setStoreName(conn.storeName);
-      setStatus(conn.status);
+      setStatus(conn.status === "connected" ? "connected" : "pending");
       setUpdatedAt(conn.updatedAt);
       toast.success("Loja configurada — links Magalu podem ser gerados.");
     } catch (err) {
