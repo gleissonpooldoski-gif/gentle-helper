@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as RelatoriosRouteImport } from './routes/relatorios'
+import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as ConfigAfiliadosRouteImport } from './routes/config-afiliados'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as CanaisIdEditarRouteImport } from './routes/canais.$id.editar'
@@ -17,6 +18,11 @@ import { Route as CanaisIdEditarRouteImport } from './routes/canais.$id.editar'
 const RelatoriosRoute = RelatoriosRouteImport.update({
   id: '/relatorios',
   path: '/relatorios',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DashboardRoute = DashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ConfigAfiliadosRoute = ConfigAfiliadosRouteImport.update({
@@ -38,12 +44,14 @@ const CanaisIdEditarRoute = CanaisIdEditarRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/config-afiliados': typeof ConfigAfiliadosRoute
+  '/dashboard': typeof DashboardRoute
   '/relatorios': typeof RelatoriosRoute
   '/canais/$id/editar': typeof CanaisIdEditarRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/config-afiliados': typeof ConfigAfiliadosRoute
+  '/dashboard': typeof DashboardRoute
   '/relatorios': typeof RelatoriosRoute
   '/canais/$id/editar': typeof CanaisIdEditarRoute
 }
@@ -51,18 +59,30 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/config-afiliados': typeof ConfigAfiliadosRoute
+  '/dashboard': typeof DashboardRoute
   '/relatorios': typeof RelatoriosRoute
   '/canais/$id/editar': typeof CanaisIdEditarRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/config-afiliados' | '/relatorios' | '/canais/$id/editar'
+  fullPaths:
+    | '/'
+    | '/config-afiliados'
+    | '/dashboard'
+    | '/relatorios'
+    | '/canais/$id/editar'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/config-afiliados' | '/relatorios' | '/canais/$id/editar'
+  to:
+    | '/'
+    | '/config-afiliados'
+    | '/dashboard'
+    | '/relatorios'
+    | '/canais/$id/editar'
   id:
     | '__root__'
     | '/'
     | '/config-afiliados'
+    | '/dashboard'
     | '/relatorios'
     | '/canais/$id/editar'
   fileRoutesById: FileRoutesById
@@ -70,6 +90,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ConfigAfiliadosRoute: typeof ConfigAfiliadosRoute
+  DashboardRoute: typeof DashboardRoute
   RelatoriosRoute: typeof RelatoriosRoute
   CanaisIdEditarRoute: typeof CanaisIdEditarRoute
 }
@@ -81,6 +102,13 @@ declare module '@tanstack/react-router' {
       path: '/relatorios'
       fullPath: '/relatorios'
       preLoaderRoute: typeof RelatoriosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dashboard': {
+      id: '/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof DashboardRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/config-afiliados': {
@@ -110,6 +138,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ConfigAfiliadosRoute: ConfigAfiliadosRoute,
+  DashboardRoute: DashboardRoute,
   RelatoriosRoute: RelatoriosRoute,
   CanaisIdEditarRoute: CanaisIdEditarRoute,
 }
