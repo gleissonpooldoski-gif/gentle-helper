@@ -9,6 +9,29 @@ const FETCH_TIMEOUT_MS = 10_000;
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
 
+function relevantResponseHeaders(headers: Headers): Record<string, string> {
+  const relevant = [
+    "content-type",
+    "date",
+    "server",
+    "via",
+    "x-request-id",
+    "x-correlation-id",
+    "x-cache",
+    "x-cache-status",
+    "x-ratelimit-limit",
+    "x-ratelimit-remaining",
+    "retry-after",
+    "cf-ray",
+  ];
+  return Object.fromEntries(
+    relevant.flatMap((name) => {
+      const value = headers.get(name);
+      return value === null ? [] : [[name, value]];
+    }),
+  );
+}
+
 export type MLItem = {
   id: string;
   title: string;
@@ -51,7 +74,12 @@ async function fetchJson<T>(url: string, accessToken?: string): Promise<T> {
       name.toLowerCase() === "authorization" ? "Bearer [REDACTED]" : value,
     ]),
   );
-  console.log("[ML][api] request", { method, url, headers: loggedHeaders });
+  console.log("[ML][api] request", {
+    method,
+    url,
+    headers: loggedHeaders,
+    authorizationBearerSent: Boolean(accessToken),
+  });
 
   try {
     const res = await fetch(url, {
@@ -67,7 +95,9 @@ async function fetchJson<T>(url: string, accessToken?: string): Promise<T> {
       method,
       url,
       headers: loggedHeaders,
+      authorizationBearerSent: Boolean(accessToken),
       status: res.status,
+      responseHeaders: relevantResponseHeaders(res.headers),
       body: bodyJson ?? bodyText,
     });
     if (!res.ok) {
@@ -87,7 +117,9 @@ async function fetchJson<T>(url: string, accessToken?: string): Promise<T> {
         method,
         url,
         headers: loggedHeaders,
+        authorizationBearerSent: Boolean(accessToken),
         status: res.status,
+        responseHeaders: relevantResponseHeaders(res.headers),
         body: bodyJson ?? bodyText,
       });
       throw new MLApiError(friendly, url, res.status, bodyJson ?? bodyText);
@@ -101,6 +133,7 @@ async function fetchJson<T>(url: string, accessToken?: string): Promise<T> {
       method,
       url,
       headers: loggedHeaders,
+      authorizationBearerSent: Boolean(accessToken),
       status: null,
       body: msg,
     });
@@ -218,7 +251,13 @@ async function probeVariant(
 ): Promise<{ ok: boolean; status: number | null; body: unknown }> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-  console.log("[ML][api] FINAL REQUEST", { label, url, headers });
+  console.log("[ML][api] FINAL REQUEST", {
+    label,
+    method: "GET",
+    url,
+    headers,
+    authorizationBearerSent: false,
+  });
   try {
     const res = await fetch(url, { method: "GET", signal: controller.signal, headers });
     const bodyText = await res.text().catch(() => "");
@@ -228,12 +267,19 @@ async function probeVariant(
       label,
       url,
       status: res.status,
+      responseHeaders: relevantResponseHeaders(res.headers),
       body: bodyJson ?? bodyText,
     });
     return { ok: res.ok, status: res.status, body: bodyJson ?? bodyText };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.warn("[ML][api] FINAL RESPONSE", { label, url, status: null, body: msg });
+    console.warn("[ML][api] FINAL RESPONSE", {
+      label,
+      url,
+      status: null,
+      responseHeaders: {},
+      body: msg,
+    });
     return { ok: false, status: null, body: msg };
   } finally {
     clearTimeout(timer);
@@ -269,8 +315,8 @@ export async function searchItems(
 
       // Probe alternativo — /sites/MLB/items?ids=... para confirmar se toda a API
       // pública está bloqueada ou apenas /search.
-      const probeUrl = "https://api.mercadolibre.com/sites/MLB/items?ids=MLB123456789";
-      await probeVariant("items-probe", probeUrl, { Accept: "application/json" });
+      const probeUrl = "https://api.mercadolibre.com/items/MLB123456789";
+      await probeVariant("item-public-probe", probeUrl, {});
     }
   }
 
