@@ -83,12 +83,30 @@ async function tryShopeeApi(itemId: string, shopId: string): Promise<string | nu
   return null;
 }
 
-async function tryOpenGraph(productUrl: string): Promise<string | null> {
+const SHOPEE_CDN_RE =
+  /https?:\/\/(?:cf\.shopee\.com\.br|down-[a-z0-9-]+\.img\.susercontent\.com|cf\.shopee\.[a-z.]+)\/file\/[a-z0-9_-]+(?:_tn)?/i;
+
+function findShopeeCdnUrl(html: string): string | null {
+  const direct = html.match(SHOPEE_CDN_RE);
+  if (direct?.[0]) return direct[0];
+  const jsonHash =
+    html.match(/"image"\s*:\s*"([a-f0-9]{20,})"/i) ??
+    html.match(/"images"\s*:\s*\[\s*"([a-f0-9]{20,})"/i);
+  if (jsonHash?.[1]) return toShopeeImageUrl(jsonHash[1]);
+  return null;
+}
+
+async function tryPageScrape(productUrl: string): Promise<string | null> {
   const html =
     (await fetchText(productUrl)) ??
     (await fetchText(productUrl, { "user-agent": MOBILE_UA }));
   if (!html) return null;
 
+  // 1. Real Shopee CDN URL embedded in page/JSON
+  const cdn = findShopeeCdnUrl(html);
+  if (cdn) return cdn;
+
+  // 2. Open Graph fallback
   const og = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i);
   if (og?.[1]) return og[1];
   const ogAlt = html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
