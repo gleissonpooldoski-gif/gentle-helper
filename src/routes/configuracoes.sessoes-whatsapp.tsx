@@ -80,7 +80,7 @@ function SessionsPage() {
     };
   }, []);
 
-  const handleCreate = async ({ name }: { name: string; mode: "qr" | "web" }): Promise<CreatedSession> => {
+  const handleCreate = async ({ name }: { name: string }): Promise<CreatedSession> => {
     const s = await createFn({ data: { name } });
     // Refresh the list so the pending session appears immediately.
     reload();
