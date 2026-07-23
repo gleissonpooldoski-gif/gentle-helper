@@ -24,6 +24,7 @@ export type Database = {
           last_error: string | null
           platform: string
           status: string
+          store_name: string | null
           updated_at: string
           user_id: string
         }
@@ -36,6 +37,7 @@ export type Database = {
           last_error?: string | null
           platform: string
           status?: string
+          store_name?: string | null
           updated_at?: string
           user_id: string
         }
@@ -48,6 +50,7 @@ export type Database = {
           last_error?: string | null
           platform?: string
           status?: string
+          store_name?: string | null
           updated_at?: string
           user_id?: string
         }
