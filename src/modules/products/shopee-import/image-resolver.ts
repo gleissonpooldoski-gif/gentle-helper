@@ -124,7 +124,7 @@ async function resolveOne(input: ImageLookup): Promise<string | null> {
     const fromApi = await tryShopeeApi(input.itemId, shopId);
     if (fromApi) return fromApi;
   }
-  return tryOpenGraph(input.productUrl);
+  return tryPageScrape(input.productUrl);
 }
 
 /**
