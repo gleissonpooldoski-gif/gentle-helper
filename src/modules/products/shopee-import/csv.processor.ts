@@ -124,9 +124,24 @@ export function parseShopeeCsv(text: string): ParseResult {
       commissionValue: parseNumber(get("commissionValue")),
       productUrl: get("productUrl") || offerUrl,
       offerUrl,
-      imageUrl: get("imageUrl") || null,
+      imageUrl: normalizeImageValue(get("imageUrl")),
     });
   }
 
   return { ok: true, rows };
+}
+
+/**
+ * Accepts either a full image URL or a bare Shopee image hash and returns
+ * a usable https URL. Returns null when the value is empty/invalid.
+ */
+function normalizeImageValue(raw: string): string | null {
+  const v = raw.trim();
+  if (!v) return null;
+  if (/^https?:\/\//i.test(v)) return v;
+  // Shopee CDN hashes are hex-ish tokens, typically 20+ chars.
+  if (/^[a-z0-9]{16,}$/i.test(v)) {
+    return `https://cf.shopee.com.br/file/${v}`;
+  }
+  return null;
 }
