@@ -198,25 +198,39 @@ export async function refreshToken(refresh: string): Promise<TokenResponse> {
 /** Persist tokens (encrypted) for the given user via the service-role client. */
 export async function persistTokens(userId: string, t: TokenResponse): Promise<void> {
   if (!userId) throw new Error("Configuração Mercado Livre incompleta (userId ausente).");
-  if (!t?.access_token || !t?.refresh_token) {
-    throw new Error("Token Mercado Livre não recebido (access/refresh ausentes).");
+  if (!t?.access_token) {
+    throw new Error("Token Mercado Livre não recebido (access_token ausente).");
   }
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const expiresAt = new Date(Date.now() + (t.expires_in - 60) * 1000).toISOString();
+
+  // Se o Mercado Livre não devolveu refresh_token nesta resposta, mantemos o existente.
+  let refreshCiphertext: string | null = null;
+  if (t.refresh_token) {
+    refreshCiphertext = encryptSecret(t.refresh_token);
+  } else {
+    const { data: existing } = await supabaseAdmin
+      .from("mercadolivre_integrations")
+      .select("refresh_token_ciphertext")
+      .eq("user_id", userId)
+      .maybeSingle();
+    refreshCiphertext =
+      (existing as { refresh_token_ciphertext: string } | null)?.refresh_token_ciphertext ?? null;
+  }
+
+  const row: Record<string, unknown> = {
+    user_id: userId,
+    ml_user_id: String(t.user_id),
+    access_token_ciphertext: encryptSecret(t.access_token),
+    expires_at: expiresAt,
+    scope: t.scope ?? null,
+    updated_at: new Date().toISOString(),
+  };
+  if (refreshCiphertext) row.refresh_token_ciphertext = refreshCiphertext;
+
   const { error } = await supabaseAdmin
     .from("mercadolivre_integrations")
-    .upsert(
-      {
-        user_id: userId,
-        ml_user_id: String(t.user_id),
-        access_token_ciphertext: encryptSecret(t.access_token),
-        refresh_token_ciphertext: encryptSecret(t.refresh_token),
-        expires_at: expiresAt,
-        scope: t.scope ?? null,
-        updated_at: new Date().toISOString(),
-      } as never,
-      { onConflict: "user_id" },
-    );
+    .upsert(row as never, { onConflict: "user_id" });
   if (error) throw new Error(`Falha ao gravar integração ML: ${error.message}`);
 }
 
