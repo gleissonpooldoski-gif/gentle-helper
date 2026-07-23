@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
-import { QrCode, Monitor, X, MessageCircle, Copy, Check, Loader2 } from "lucide-react";
-
-type Tab = "qr" | "web";
+import { useEffect, useRef, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
+import QRCode from "qrcode";
+import { QrCode, X, MessageCircle, Loader2, CheckCircle2, RefreshCw } from "lucide-react";
+import { getWhatsAppSessionStatus, type WASessionStatus } from "@/modules/channels/whatsapp/sessions.functions";
 
 export interface CreatedSession {
   id: string;
@@ -14,25 +15,72 @@ export interface ConnectNewNumberModalProps {
   open: boolean;
   onClose: () => void;
   /** Creates the session on the server and returns the raw token (shown once). */
-  onCreate: (data: { name: string; mode: Tab }) => Promise<CreatedSession>;
+  onCreate: (data: { name: string }) => Promise<CreatedSession>;
+  /** Called when the session becomes connected (for parent list refresh). */
+  onConnected?: (sessionId: string) => void;
 }
 
-export function ConnectNewNumberModal({ open, onClose, onCreate }: ConnectNewNumberModalProps) {
-  const [tab, setTab] = useState<Tab>("qr");
+export function ConnectNewNumberModal({ open, onClose, onCreate, onConnected }: ConnectNewNumberModalProps) {
+  const statusFn = useServerFn(getWhatsAppSessionStatus);
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [created, setCreated] = useState<CreatedSession | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [status, setStatus] = useState<WASessionStatus>("pending");
+  const [expired, setExpired] = useState(false);
+  const notifiedRef = useRef(false);
 
   useEffect(() => {
     if (!open) {
-      setTab("qr");
       setName("");
       setBusy(false);
       setCreated(null);
-      setCopied(false);
+      setQrDataUrl(null);
+      setStatus("pending");
+      setExpired(false);
+      notifiedRef.current = false;
     }
   }, [open]);
+
+  // Generate QR image from the token
+  useEffect(() => {
+    if (!created) return;
+    QRCode.toDataURL(created.sessionKey, {
+      width: 260,
+      margin: 1,
+      color: { dark: "#065f46", light: "#ffffff" },
+    })
+      .then(setQrDataUrl)
+      .catch(() => setQrDataUrl(null));
+  }, [created]);
+
+  // Poll status
+  useEffect(() => {
+    if (!created || !open) return;
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const s = await statusFn({ data: { sessionId: created.id } });
+        if (cancelled) return;
+        setStatus(s.status);
+        if (s.expiresAt && new Date(s.expiresAt).getTime() < Date.now() && s.status !== "connected") {
+          setExpired(true);
+        }
+        if (s.status === "connected" && !notifiedRef.current) {
+          notifiedRef.current = true;
+          onConnected?.(created.id);
+        }
+      } catch {
+        /* ignore transient */
+      }
+    };
+    tick();
+    const id = setInterval(tick, 3000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [created, open, statusFn, onConnected]);
 
   if (!open) return null;
 
@@ -42,22 +90,20 @@ export function ConnectNewNumberModal({ open, onClose, onCreate }: ConnectNewNum
     if (!canSubmit) return;
     try {
       setBusy(true);
-      const c = await onCreate({ name: name.trim(), mode: tab });
+      const c = await onCreate({ name: name.trim() });
       setCreated(c);
+      setStatus("pending");
     } finally {
       setBusy(false);
     }
   };
 
-  const handleCopy = async () => {
-    if (!created) return;
-    try {
-      await navigator.clipboard.writeText(created.sessionKey);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      /* noop */
-    }
+  const handleRestart = () => {
+    setCreated(null);
+    setQrDataUrl(null);
+    setStatus("pending");
+    setExpired(false);
+    notifiedRef.current = false;
   };
 
   return (
@@ -74,7 +120,7 @@ export function ConnectNewNumberModal({ open, onClose, onCreate }: ConnectNewNum
           <div className="flex items-center gap-2">
             <MessageCircle className="h-5 w-5" />
             <h2 className="text-base font-semibold">
-              {created ? "Token de conexão" : "Conectar novo número"}
+              {created ? "Escaneie o QR Code" : "Conectar novo número"}
             </h2>
           </div>
           <button
@@ -89,17 +135,6 @@ export function ConnectNewNumberModal({ open, onClose, onCreate }: ConnectNewNum
 
         {!created ? (
           <>
-            {/* Tabs */}
-            <div className="flex gap-2 border-b border-border bg-muted/40 px-5 pt-4">
-              <TabButton active={tab === "qr"} onClick={() => setTab("qr")} icon={<QrCode className="h-4 w-4" />}>
-                QR / Código
-              </TabButton>
-              <TabButton active={tab === "web"} onClick={() => setTab("web")} icon={<Monitor className="h-4 w-4" />}>
-                WhatsApp Web
-              </TabButton>
-            </div>
-
-            {/* Body */}
             <div className="space-y-4 px-5 py-6">
               <div className="space-y-1.5">
                 <label
@@ -117,14 +152,11 @@ export function ConnectNewNumberModal({ open, onClose, onCreate }: ConnectNewNum
                   autoFocus
                 />
               </div>
-
               <p className="text-xs text-muted-foreground">
-                Ao gerar o token, você poderá copiá-lo e colar na extensão do Chrome
-                para vincular o WhatsApp Web a esta sessão.
+                Um QR Code será gerado para vincular o WhatsApp a esta sessão.
               </p>
             </div>
 
-            {/* Footer */}
             <div className="border-t border-border bg-muted/30 px-5 py-4">
               <button
                 type="button"
@@ -133,58 +165,58 @@ export function ConnectNewNumberModal({ open, onClose, onCreate }: ConnectNewNum
                 className="flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <QrCode className="h-4 w-4" />}
-                {busy ? "Gerando token…" : "Gerar token de conexão"}
+                {busy ? "Gerando QR Code…" : "Gerar QR Code"}
               </button>
             </div>
           </>
         ) : (
           <>
             <div className="space-y-4 px-5 py-6">
-              <div className="space-y-1.5">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  Token
-                </p>
-                <div className="flex items-center gap-2">
-                  <code className="flex-1 truncate rounded-lg border border-border bg-background px-3 py-2.5 font-mono text-sm">
-                    {created.sessionKey}
-                  </code>
-                  <button
-                    type="button"
-                    onClick={handleCopy}
-                    className="flex h-10 items-center gap-1.5 rounded-lg bg-emerald-600 px-3 text-sm font-semibold text-white transition hover:bg-emerald-700"
-                  >
-                    {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                    {copied ? "Copiado" : "Copiar"}
-                  </button>
+              <div className="flex flex-col items-center gap-3">
+                <div className="rounded-xl border border-border bg-white p-3 shadow-sm">
+                  {qrDataUrl ? (
+                    <img src={qrDataUrl} alt="QR Code de conexão" width={260} height={260} />
+                  ) : (
+                    <div className="flex h-[260px] w-[260px] items-center justify-center">
+                      <Loader2 className="h-6 w-6 animate-spin text-emerald-600" />
+                    </div>
+                  )}
                 </div>
-                <p className="text-[11px] text-muted-foreground">
-                  Expira em {new Date(created.expiresAt).toLocaleString()}
-                </p>
-              </div>
 
-              <div className="rounded-lg border border-border bg-muted/40 p-4 text-sm">
-                <p className="mb-2 font-semibold">Como conectar</p>
-                <ol className="list-decimal space-y-1 pl-4 text-muted-foreground">
-                  <li>Abra o WhatsApp Web no Chrome</li>
-                  <li>Abra a extensão DivulgaLinks</li>
-                  <li>Cole o token acima</li>
-                  <li>Clique em Conectar</li>
-                </ol>
-              </div>
+                <StatusPill status={expired ? "disconnected" : status} expired={expired} />
 
-              <div className="flex items-center gap-2 rounded-lg border border-amber-300/40 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                Aguardando conexão pela extensão…
+                {!expired && status !== "connected" && (
+                  <p className="text-center text-xs text-muted-foreground">
+                    Aguardando leitura do QR Code…
+                  </p>
+                )}
+                {status === "connected" && (
+                  <p className="flex items-center gap-1.5 text-center text-sm font-semibold text-emerald-600">
+                    <CheckCircle2 className="h-4 w-4" /> WhatsApp conectado com sucesso!
+                  </p>
+                )}
+                {expired && status !== "connected" && (
+                  <p className="text-center text-xs text-destructive">
+                    QR Code expirado. Gere um novo para tentar novamente.
+                  </p>
+                )}
               </div>
             </div>
 
-            <div className="border-t border-border bg-muted/30 px-5 py-4">
+            <div className="flex gap-2 border-t border-border bg-muted/30 px-5 py-4">
+              <button
+                type="button"
+                onClick={handleRestart}
+                className="flex h-11 flex-1 items-center justify-center gap-2 rounded-lg border border-border bg-background text-sm font-semibold transition hover:bg-muted"
+              >
+                <RefreshCw className="h-4 w-4" /> Novo QR
+              </button>
               <button
                 type="button"
                 onClick={onClose}
-                className="flex h-11 w-full items-center justify-center gap-2 rounded-lg border border-border bg-background text-sm font-semibold transition hover:bg-muted"
+                className="flex h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-emerald-600 text-sm font-semibold text-white transition hover:bg-emerald-700"
               >
-                Fechar
+                {status === "connected" ? "Concluir" : "Fechar"}
               </button>
             </div>
           </>
@@ -194,29 +226,17 @@ export function ConnectNewNumberModal({ open, onClose, onCreate }: ConnectNewNum
   );
 }
 
-function TabButton({
-  active,
-  onClick,
-  icon,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  icon: React.ReactNode;
-  children: React.ReactNode;
-}) {
+function StatusPill({ status, expired }: { status: WASessionStatus; expired: boolean }) {
+  const map: Record<WASessionStatus, { label: string; cls: string }> = {
+    pending: { label: "Aguardando", cls: "bg-amber-100 text-amber-800" },
+    connecting: { label: "Conectando…", cls: "bg-blue-100 text-blue-800" },
+    connected: { label: "Conectado", cls: "bg-emerald-100 text-emerald-800" },
+    disconnected: { label: expired ? "Expirado" : "Desconectado", cls: "bg-muted text-muted-foreground" },
+  };
+  const s = map[status];
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`-mb-px flex items-center gap-1.5 rounded-t-lg border-b-2 px-4 py-2 text-sm font-medium transition ${
-        active
-          ? "border-emerald-600 bg-emerald-600 text-white"
-          : "border-transparent bg-muted text-muted-foreground hover:bg-muted/70"
-      }`}
-    >
-      {icon}
-      {children}
-    </button>
+    <span className={`rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wide ${s.cls}`}>
+      {s.label}
+    </span>
   );
 }
