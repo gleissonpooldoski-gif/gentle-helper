@@ -33,11 +33,11 @@ async function checkWhatsApp() {
 }
 
 async function loadDefaults() {
-  chrome.storage.local.get(["api_base", "connected", "channel_id", "connected_at"], (r) => {
+  chrome.storage.local.get(["api_base", "connected", "session_id", "connected_at"], (r) => {
     if (r.api_base) $("apiBase").value = r.api_base;
     else $("apiBase").value = "https://project--c8d0a9f8-2712-4d4d-b2f8-6b9530849b41.lovable.app";
-    if (r.connected && r.channel_id) {
-      setStatus(`Já conectado ao canal ${r.channel_id}`, "ok");
+    if (r.connected && r.session_id) {
+      setStatus(`Já conectado à sessão ${r.session_id}`, "ok");
     }
   });
 }
@@ -48,24 +48,18 @@ $("connect").addEventListener("click", async () => {
   if (!raw) return setStatus("Cole o token gerado no painel.", "err");
   if (!apiBase) return setStatus("Informe a URL do servidor.", "err");
 
-  let token = raw;
-  let channelId = "";
-  if (raw.includes("|")) {
-    const [t, c] = raw.split("|");
-    token = (t || "").trim();
-    channelId = (c || "").trim();
-  }
-  if (!channelId) return setStatus("Token inválido: canal não identificado.", "err");
+  // Accept legacy "<token>|<channelId>" pasted format — keep only the token part.
+  const token = raw.includes("|") ? raw.split("|")[0].trim() : raw;
 
   const bId = await browserId();
-  const body = { token, channel_id: channelId, browser_id: bId, timestamp: Date.now() };
+  const body = { token, browser_id: bId };
 
   $("connect").disabled = true;
   setStatus("Conectando…");
-  log("Token enviado", { channel_id: channelId, api: apiBase });
+  log("Token enviado", { api: apiBase });
 
   try {
-    const res = await fetch(`${apiBase}/api/public/channels/whatsapp/connect`, {
+    const res = await fetch(`${apiBase}/api/public/whatsapp/connect`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -81,15 +75,15 @@ $("connect").addEventListener("click", async () => {
       chrome.storage.local.set(
         {
           connected: true,
-          channel_id: data.channel_id,
+          session_id: data.session_id,
           connected_at: data.connected_at,
           api_base: apiBase,
         },
         r,
       ),
     );
-    setStatus(`Canal conectado: ${data.channel_id}`, "ok");
-    log("Canal conectado", data.channel_id);
+    setStatus(`Sessão conectada: ${data.session_id}`, "ok");
+    log("Sessão conectada", data.session_id);
   } catch (e) {
     setStatus(`Erro de rede: ${e?.message || e}`, "err");
     log("Erro de rede", e);
