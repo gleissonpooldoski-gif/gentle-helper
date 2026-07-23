@@ -131,6 +131,17 @@ async function resolveOne(input: ImageLookup): Promise<string | null> {
 }
 
 /**
+ * Public single-URL scrape used by the background enrichment job.
+ */
+export async function scrapeShopeeImage(productUrl: string): Promise<string | null> {
+  try {
+    return await tryPageScrape(productUrl);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Resolves images for the given lookups with bounded concurrency.
  * Returns a map keyed by `itemId`. Missing entries mean "not found".
  */
