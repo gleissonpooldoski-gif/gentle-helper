@@ -5,7 +5,7 @@ import { apiClient } from "@/lib/api-client";
 
 const TOKEN_TTL_MINUTES = 15;
 
-export type WASessionStatus = "pending" | "connected" | "disconnected";
+export type WASessionStatus = "pending" | "connecting" | "connected" | "disconnected";
 
 export interface WASessionDTO {
   id: string;
@@ -276,4 +276,39 @@ export const unlinkChannelSession = createServerFn({ method: "POST" })
       .eq("channel_id", data.channelId);
     if (error) throw new Error(error.message);
     return { ok: true };
+  });
+
+export interface WASessionStatusDTO {
+  id: string;
+  status: WASessionStatus;
+  phoneNumber: string | null;
+  connectedAt: string | null;
+  lastSeenAt: string | null;
+  expiresAt: string | null;
+}
+
+export const getWhatsAppSessionStatus = createServerFn({ method: "POST" })
+  .middleware([apiClient, requireSupabaseAuth])
+  .inputValidator((data: { sessionId: string }) => {
+    if (!data?.sessionId) throw new Error("sessionId é obrigatório");
+    return { sessionId: String(data.sessionId) };
+  })
+  .handler(async ({ data, context }): Promise<WASessionStatusDTO> => {
+    const { supabase, userId } = context;
+    const { data: row, error } = await (supabase as any)
+      .from("whatsapp_sessions")
+      .select("id,status,phone_number,connected_at,last_seen_at,expires_at")
+      .eq("user_id", userId)
+      .eq("id", data.sessionId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!row) throw new Error("Sessão não encontrada");
+    return {
+      id: row.id,
+      status: row.status,
+      phoneNumber: row.phone_number,
+      connectedAt: row.connected_at,
+      lastSeenAt: row.last_seen_at,
+      expiresAt: row.expires_at,
+    };
   });
