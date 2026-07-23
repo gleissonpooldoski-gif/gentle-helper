@@ -123,21 +123,22 @@ export const searchMLProducts = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    // /sites/MLB/search é público; token não é obrigatório. Ainda assim
-    // logamos SIM/NÃO para diagnóstico — falha ao obter token NÃO bloqueia a busca.
-    await tryLoadToken(context.userId);
+    const token = await tryLoadToken(context.userId);
     console.log("[ML][ctrl] search", {
       mode: data.mode, query: data.query, categoryId: data.categoryId,
-      offset: data.offset, limit: data.limit,
+      offset: data.offset, limit: data.limit, tokenValid: token ? "SIM" : "NAO",
     });
-    if (data.mode === "deals") return getHighlights(data.offset, data.limit);
-    return searchItems({
-      query: data.query,
-      categoryId: data.categoryId,
-      offset: data.offset,
-      limit: data.limit,
-      sort: data.mode === "best_sellers" ? "relevance" : "relevance",
-    });
+    if (data.mode === "deals") return getHighlights(data.offset, data.limit, token ?? undefined);
+    return searchItems(
+      {
+        query: data.query,
+        categoryId: data.categoryId,
+        offset: data.offset,
+        limit: data.limit,
+        sort: data.mode === "best_sellers" ? "relevance" : "relevance",
+      },
+      token ?? undefined,
+    );
   });
 
 /** Add many products by MLB id. */
