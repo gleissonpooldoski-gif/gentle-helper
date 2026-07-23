@@ -70,11 +70,18 @@ async function tryShopeeApi(itemId: string, shopId: string): Promise<string | nu
     if (!json) continue;
     try {
       const parsed = JSON.parse(json) as {
-        data?: { image?: string; images?: string[] };
+        data?: {
+          image?: string;
+          images?: string[];
+          item?: { image?: string; images?: string[] };
+        };
         item?: { image?: string; images?: string[] };
       };
-      const node = parsed.data ?? parsed.item;
-      const hash = node?.image ?? node?.images?.[0];
+      const node = parsed.data?.item ?? parsed.data ?? parsed.item;
+      // Prefer full images[] list; first entry = main image. Fall back to `image`.
+      const hash =
+        (node?.images && node.images.length > 0 ? node.images[0] : undefined) ??
+        node?.image;
       if (hash) return toShopeeImageUrl(hash);
     } catch {
       /* try next */
