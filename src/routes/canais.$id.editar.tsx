@@ -3008,7 +3008,7 @@ function ShopeePanel() {
         </div>
 
         <div className="grid grid-cols-2 gap-4 p-5 md:grid-cols-3 xl:grid-cols-4">
-          {SHOPEE_PRODUCTS.map((p) => (
+          {products.map((p) => (
             <div key={p.id} className="group flex flex-col overflow-hidden rounded-xl border border-border/60 bg-background shadow-sm transition hover:shadow-md">
               <div className="relative aspect-square w-full overflow-hidden" style={{ background: p.color }}>
                 <input
@@ -3025,10 +3025,16 @@ function ShopeePanel() {
                 )}>
                   {p.format}
                 </span>
-                <span className="absolute bottom-2.5 right-2.5 rounded-md bg-[oklch(0.62_0.24_25)] px-2 py-0.5 text-[10px] font-bold text-white shadow-sm">
-                  -{p.discount}%
-                </span>
-                <div className="flex h-full items-center justify-center text-6xl">{p.emoji}</div>
+                {p.discount > 0 ? (
+                  <span className="absolute bottom-2.5 right-2.5 rounded-md bg-[oklch(0.62_0.24_25)] px-2 py-0.5 text-[10px] font-bold text-white shadow-sm">
+                    -{p.discount}%
+                  </span>
+                ) : null}
+                {p.imageUrl ? (
+                  <img src={p.imageUrl} alt={p.title} className="h-full w-full object-cover" />
+                ) : (
+                  <div className="flex h-full items-center justify-center text-6xl">{p.emoji}</div>
+                )}
               </div>
 
               <div className="flex flex-1 flex-col gap-2 p-3">
@@ -3042,6 +3048,32 @@ function ShopeePanel() {
                 <div className="flex items-center gap-1 text-[10.5px] text-muted-foreground">
                   <Calendar className="h-3 w-3" /> {p.when}
                 </div>
+
+                {p.affiliateLink ? (
+                  <div className="flex items-center gap-1.5 rounded-md border border-[oklch(0.9_0.08_150)] bg-[oklch(0.97_0.04_150)] px-2 py-1.5">
+                    <Tag className="h-3 w-3 shrink-0 text-[oklch(0.5_0.19_150)]" />
+                    <a
+                      href={p.affiliateLink}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex-1 truncate text-[10.5px] font-medium text-[oklch(0.4_0.15_150)] hover:underline"
+                      title={p.affiliateLink}
+                    >
+                      {p.affiliateLink}
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(p.affiliateLink!);
+                        toast.success("Link comissionado copiado!");
+                      }}
+                      className="text-[oklch(0.5_0.19_150)] hover:text-[oklch(0.4_0.19_150)]"
+                      title="Copiar link"
+                    >
+                      <Copy className="h-3 w-3" />
+                    </button>
+                  </div>
+                ) : null}
 
                 <div className="mt-1 grid grid-cols-3 gap-1.5">
                   <Button size="sm" className="h-8 gap-1 rounded-md bg-[oklch(0.62_0.19_150)] px-1.5 text-[11px] hover:bg-[oklch(0.55_0.19_150)]">
@@ -3058,6 +3090,7 @@ function ShopeePanel() {
             </div>
           ))}
         </div>
+
 
         {/* Pagination */}
         <div className="flex flex-col items-center justify-between gap-3 border-t border-border/60 bg-muted/20 px-5 py-3 sm:flex-row">
