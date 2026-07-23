@@ -98,6 +98,45 @@ export type Database = {
         }
         Relationships: []
       }
+      channel_whatsapp_sessions: {
+        Row: {
+          channel_id: string
+          connected_at: string | null
+          created_at: string
+          id: string
+          last_seen_at: string | null
+          phone_number: string | null
+          session_id: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          channel_id: string
+          connected_at?: string | null
+          created_at?: string
+          id?: string
+          last_seen_at?: string | null
+          phone_number?: string | null
+          session_id?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          channel_id?: string
+          connected_at?: string | null
+          created_at?: string
+          id?: string
+          last_seen_at?: string | null
+          phone_number?: string | null
+          session_id?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       mercadolivre_integrations: {
         Row: {
           access_token_ciphertext: string
