@@ -158,10 +158,12 @@ function normalize(raw: RawItem): MLItem | null {
   };
 }
 
-export async function getItemById(mlbId: string, accessToken?: string): Promise<MLItem | null> {
+export async function getItemById(mlbId: string, _accessToken?: string): Promise<MLItem | null> {
+  // /items/{id} é público — não enviar Bearer para evitar 403 por escopo.
   const url = `https://api.mercadolibre.com/items/${encodeURIComponent(mlbId)}`;
+  console.log("[ML][api] item endpoint", { endpoint: url, auth: "none (public)" });
   try {
-    const raw = await fetchJson<RawItem>(url, accessToken);
+    const raw = await fetchJson<RawItem>(url);
     return normalize(raw);
   } catch (err) {
     if (err instanceof MLApiError && err.status === 404) return null;
