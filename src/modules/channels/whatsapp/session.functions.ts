@@ -21,8 +21,8 @@ export const getWhatsAppSession = createServerFn({ method: "POST" })
   })
   .handler(async ({ data, context }): Promise<WhatsAppSessionDTO | null> => {
     const { supabase, userId } = context;
-    const { data: row, error } = await supabase
-      .from("channel_whatsapp_sessions")
+    const { data: row, error } = await (supabase as any)
+      .from("channel_whatsapp_session_status")
       .select("channel_id,status,phone_number,session_id,connected_at,last_seen_at")
       .eq("user_id", userId)
       .eq("channel_id", data.channelId)
@@ -48,8 +48,8 @@ export const disconnectWhatsAppSession = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<{ ok: true }> => {
     const { supabase, userId } = context;
     const nowIso = new Date().toISOString();
-    const { error: sessErr } = await supabase
-      .from("channel_whatsapp_sessions")
+    const { error: sessErr } = await (supabase as any)
+      .from("channel_whatsapp_session_status")
       .update({ status: "disconnected", updated_at: nowIso })
       .eq("user_id", userId)
       .eq("channel_id", data.channelId);
