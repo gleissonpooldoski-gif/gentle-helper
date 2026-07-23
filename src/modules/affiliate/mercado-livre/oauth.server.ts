@@ -27,6 +27,7 @@ function b64url(buf: Buffer | string): string {
 
 /** Sign state as `<payload_b64>.<hmac_b64>` where payload = {u, e}. */
 export function signState(userId: string): string {
+  if (!userId) throw new Error("Configuração Mercado Livre incompleta (userId ausente para state).");
   const payload = JSON.stringify({ u: userId, e: Math.floor(Date.now() / 1000) + STATE_TTL_SECONDS });
   const p = b64url(payload);
   const sig = b64url(createHmac("sha256", stateSecret()).update(p).digest());
