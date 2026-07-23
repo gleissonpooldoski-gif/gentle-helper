@@ -35,8 +35,9 @@ function SessionsPage() {
 
   const [sessions, setSessions] = useState<WASessionDTO[]>([]);
   const [loading, setLoading] = useState(true);
-  const [name, setName] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+
 
   const reload = useCallback(async () => {
     try {
