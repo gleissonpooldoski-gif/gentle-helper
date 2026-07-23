@@ -2784,6 +2784,9 @@ function ShopeePanel() {
       toast.success(`${rows.length} produtos processados`, {
         description: `${inserted} novos · ${updated} atualizados`,
       });
+
+      // Background image enrichment (best-effort, never blocks import).
+      void enrichImagesInBackground();
     } catch (err) {
       console.error(err);
       toast.error("Falha ao importar CSV", {
