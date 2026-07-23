@@ -107,19 +107,16 @@ export const searchMLProducts = createServerFn({ method: "POST" })
       })
       .parse(input),
   )
-  .handler(async ({ data, context }) => {
-    const token = await loadToken(context.userId);
-    if (data.mode === "deals") return getHighlights(data.offset, data.limit, token);
-    return searchItems(
-      {
-        query: data.query,
-        categoryId: data.categoryId,
-        offset: data.offset,
-        limit: data.limit,
-        sort: data.mode === "best_sellers" ? "relevance" : "relevance",
-      },
-      token,
-    );
+  .handler(async ({ data, context: _context }) => {
+    // Catálogo público — não carrega token para não disparar 403.
+    if (data.mode === "deals") return getHighlights(data.offset, data.limit);
+    return searchItems({
+      query: data.query,
+      categoryId: data.categoryId,
+      offset: data.offset,
+      limit: data.limit,
+      sort: data.mode === "best_sellers" ? "relevance" : "relevance",
+    });
   });
 
 /** Add many products by MLB id. */

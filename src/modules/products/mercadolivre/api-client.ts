@@ -158,10 +158,12 @@ function normalize(raw: RawItem): MLItem | null {
   };
 }
 
-export async function getItemById(mlbId: string, accessToken?: string): Promise<MLItem | null> {
+export async function getItemById(mlbId: string, _accessToken?: string): Promise<MLItem | null> {
+  // /items/{id} é público — não enviar Bearer para evitar 403 por escopo.
   const url = `https://api.mercadolibre.com/items/${encodeURIComponent(mlbId)}`;
+  console.log("[ML][api] item endpoint", { endpoint: url, auth: "none (public)" });
   try {
-    const raw = await fetchJson<RawItem>(url, accessToken);
+    const raw = await fetchJson<RawItem>(url);
     return normalize(raw);
   } catch (err) {
     if (err instanceof MLApiError && err.status === 404) return null;
@@ -184,7 +186,7 @@ export type SearchOptions = {
 
 export async function searchItems(
   opts: SearchOptions,
-  accessToken: string,
+  _accessToken?: string,
 ): Promise<{ items: MLItem[]; total: number; offset: number; limit: number }> {
   const params = new URLSearchParams();
   if (opts.query) params.set("q", opts.query);
@@ -194,8 +196,11 @@ export async function searchItems(
   if (opts.sort === "price_asc") params.set("sort", "price_asc");
   if (opts.sort === "price_desc") params.set("sort", "price_desc");
 
+  // Catálogo público — SEM Bearer. Enviar token nesse endpoint dispara 403
+  // quando o app não tem escopos de vendedor. Ver: /sites/MLB/search é aberto.
   const url = `https://api.mercadolibre.com/sites/MLB/search?${params.toString()}`;
-  const raw = await fetchJson<SearchResult>(url, accessToken);
+  console.log("[ML][api] search endpoint", { endpoint: url, auth: "none (public)" });
+  const raw = await fetchJson<SearchResult>(url);
   const items = (raw.results ?? []).map(normalize).filter((i): i is MLItem => !!i);
   return {
     items,
@@ -208,7 +213,7 @@ export async function searchItems(
 export async function getHighlights(
   offset = 0,
   limit = 24,
-  accessToken?: string,
+  _accessToken?: string,
 ): Promise<{ items: MLItem[]; total: number; offset: number; limit: number }> {
   const params = new URLSearchParams({
     offset: String(offset),
@@ -216,8 +221,10 @@ export async function getHighlights(
     sort: "relevance",
     discount: "5-100",
   });
+  // Catálogo público — SEM Bearer.
   const url = `https://api.mercadolibre.com/sites/MLB/search?${params.toString()}`;
-  const raw = await fetchJson<SearchResult>(url, accessToken);
+  console.log("[ML][api] highlights endpoint", { endpoint: url, auth: "none (public)" });
+  const raw = await fetchJson<SearchResult>(url);
   const items = (raw.results ?? []).map(normalize).filter((i): i is MLItem => !!i);
   return {
     items,
