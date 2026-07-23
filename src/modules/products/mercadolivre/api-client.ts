@@ -23,7 +23,13 @@ export type MLItem = {
   sold: number | null;
 };
 
-async function fetchJson<T>(url: string): Promise<T | null> {
+export class MLApiError extends Error {
+  constructor(message: string, public url: string, public status?: number) {
+    super(message);
+  }
+}
+
+async function fetchJson<T>(url: string): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
@@ -32,10 +38,20 @@ async function fetchJson<T>(url: string): Promise<T | null> {
       redirect: "follow",
       headers: { "user-agent": UA, accept: "application/json" },
     });
-    if (!res.ok) return null;
+    console.log("[ML][api]", { url, status: res.status });
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new MLApiError(
+        `ML API ${res.status}: ${body.slice(0, 200) || res.statusText}`,
+        url,
+        res.status,
+      );
+    }
     return (await res.json()) as T;
-  } catch {
-    return null;
+  } catch (err) {
+    if (err instanceof MLApiError) throw err;
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new MLApiError(`Falha de rede ao chamar ML: ${msg}`, url);
   } finally {
     clearTimeout(timer);
   }
