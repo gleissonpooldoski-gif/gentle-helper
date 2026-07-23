@@ -5,7 +5,7 @@ import { apiClient } from "@/lib/api-client";
 
 const TOKEN_TTL_MINUTES = 15;
 
-export type WASessionStatus = "pending" | "connected" | "disconnected";
+export type WASessionStatus = "pending" | "connecting" | "connected" | "disconnected";
 
 export interface WASessionDTO {
   id: string;
