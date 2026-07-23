@@ -272,6 +272,19 @@ function Alert({
 /* -------------------------------------------------------------------------- */
 
 function ShopeeCard() {
+  const [shopeeId, setShopeeId] = useState(() =>
+    typeof window !== "undefined" ? localStorage.getItem("shopee_affiliate_id") ?? "" : "",
+  );
+  const [shopeeApiKey, setShopeeApiKey] = useState(() =>
+    typeof window !== "undefined" ? localStorage.getItem("shopee_api_key") ?? "" : "",
+  );
+
+  const handleSaveShopee = () => {
+    localStorage.setItem("shopee_affiliate_id", shopeeId);
+    localStorage.setItem("shopee_api_key", shopeeApiKey);
+    alert("Configurações da Shopee salvas com sucesso!");
+  };
+
   return (
     <PlatformCard
       accent="orange"
@@ -285,19 +298,28 @@ function ShopeeCard() {
         automaticamente um link comissionado usando o gerador oficial da Shopee.
       </Alert>
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Shopee ID de Afiliado" placeholder="Ex: 18291049182" />
         <Field
+          id="shopee-id"
+          label="Shopee ID de Afiliado"
+          placeholder="Ex: 18291049182"
+          value={shopeeId}
+          onChange={(e) => setShopeeId(e.target.value)}
+        />
+        <Field
+          id="shopee-api"
           label="Senha API / API Key"
           hint="Opcional"
           placeholder="••••••••••••••••"
           type="password"
+          value={shopeeApiKey}
+          onChange={(e) => setShopeeApiKey(e.target.value)}
         />
       </div>
       <div className="flex items-center justify-between pt-1">
         <p className="text-xs text-[color:var(--muted-foreground)]">
           Última sincronização: há 3 minutos
         </p>
-        <SaveButton>Salvar Shopee</SaveButton>
+        <SaveButton onClick={handleSaveShopee}>Salvar Shopee</SaveButton>
       </div>
     </PlatformCard>
   );
