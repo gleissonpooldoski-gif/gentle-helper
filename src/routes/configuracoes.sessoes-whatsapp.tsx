@@ -53,13 +53,12 @@ function SessionsPage() {
     reload();
   }, [reload]);
 
-  const handleCreate = async () => {
-    if (!name.trim()) return;
+  const handleCreate = async ({ name }: { name: string; mode: "qr" | "web" }) => {
     try {
       setBusy("create");
-      await createFn({ data: { name: name.trim() } });
-      setName("");
+      await createFn({ data: { name } });
       toast.success("Sessão criada. Escaneie o QR Code na extensão.");
+      setModalOpen(false);
       await reload();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Falha ao criar");
@@ -67,6 +66,7 @@ function SessionsPage() {
       setBusy(null);
     }
   };
+
 
   const handleDelete = async (id: string) => {
     if (!confirm("Excluir esta sessão?")) return;
