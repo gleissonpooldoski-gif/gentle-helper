@@ -3,19 +3,20 @@
  * These are the RPC endpoints called from the UI.
  */
 import { createServerFn } from "@tanstack/react-start";
+import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { validateAffiliateInput } from "./validator";
 import type { MLConnectionView } from "./service";
 
 export const getMLConnection = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([attachSupabaseAuth, requireSupabaseAuth])
   .handler(async ({ context }): Promise<MLConnectionView | null> => {
     const { getConnection } = await import("./service");
     return getConnection(context.supabase, context.userId);
   });
 
 export const saveMLConnection = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([attachSupabaseAuth, requireSupabaseAuth])
   .inputValidator((input: { affiliateLink: string; cookie?: string; clearCookie?: boolean }) => {
     const affiliateLink = String(input.affiliateLink ?? "").trim();
     const cookie = input.cookie ? String(input.cookie) : undefined;
@@ -43,7 +44,7 @@ export const saveMLConnection = createServerFn({ method: "POST" })
   });
 
 export const buildMLAffiliateUrl = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([attachSupabaseAuth, requireSupabaseAuth])
   .inputValidator((input: { productUrl: string }) => {
     const productUrl = String(input.productUrl ?? "").trim();
     if (!productUrl) throw new Error("productUrl é obrigatório.");
