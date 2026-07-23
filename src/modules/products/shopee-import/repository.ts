@@ -30,8 +30,7 @@ export async function upsertBatch(
 
   const { error: upsertErr } = await supabase
     .from("products")
-    // @ts-expect-error - generated types may not include new columns yet
-    .upsert(batch, { onConflict: "user_id,platform,item_id" });
+    .upsert(batch as never, { onConflict: "user_id,platform,item_id" });
 
   if (upsertErr) {
     throw new Error(`Falha ao gravar produtos: ${upsertErr.message}`);
