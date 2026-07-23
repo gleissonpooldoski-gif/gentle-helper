@@ -70,12 +70,10 @@ export function computeStatus(input: {
   tag?: string | null;
 }): { status: ConnectionStatus; error: string | null } {
   if (!input.affiliateLink?.trim()) return { status: "pending", error: "Link de afiliado ausente." };
-  if (!input.tag) {
-    return {
-      status: "pending",
-      error: "Não foi possível identificar a tag de afiliado — configure manualmente.",
-    };
-  }
-  // Cookie is optional; a valid affiliate tag is enough to save and use the connection.
-  return { status: "connected", error: null };
+  if (input.tag) return { status: "connected", error: null };
+  if (input.cookie) return { status: "connected", error: null };
+  return {
+    status: "pending",
+    error: "Tag não identificada — adicione um cookie ou use um link com tag de afiliado.",
+  };
 }
