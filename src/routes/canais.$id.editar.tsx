@@ -2823,13 +2823,30 @@ function ShopeePanel() {
           </p>
 
           <div className="mt-4 space-y-3">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv,text/csv"
+              className="hidden"
+              onChange={(e) => handleCsvFile(e.target.files?.[0])}
+            />
             <div>
               <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Arquivo de Produtos .CSV</label>
-              <div className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border/70 bg-muted/20 px-4 py-6 text-center">
+              <div
+                onClick={handlePickCsv}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  handleCsvFile(e.dataTransfer.files?.[0]);
+                }}
+                className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border/70 bg-muted/20 px-4 py-6 text-center transition hover:border-primary/60 hover:bg-muted/40"
+              >
                 <Upload className="h-6 w-6 text-muted-foreground" />
                 <p className="text-[12.5px] font-medium text-foreground">Arraste seu arquivo aqui</p>
                 <p className="text-[11px] text-muted-foreground">ou clique para selecionar</p>
-                <Button variant="outline" size="sm" className="mt-1 h-8 rounded-full text-[12px]">Escolher .CSV</Button>
+                <Button type="button" variant="outline" size="sm" className="mt-1 h-8 rounded-full text-[12px]" onClick={(e) => { e.stopPropagation(); handlePickCsv(); }}>
+                  Escolher .CSV
+                </Button>
               </div>
             </div>
             <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
@@ -2846,10 +2863,16 @@ function ShopeePanel() {
                 <code className="rounded bg-background px-1">Offer Link</code>
               </p>
             </div>
-            <Button className="w-full gap-2 rounded-full bg-primary hover:bg-primary/90">
-              <Upload className="h-4 w-4" /> Importar
+            <Button
+              type="button"
+              disabled={importing}
+              onClick={handlePickCsv}
+              className="w-full gap-2 rounded-full bg-primary hover:bg-primary/90"
+            >
+              <Upload className="h-4 w-4" /> {importing ? "Importando..." : "Importar"}
             </Button>
           </div>
+
         </div>
       </div>
 
