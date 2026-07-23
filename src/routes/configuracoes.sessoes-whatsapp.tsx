@@ -104,17 +104,15 @@ function SessionsPage() {
         </p>
       </header>
 
-      <div className="flex gap-2 rounded-2xl border border-border/70 bg-card p-4">
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Nome da nova sessão"
-          className="h-9 flex-1 rounded-md border border-border bg-background px-3 text-sm"
-        />
-        <Button size="sm" onClick={handleCreate} disabled={busy === "create" || !name.trim()}>
-          ⊕ Nova sessão
+      <div className="flex items-center justify-between rounded-2xl border border-border/70 bg-card p-4">
+        <p className="text-sm text-muted-foreground">
+          {sessions.length} sessão(ões) cadastrada(s)
+        </p>
+        <Button size="sm" onClick={() => setModalOpen(true)}>
+          <Plus className="mr-1 h-4 w-4" /> Nova sessão
         </Button>
       </div>
+
 
       {loading ? (
         <p className="text-sm text-muted-foreground">Carregando…</p>
