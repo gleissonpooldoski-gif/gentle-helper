@@ -2348,11 +2348,22 @@ function MercadoLivrePanel() {
       }));
       setResults(items);
       setPagination({ offset: res.offset, limit: res.limit, total: res.total });
-      if (items.length === 0) toast.message("Nenhum produto encontrado.");
-    } catch (err) {
-      toast.error("Falha ao buscar produtos", {
-        description: err instanceof Error ? err.message : "Erro desconhecido.",
+      console.log("[ML][panel] busca concluída", {
+        termo: query ?? "",
+        categoriaId: categoryId ?? null,
+        mode,
+        total: res.total,
+        retornados: items.length,
       });
+      if (items.length === 0) {
+        toast.message("Nenhum produto encontrado.", {
+          description: `Termo: "${query ?? "-"}" · Categoria: ${categoryId ?? "-"} · Total API: ${res.total}`,
+        });
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Erro desconhecido.";
+      console.error("[ML][panel] falha na busca", { err });
+      toast.error("Falha ao buscar produtos", { description: msg });
     } finally {
       setSearching(false);
     }
