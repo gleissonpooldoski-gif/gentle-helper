@@ -33,7 +33,22 @@ async function loadToken(userId: string): Promise<string> {
   const { getValidAccessToken } = await import(
     "@/modules/affiliate/mercado-livre/oauth.server"
   );
-  return getValidAccessToken(userId);
+  const token = await getValidAccessToken(userId);
+  console.log("[ML][ctrl] getValidAccessToken", { userId, tokenValid: token ? "SIM" : "NAO" });
+  return token;
+}
+
+async function tryLoadToken(userId: string): Promise<string | null> {
+  try {
+    return await loadToken(userId);
+  } catch (e) {
+    console.log("[ML][ctrl] getValidAccessToken", {
+      userId,
+      tokenValid: "NAO",
+      reason: e instanceof Error ? e.message : String(e),
+    });
+    return null;
+  }
 }
 
 function toUpsert(userId: string, item: MLItem, affiliateTag: string | null): MLProductUpsert {
@@ -107,8 +122,14 @@ export const searchMLProducts = createServerFn({ method: "POST" })
       })
       .parse(input),
   )
-  .handler(async ({ data, context: _context }) => {
-    // Catálogo público — não carrega token para não disparar 403.
+  .handler(async ({ data, context }) => {
+    // /sites/MLB/search é público; token não é obrigatório. Ainda assim
+    // logamos SIM/NÃO para diagnóstico — falha ao obter token NÃO bloqueia a busca.
+    await tryLoadToken(context.userId);
+    console.log("[ML][ctrl] search", {
+      mode: data.mode, query: data.query, categoryId: data.categoryId,
+      offset: data.offset, limit: data.limit,
+    });
     if (data.mode === "deals") return getHighlights(data.offset, data.limit);
     return searchItems({
       query: data.query,
