@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="pt-br">
+  <head>
+    <meta charset="utf-8" />
+    <title>Conectar canal</title>
+    <style>
+      :root { color-scheme: light; }
+      * { box-sizing: border-box; }
+      body {
+        width: 340px;
+        margin: 0;
+        padding: 16px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        background: #ffffff;
+        color: #111827;
+      }
+      h1 { font-size: 15px; margin: 0 0 4px; font-weight: 700; }
+      p.sub { margin: 0 0 12px; font-size: 12px; color: #6b7280; }
+      label { display: block; font-size: 11.5px; font-weight: 600; margin-bottom: 6px; color: #374151; }
+      textarea {
+        width: 100%; min-height: 78px; padding: 8px 10px;
+        border: 1px solid #e5e7eb; border-radius: 8px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 12px; resize: vertical; outline: none;
+      }
+      textarea:focus { border-color: #10b981; box-shadow: 0 0 0 3px rgba(16,185,129,0.15); }
+      button {
+        width: 100%; margin-top: 10px; padding: 9px 12px; border: 0; border-radius: 8px;
+        background: #10b981; color: white; font-weight: 600; font-size: 13px; cursor: pointer;
+      }
+      button:disabled { opacity: 0.6; cursor: not-allowed; }
+      .status {
+        margin-top: 12px; padding: 10px; border-radius: 8px; font-size: 12px;
+        background: #f3f4f6; color: #374151; word-break: break-all;
+      }
+      .ok { background: #ecfdf5; color: #065f46; }
+      .err { background: #fef2f2; color: #991b1b; }
+      .row { display: flex; gap: 8px; align-items: center; justify-content: space-between; margin-top: 10px; font-size: 11.5px; color: #6b7280; }
+      a { color: #10b981; text-decoration: none; }
+    </style>
+  </head>
+  <body>
+    <h1>Conectar canal WhatsApp</h1>
+    <p class="sub">Cole o token gerado no painel do canal.</p>
+
+    <label for="token">Token de conexão</label>
+    <textarea id="token" placeholder="dvl_wa_xxxxxxxx|channel-id"></textarea>
+
+    <label for="apiBase" style="margin-top:10px">Servidor</label>
+    <textarea id="apiBase" style="min-height:38px" placeholder="https://seu-projeto.lovable.app"></textarea>
+
+    <button id="connect">Conectar ao canal</button>
+
+    <div id="status" class="status" style="display:none"></div>
+
+    <div class="row">
+      <span id="waStatus">WhatsApp Web: verificando…</span>
+      <a href="https://web.whatsapp.com" target="_blank">abrir</a>
+    </div>
+
+    <script src="popup.js"></script>
+  </body>
+</html>
