@@ -14,6 +14,12 @@ import {
   type WhatsAppConnectionDTO,
 } from "@/modules/channels/whatsapp/connection.functions";
 import {
+  getWhatsAppSession,
+  disconnectWhatsAppSession,
+  type WhatsAppSessionDTO,
+} from "@/modules/channels/whatsapp/session.functions";
+
+import {
   AlertTriangle,
   ArrowLeft,
   Calendar,
