@@ -185,7 +185,7 @@ export type SearchOptions = {
 
 export async function searchItems(
   opts: SearchOptions,
-  _accessToken?: string,
+  accessToken?: string,
 ): Promise<{ items: MLItem[]; total: number; offset: number; limit: number }> {
   const params = new URLSearchParams();
   if (opts.query) params.set("q", opts.query);
@@ -195,11 +195,11 @@ export async function searchItems(
   if (opts.sort === "price_asc") params.set("sort", "price_asc");
   if (opts.sort === "price_desc") params.set("sort", "price_desc");
 
-  // Catálogo público — SEM Bearer. Enviar token nesse endpoint dispara 403
-  // quando o app não tem escopos de vendedor. Ver: /sites/MLB/search é aberto.
+  // Endpoint público de catálogo — usado para descobrir produtos p/ divulgação
+  // afiliada (NÃO gerencia anúncios do vendedor).
   const url = `https://api.mercadolibre.com/sites/MLB/search?${params.toString()}`;
-  console.log("[ML][api] search endpoint", { endpoint: url, auth: "none (public)" });
-  const raw = await fetchJson<SearchResult>(url);
+  console.log("[ML][api] search endpoint", { endpoint: url, auth: accessToken ? "bearer" : "none" });
+  const raw = await fetchJson<SearchResult>(url, accessToken);
   const items = (raw.results ?? []).map(normalize).filter((i): i is MLItem => !!i);
   return {
     items,
@@ -212,7 +212,7 @@ export async function searchItems(
 export async function getHighlights(
   offset = 0,
   limit = 24,
-  _accessToken?: string,
+  accessToken?: string,
 ): Promise<{ items: MLItem[]; total: number; offset: number; limit: number }> {
   const params = new URLSearchParams({
     offset: String(offset),
@@ -220,10 +220,9 @@ export async function getHighlights(
     sort: "relevance",
     discount: "5-100",
   });
-  // Catálogo público — SEM Bearer.
   const url = `https://api.mercadolibre.com/sites/MLB/search?${params.toString()}`;
-  console.log("[ML][api] highlights endpoint", { endpoint: url, auth: "none (public)" });
-  const raw = await fetchJson<SearchResult>(url);
+  console.log("[ML][api] highlights endpoint", { endpoint: url, auth: accessToken ? "bearer" : "none" });
+  const raw = await fetchJson<SearchResult>(url, accessToken);
   const items = (raw.results ?? []).map(normalize).filter((i): i is MLItem => !!i);
   return {
     items,
