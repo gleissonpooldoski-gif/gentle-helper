@@ -3084,17 +3084,26 @@ function ShopeePanel() {
                 Todos
               </label>
               <div className="relative">
-                <select className="h-8 appearance-none rounded-md border border-input bg-background px-2.5 pr-7 text-[12px]">
-                  <option>Selecione uma ação...</option>
-                  <option>Enviar Feed WhatsApp</option>
-                  <option>Enviar Story Instagram</option>
-                  <option>Republicar</option>
-                  <option>Excluir</option>
+                <select
+                  className="h-8 appearance-none rounded-md border border-input bg-background px-2.5 pr-7 text-[12px]"
+                  value={bulkAction}
+                  onChange={(e) => setBulkAction(e.target.value)}
+                >
+                  <option value="">Selecione uma ação...</option>
+                  <option value="Enviar Feed WhatsApp">Enviar Feed WhatsApp</option>
+                  <option value="Enviar Story Instagram">Enviar Story Instagram</option>
+                  <option value="Republicar">Republicar</option>
+                  <option value="Excluir">Excluir</option>
                 </select>
                 <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               </div>
-              <Button size="sm" className="h-8 gap-1.5 rounded-md bg-[oklch(0.62_0.19_150)] px-3 text-[12px] hover:bg-[oklch(0.55_0.19_150)]">
-                <Play className="h-3 w-3" /> Executar
+              <Button
+                size="sm"
+                onClick={handleExecute}
+                disabled={bulkBusy}
+                className="h-8 gap-1.5 rounded-md bg-[oklch(0.62_0.19_150)] px-3 text-[12px] hover:bg-[oklch(0.55_0.19_150)]"
+              >
+                <Play className="h-3 w-3" /> {bulkBusy ? "Executando..." : "Executar"}
               </Button>
             </div>
           </div>
