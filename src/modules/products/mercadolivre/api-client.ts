@@ -39,22 +39,24 @@ async function fetchJson<T>(url: string, accessToken?: string): Promise<T> {
   };
   if (accessToken) headers["authorization"] = `Bearer ${accessToken}`;
 
-  console.log("[ML][api] request", {
-    url,
-    hasToken: !!accessToken,
-  });
+  const method = "GET";
+  console.log("[ML][api] request", { method, url, hasToken: !!accessToken });
 
   try {
     const res = await fetch(url, {
+      method,
       signal: controller.signal,
       redirect: "follow",
       headers,
     });
     const bodyText = await res.text().catch(() => "");
+    let bodyJson: unknown = null;
+    try { bodyJson = JSON.parse(bodyText); } catch { /* not JSON */ }
     console.log("[ML][api] response", {
+      method,
       url,
       status: res.status,
-      body: bodyText.slice(0, 400),
+      body: bodyJson ?? bodyText,
     });
     if (!res.ok) {
       let friendly = `Mercado Livre API ${res.status}`;
@@ -69,10 +71,11 @@ async function fetchJson<T>(url: string, accessToken?: string): Promise<T> {
       } else if (res.status >= 500) {
         friendly = `Mercado Livre indisponível (${res.status}).`;
       }
-      console.warn("[ML][api] error", { url, status: res.status, bodySnippet: bodyText.slice(0, 200) });
+      console.warn("[ML][api] error", { method, url, status: res.status, body: bodyJson ?? bodyText });
       throw new MLApiError(friendly, url, res.status);
     }
-    return JSON.parse(bodyText) as T;
+    return (bodyJson ?? JSON.parse(bodyText)) as T;
+
   } catch (err) {
     if (err instanceof MLApiError) throw err;
     const msg = err instanceof Error ? err.message : String(err);
