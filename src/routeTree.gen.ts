@@ -14,6 +14,7 @@ import { Route as ConfigAfiliadosRouteImport } from './routes/config-afiliados'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as CanaisIdEditarRouteImport } from './routes/canais.$id.editar'
+import { Route as ApiMlCallbackRouteImport } from './routes/api/ml/callback'
 
 const RelatoriosRoute = RelatoriosRouteImport.update({
   id: '/relatorios',
@@ -40,12 +41,18 @@ const CanaisIdEditarRoute = CanaisIdEditarRouteImport.update({
   path: '/canais/$id/editar',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMlCallbackRoute = ApiMlCallbackRouteImport.update({
+  id: '/api/ml/callback',
+  path: '/api/ml/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/config-afiliados': typeof ConfigAfiliadosRoute
   '/relatorios': typeof RelatoriosRoute
+  '/api/ml/callback': typeof ApiMlCallbackRoute
   '/canais/$id/editar': typeof CanaisIdEditarRoute
 }
 export interface FileRoutesByTo {
@@ -53,6 +60,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/config-afiliados': typeof ConfigAfiliadosRoute
   '/relatorios': typeof RelatoriosRoute
+  '/api/ml/callback': typeof ApiMlCallbackRoute
   '/canais/$id/editar': typeof CanaisIdEditarRoute
 }
 export interface FileRoutesById {
@@ -61,6 +69,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/config-afiliados': typeof ConfigAfiliadosRoute
   '/relatorios': typeof RelatoriosRoute
+  '/api/ml/callback': typeof ApiMlCallbackRoute
   '/canais/$id/editar': typeof CanaisIdEditarRoute
 }
 export interface FileRouteTypes {
@@ -70,15 +79,23 @@ export interface FileRouteTypes {
     | '/auth'
     | '/config-afiliados'
     | '/relatorios'
+    | '/api/ml/callback'
     | '/canais/$id/editar'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/auth' | '/config-afiliados' | '/relatorios' | '/canais/$id/editar'
+  to:
+    | '/'
+    | '/auth'
+    | '/config-afiliados'
+    | '/relatorios'
+    | '/api/ml/callback'
+    | '/canais/$id/editar'
   id:
     | '__root__'
     | '/'
     | '/auth'
     | '/config-afiliados'
     | '/relatorios'
+    | '/api/ml/callback'
     | '/canais/$id/editar'
   fileRoutesById: FileRoutesById
 }
@@ -87,6 +104,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   ConfigAfiliadosRoute: typeof ConfigAfiliadosRoute
   RelatoriosRoute: typeof RelatoriosRoute
+  ApiMlCallbackRoute: typeof ApiMlCallbackRoute
   CanaisIdEditarRoute: typeof CanaisIdEditarRoute
 }
 
@@ -127,6 +145,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CanaisIdEditarRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/ml/callback': {
+      id: '/api/ml/callback'
+      path: '/api/ml/callback'
+      fullPath: '/api/ml/callback'
+      preLoaderRoute: typeof ApiMlCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -135,18 +160,9 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   ConfigAfiliadosRoute: ConfigAfiliadosRoute,
   RelatoriosRoute: RelatoriosRoute,
+  ApiMlCallbackRoute: ApiMlCallbackRoute,
   CanaisIdEditarRoute: CanaisIdEditarRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
