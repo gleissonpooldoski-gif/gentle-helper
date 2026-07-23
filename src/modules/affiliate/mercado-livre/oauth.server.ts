@@ -27,6 +27,7 @@ function b64url(buf: Buffer | string): string {
 
 /** Sign state as `<payload_b64>.<hmac_b64>` where payload = {u, e}. */
 export function signState(userId: string): string {
+  if (!userId) throw new Error("Configuração Mercado Livre incompleta (userId ausente para state).");
   const payload = JSON.stringify({ u: userId, e: Math.floor(Date.now() / 1000) + STATE_TTL_SECONDS });
   const p = b64url(payload);
   const sig = b64url(createHmac("sha256", stateSecret()).update(p).digest());
@@ -82,6 +83,7 @@ async function tokenRequest(body: URLSearchParams): Promise<TokenResponse> {
     body: body.toString(),
   });
   const text = await res.text();
+  console.log("[ML][oauth] token endpoint response", { status: res.status, bodyLength: text.length });
   if (!res.ok) {
     let msg = text.slice(0, 300);
     try {
@@ -90,13 +92,37 @@ async function tokenRequest(body: URLSearchParams): Promise<TokenResponse> {
     } catch { /* keep raw */ }
     throw new Error(`Mercado Livre OAuth ${res.status}: ${msg}`);
   }
-  return JSON.parse(text) as TokenResponse;
+  let parsed: TokenResponse;
+  try {
+    parsed = JSON.parse(text) as TokenResponse;
+  } catch {
+    throw new Error("Token Mercado Livre não recebido (resposta inválida).");
+  }
+  console.log("[ML][oauth] token fields present", {
+    access_token: !!parsed.access_token,
+    refresh_token: !!parsed.refresh_token,
+    expires_in: parsed.expires_in,
+    user_id: parsed.user_id,
+  });
+  if (!parsed.access_token || !parsed.refresh_token || !parsed.expires_in || parsed.user_id == null) {
+    throw new Error("Token Mercado Livre não recebido (campos obrigatórios ausentes).");
+  }
+  return parsed;
 }
 
 export async function exchangeCode(code: string, redirectUri: string): Promise<TokenResponse> {
   const clientId = process.env.ML_CLIENT_ID;
   const clientSecret = process.env.ML_CLIENT_SECRET;
-  if (!clientId || !clientSecret) throw new Error("ML_CLIENT_ID/ML_CLIENT_SECRET ausentes.");
+  console.log("[ML][oauth] exchangeCode preconditions", {
+    hasClientId: !!clientId,
+    hasClientSecret: !!clientSecret,
+    hasEncKey: !!process.env.SHOPEE_CONFIG_ENC_KEY,
+    hasCode: !!code,
+    hasRedirectUri: !!redirectUri,
+  });
+  if (!clientId || !clientSecret) throw new Error("Configuração Mercado Livre incompleta (ML_CLIENT_ID/ML_CLIENT_SECRET ausentes).");
+  if (!process.env.SHOPEE_CONFIG_ENC_KEY) throw new Error("Configuração Mercado Livre incompleta (chave de criptografia ausente).");
+  if (!code) throw new Error("Configuração Mercado Livre incompleta (authorization code ausente).");
   return tokenRequest(
     new URLSearchParams({
       grant_type: "authorization_code",
@@ -111,7 +137,8 @@ export async function exchangeCode(code: string, redirectUri: string): Promise<T
 export async function refreshToken(refresh: string): Promise<TokenResponse> {
   const clientId = process.env.ML_CLIENT_ID;
   const clientSecret = process.env.ML_CLIENT_SECRET;
-  if (!clientId || !clientSecret) throw new Error("ML_CLIENT_ID/ML_CLIENT_SECRET ausentes.");
+  if (!clientId || !clientSecret) throw new Error("Configuração Mercado Livre incompleta (ML_CLIENT_ID/ML_CLIENT_SECRET ausentes).");
+  if (!refresh) throw new Error("Token Mercado Livre não recebido (refresh_token ausente).");
   return tokenRequest(
     new URLSearchParams({
       grant_type: "refresh_token",
@@ -124,6 +151,10 @@ export async function refreshToken(refresh: string): Promise<TokenResponse> {
 
 /** Persist tokens (encrypted) for the given user via the service-role client. */
 export async function persistTokens(userId: string, t: TokenResponse): Promise<void> {
+  if (!userId) throw new Error("Configuração Mercado Livre incompleta (userId ausente).");
+  if (!t?.access_token || !t?.refresh_token) {
+    throw new Error("Token Mercado Livre não recebido (access/refresh ausentes).");
+  }
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const expiresAt = new Date(Date.now() + (t.expires_in - 60) * 1000).toISOString();
   const { error } = await supabaseAdmin
