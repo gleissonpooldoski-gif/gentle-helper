@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { parseShopeeCsv, type ShopeeCsvRow } from "@/modules/products/shopee-import/csv.processor";
@@ -7,6 +7,12 @@ import { importShopeeBatch } from "@/modules/products/shopee-import/shopee-impor
 import { deleteProductsByItemIds, deleteAllProducts } from "@/modules/products/shopee-import/product-delete.functions";
 import { listPendingShopeeImages, enrichShopeeImageOne } from "@/modules/products/shopee-import/image-enrich.functions";
 import { addMLProductByLink, searchMLProducts, addMLProductsByIds } from "@/modules/products/mercadolivre/controller.functions";
+import {
+  getWhatsAppConnection,
+  generateWhatsAppToken,
+  reconnectWhatsApp,
+  type WhatsAppConnectionDTO,
+} from "@/modules/channels/whatsapp/connection.functions";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -1799,6 +1805,8 @@ function WhatsAppGroupsPanel() {
 
   return (
     <div className="mt-6 space-y-6">
+      <WhatsAppConnectionCard />
+
       {/* WhatsApp Web / Passkey solution */}
       <div className="overflow-hidden rounded-2xl border border-[oklch(0.85_0.12_150)] bg-gradient-to-br from-[oklch(0.97_0.05_150)] to-[oklch(0.95_0.06_155)] shadow-[0_1px_2px_rgba(15,23,42,0.04),0_10px_30px_-18px_rgba(20,150,90,0.35)]">
         <div className="flex flex-col gap-5 p-6 sm:flex-row sm:items-start">
@@ -3542,3 +3550,145 @@ function ShopeePanel() {
     </div>
   );
 }
+
+function WhatsAppConnectionCard() {
+  const { id: channelId } = Route.useParams();
+  const loadFn = useServerFn(getWhatsAppConnection);
+  const generateFn = useServerFn(generateWhatsAppToken);
+  const reconnectFn = useServerFn(reconnectWhatsApp);
+
+  const [connection, setConnection] = useState<WhatsAppConnectionDTO | null>(null);
+  const [token, setToken] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState<"generate" | "reconnect" | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    loadFn({ data: { channelId } })
+      .then((res) => {
+        if (!alive) return;
+        setConnection(res);
+      })
+      .catch((err) => toast.error(err instanceof Error ? err.message : "Falha ao carregar conexão"))
+      .finally(() => alive && setLoading(false));
+    return () => {
+      alive = false;
+    };
+  }, [channelId, loadFn]);
+
+  const status: "disconnected" | "pending" | "connected" = connection?.status ?? "disconnected";
+  const statusMeta = {
+    disconnected: { label: "Não conectado", cls: "bg-muted text-muted-foreground" },
+    pending: { label: "Aguardando conexão", cls: "bg-[oklch(0.94_0.09_75)] text-[oklch(0.42_0.15_60)]" },
+    connected: { label: "Conectado", cls: "bg-[oklch(0.94_0.08_150)] text-[oklch(0.42_0.15_155)]" },
+  }[status];
+
+  const handleGenerate = async () => {
+    try {
+      setBusy("generate");
+      const res = await generateFn({ data: { channelId } });
+      setConnection(res.connection);
+      setToken(res.token);
+      toast.success("Token gerado. Copie e cole na extensão.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao gerar token");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleCopy = async () => {
+    if (!token) {
+      toast.info("Gere um token primeiro. Por segurança ele só aparece uma vez.");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(token);
+      toast.success("Token copiado");
+    } catch {
+      toast.error("Não foi possível copiar");
+    }
+  };
+
+  const handleReconnect = async () => {
+    try {
+      setBusy("reconnect");
+      const res = await reconnectFn({ data: { channelId } });
+      setConnection(res);
+      setToken(null);
+      toast.success("Solicitação de reconexão enviada");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao reconectar");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div className="rounded-2xl border border-border/70 bg-card p-5 shadow-sm">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex items-start gap-3">
+          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-[oklch(0.72_0.18_150)] to-[oklch(0.55_0.2_155)] text-white">
+            <MessageCircle className="h-5 w-5" strokeWidth={2.4} />
+          </div>
+          <div>
+            <h3 className="font-display text-base font-bold text-foreground">Conexão WhatsApp</h3>
+            <p className="text-[12.5px] text-muted-foreground">
+              Vincule este canal ao seu WhatsApp usando o token de conexão.
+            </p>
+            <span
+              className={cn(
+                "mt-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider",
+                statusMeta.cls,
+              )}
+            >
+              {loading ? "Carregando…" : statusMeta.label}
+            </span>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            size="sm"
+            onClick={handleGenerate}
+            disabled={busy !== null || loading}
+            className="rounded-lg"
+          >
+            <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+            {busy === "generate" ? "Gerando…" : "Gerar token de conexão"}
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleCopy}
+            disabled={!token}
+            className="rounded-lg"
+          >
+            <Copy className="mr-1.5 h-3.5 w-3.5" /> Copiar token
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleReconnect}
+            disabled={busy !== null || loading}
+            className="rounded-lg"
+          >
+            <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+            {busy === "reconnect" ? "Reconectando…" : "Reconectar"}
+          </Button>
+        </div>
+      </div>
+
+      {token && (
+        <div className="mt-4 flex flex-wrap items-center gap-2 rounded-lg border border-dashed border-border/70 bg-muted/40 p-3 font-mono text-[12.5px]">
+          <span className="text-muted-foreground">Token:</span>
+          <span className="break-all font-semibold text-foreground">{token}</span>
+          <span className="ml-auto text-[10.5px] uppercase tracking-wider text-muted-foreground">
+            visível somente agora
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
