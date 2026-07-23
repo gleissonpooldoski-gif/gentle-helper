@@ -170,6 +170,13 @@ function SessionsPage() {
           ))}
         </ul>
       )}
+
+      <ConnectNewNumberModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        onSubmit={handleCreate}
+        busy={busy === "create"}
+      />
     </div>
   );
 }
