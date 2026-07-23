@@ -1,7 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
-import { randomBytes } from "node:crypto";
+import { randomBytes, createHash } from "node:crypto";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { apiClient } from "@/lib/api-client";
+
+const TOKEN_TTL_MINUTES = 15;
 
 export type WASessionStatus = "pending" | "connected" | "disconnected";
 
