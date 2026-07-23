@@ -20,12 +20,20 @@ export async function importBatch(
     .map((r) => ({ itemId: r.itemId, productUrl: r.productUrl }));
   const resolved = missing.length > 0 ? await resolveImages(missing) : new Map<string, string>();
 
-  const enriched: ShopeeCsvRow[] = rows.map((r) => {
-    const candidate = r.imageUrl ?? resolved.get(r.itemId) ?? null;
-    return { ...r, imageUrl: isValidHttpUrl(candidate) ? candidate : null };
-  });
+  const candidates: Array<{ row: ShopeeCsvRow; candidate: string | null }> = rows.map((r) => ({
+    row: r,
+    candidate: r.imageUrl ?? resolved.get(r.itemId) ?? null,
+  }));
 
-  const payload = enriched.map((r) => mapRowToProduct(userId, r));
+  // Validate reachability in parallel (best-effort, bounded timeout).
+  const validated = await Promise.all(
+    candidates.map(async ({ row, candidate }) => {
+      const url = isValidHttpUrl(candidate) ? await verifyReachable(candidate) : null;
+      return { ...row, imageUrl: url };
+    }),
+  );
+
+  const payload = validated.map((r) => mapRowToProduct(userId, r));
   return upsertBatch(supabase, userId, payload);
 }
 
@@ -36,5 +44,30 @@ function isValidHttpUrl(v: string | null): v is string {
     return u.protocol === "http:" || u.protocol === "https:";
   } catch {
     return false;
+  }
+}
+
+async function verifyReachable(url: string): Promise<string | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 4_000);
+  try {
+    let res = await fetch(url, { method: "HEAD", redirect: "follow", signal: controller.signal });
+    // Some CDNs reject HEAD — retry with a tiny ranged GET.
+    if (!res.ok || res.status === 405) {
+      res = await fetch(url, {
+        method: "GET",
+        redirect: "follow",
+        signal: controller.signal,
+        headers: { range: "bytes=0-0" },
+      });
+    }
+    if (!res.ok) return null;
+    const ct = res.headers.get("content-type") ?? "";
+    if (ct && !ct.startsWith("image/") && ct !== "application/octet-stream") return null;
+    return url;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
   }
 }
