@@ -26,12 +26,28 @@ export const Route = createFileRoute("/api/ml/callback")({
         const errorParam = url.searchParams.get("error");
         const back = `${appOrigin(request)}/config-afiliados`;
 
+        console.log("[ML][callback] recebido", {
+          ok: true,
+          hasCode: !!code,
+          hasState: !!state,
+          hasError: !!errorParam,
+          hasClientId: !!process.env.ML_CLIENT_ID,
+          hasClientSecret: !!process.env.ML_CLIENT_SECRET,
+          hasEncKey: !!process.env.SHOPEE_CONFIG_ENC_KEY,
+        });
+
         if (errorParam) {
           const desc = url.searchParams.get("error_description") ?? errorParam;
           return redirectTo(`${back}?ml_error=${encodeURIComponent(desc)}`);
         }
         if (!code || !state) {
-          return redirectTo(`${back}?ml_error=${encodeURIComponent("Resposta inválida do Mercado Livre.")}`);
+          return redirectTo(`${back}?ml_error=${encodeURIComponent("Resposta inválida do Mercado Livre (code/state ausentes).")}`);
+        }
+        if (!process.env.ML_CLIENT_ID || !process.env.ML_CLIENT_SECRET) {
+          return redirectTo(`${back}?ml_error=${encodeURIComponent("Configuração Mercado Livre incompleta: ML_CLIENT_ID/ML_CLIENT_SECRET ausentes no backend.")}`);
+        }
+        if (!process.env.SHOPEE_CONFIG_ENC_KEY) {
+          return redirectTo(`${back}?ml_error=${encodeURIComponent("Configuração Mercado Livre incompleta: chave de criptografia (SHOPEE_CONFIG_ENC_KEY) ausente.")}`);
         }
 
         try {
@@ -44,6 +60,12 @@ export const Route = createFileRoute("/api/ml/callback")({
           }
           const redirectUri = `${appOrigin(request)}/api/ml/callback`;
           const tokens = await exchangeCode(code, redirectUri);
+          console.log("[ML][callback] token recebido", {
+            hasAccessToken: !!tokens?.access_token,
+            hasRefreshToken: !!tokens?.refresh_token,
+            hasExpiresIn: !!tokens?.expires_in,
+            hasUserId: tokens?.user_id != null,
+          });
           await persistTokens(parsed.userId, tokens);
           return redirectTo(`${back}?ml_connected=1`);
         } catch (err) {
