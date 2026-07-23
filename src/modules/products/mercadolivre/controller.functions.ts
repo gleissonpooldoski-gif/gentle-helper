@@ -1,6 +1,6 @@
 /**
  * Server-function controllers for Mercado Livre product ingestion + search.
- * All calls run authenticated (RLS-scoped) and never leak the user's ML tag.
+ * Loads the user's OAuth access_token (auto-refresh) before every API call.
  */
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
@@ -29,6 +29,13 @@ async function loadAffiliateTag(
   }
 }
 
+async function loadToken(userId: string): Promise<string> {
+  const { getValidAccessToken } = await import(
+    "@/modules/affiliate/mercado-livre/oauth.server"
+  );
+  return getValidAccessToken(userId);
+}
+
 function toUpsert(userId: string, item: MLItem, affiliateTag: string | null): MLProductUpsert {
   return {
     user_id: userId,
@@ -50,29 +57,19 @@ function toUpsert(userId: string, item: MLItem, affiliateTag: string | null): ML
 /** Add one product by pasting any ML URL / short link / raw MLB id. */
 export const addMLProductByLink = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
-    z.object({ link: z.string().min(3) }).parse(input),
-  )
+  .inputValidator((input: unknown) => z.object({ link: z.string().min(3) }).parse(input))
   .handler(async ({ data, context }) => {
     const raw = data.link.trim();
-
-    // 1. Direct MLB id anywhere in the pasted string.
     let mlbId = parseMLBId(raw);
-
-    // 2. Follow redirects for short/affiliate links, then retry parse.
     if (!mlbId && /^https?:\/\//i.test(raw)) {
       const finalUrl = await resolveShortLink(raw);
       if (finalUrl) mlbId = parseMLBId(finalUrl);
     }
+    if (!mlbId) throw new Error("Não foi possível identificar o código MLB neste link.");
 
-    if (!mlbId) {
-      throw new Error("Não foi possível identificar o código MLB neste link.");
-    }
-
-    const item = await getItemById(mlbId);
-    if (!item) {
-      throw new Error(`Produto ${mlbId} não encontrado na API do Mercado Livre.`);
-    }
+    const token = await loadToken(context.userId);
+    const item = await getItemById(mlbId, token);
+    if (!item) throw new Error(`Produto ${mlbId} não encontrado na API do Mercado Livre.`);
 
     const tag = await loadAffiliateTag(context.supabase, context.userId);
     const outcome = await upsertProducts(context.supabase, context.userId, [
@@ -96,7 +93,7 @@ export const addMLProductByLink = createServerFn({ method: "POST" })
     };
   });
 
-/** Search the Mercado Livre catalog (paginated). Read-only. */
+/** Search the Mercado Livre catalog (paginated). */
 export const searchMLProducts = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
@@ -110,29 +107,31 @@ export const searchMLProducts = createServerFn({ method: "POST" })
       })
       .parse(input),
   )
-  .handler(async ({ data }) => {
-    if (data.mode === "deals") {
-      return getHighlights(data.offset, data.limit);
-    }
-    return searchItems({
-      query: data.query,
-      categoryId: data.categoryId,
-      offset: data.offset,
-      limit: data.limit,
-      sort: data.mode === "best_sellers" ? "relevance" : "relevance",
-    });
+  .handler(async ({ data, context }) => {
+    const token = await loadToken(context.userId);
+    if (data.mode === "deals") return getHighlights(data.offset, data.limit, token);
+    return searchItems(
+      {
+        query: data.query,
+        categoryId: data.categoryId,
+        offset: data.offset,
+        limit: data.limit,
+        sort: data.mode === "best_sellers" ? "relevance" : "relevance",
+      },
+      token,
+    );
   });
 
-/** Add many products by MLB id (used by the "Adicionar" button on cards). */
+/** Add many products by MLB id. */
 export const addMLProductsByIds = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
     z.object({ ids: z.array(z.string().min(3)).min(1).max(50) }).parse(input),
   )
   .handler(async ({ data, context }) => {
+    const token = await loadToken(context.userId);
     const tag = await loadAffiliateTag(context.supabase, context.userId);
 
-    // Fetch items in parallel with a small concurrency cap.
     const items: MLItem[] = [];
     const CONC = 6;
     let cursor = 0;
@@ -140,20 +139,19 @@ export const addMLProductsByIds = createServerFn({ method: "POST" })
       while (cursor < data.ids.length) {
         const idx = cursor++;
         const id = data.ids[idx]!;
-        const item = await getItemById(id);
-        if (item) items.push(item);
+        try {
+          const item = await getItemById(id, token);
+          if (item) items.push(item);
+        } catch (e) {
+          console.error("[ML][addByIds] falha", id, e instanceof Error ? e.message : e);
+        }
       }
     };
-    await Promise.all(
-      Array.from({ length: Math.min(CONC, data.ids.length) }, () => worker()),
-    );
+    await Promise.all(Array.from({ length: Math.min(CONC, data.ids.length) }, () => worker()));
 
     if (items.length === 0) return { inserted: 0, updated: 0, failed: data.ids.length };
 
     const batch = items.map((i) => toUpsert(context.userId, i, tag));
     const outcome = await upsertProducts(context.supabase, context.userId, batch);
-    return {
-      ...outcome,
-      failed: data.ids.length - items.length,
-    };
+    return { ...outcome, failed: data.ids.length - items.length };
   });
