@@ -60,21 +60,20 @@ export async function saveShopeeConnection(
   userId: string,
   input: { affiliateId: string; apiKey?: string; clearApiKey?: boolean },
 ): Promise<ShopeeConfigView> {
-  const existing = await getShopeeConnection(supabase, userId);
+  const { data: existing, error: readError } = await supabase
+    .from("affiliate_connections")
+    .select("api_key_encrypted")
+    .eq("user_id", userId)
+    .eq("platform", PLATFORM)
+    .maybeSingle();
+  if (readError) throw readError;
   let apiKeyEncrypted: string | null | undefined;
 
   if (input.clearApiKey) apiKeyEncrypted = null;
   else if (input.apiKey) apiKeyEncrypted = encryptApiKey(input.apiKey);
 
   const finalApiKey = apiKeyEncrypted === undefined
-    ? existing?.hasApiKey
-      ? (await supabase
-          .from("affiliate_connections")
-          .select("api_key_encrypted")
-          .eq("user_id", userId)
-          .eq("platform", PLATFORM)
-          .single()).data?.api_key_encrypted ?? null
-      : null
+    ? existing?.api_key_encrypted ?? null
     : apiKeyEncrypted;
 
   const updatedAt = new Date().toISOString();
