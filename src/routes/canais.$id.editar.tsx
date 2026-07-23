@@ -2603,7 +2603,11 @@ type ShopeeProduct = {
   original: string;
   discount: number;
   when: string;
+  affiliateLink?: string;
+  rawLink?: string;
+  imageUrl?: string;
 };
+
 
 const SHOPEE_PRODUCTS: ShopeeProduct[] = [
   { id: "s1", title: "Gelatina Modeladora Salon Line Todecacho 550g", emoji: "🧴", color: "oklch(0.9 0.06 30)", format: "FEED", price: "R$ 14,90", original: "R$ 29,90", discount: 50, when: "Hoje 10:22" },
