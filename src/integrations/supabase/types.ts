@@ -98,7 +98,7 @@ export type Database = {
         }
         Relationships: []
       }
-      channel_whatsapp_sessions: {
+      channel_whatsapp_session_status: {
         Row: {
           channel_id: string
           connected_at: string | null
@@ -136,6 +136,35 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      channel_whatsapp_sessions: {
+        Row: {
+          channel_id: string
+          created_at: string
+          id: string
+          session_id: string
+        }
+        Insert: {
+          channel_id: string
+          created_at?: string
+          id?: string
+          session_id: string
+        }
+        Update: {
+          channel_id?: string
+          created_at?: string
+          id?: string
+          session_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "channel_whatsapp_sessions_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       mercadolivre_integrations: {
         Row: {
@@ -371,6 +400,45 @@ export type Database = {
           full_name?: string | null
           id?: string
           plan?: string
+        }
+        Relationships: []
+      }
+      whatsapp_sessions: {
+        Row: {
+          connected_at: string | null
+          created_at: string
+          id: string
+          last_seen_at: string | null
+          name: string
+          phone_number: string | null
+          session_key: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          connected_at?: string | null
+          created_at?: string
+          id?: string
+          last_seen_at?: string | null
+          name: string
+          phone_number?: string | null
+          session_key: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          connected_at?: string | null
+          created_at?: string
+          id?: string
+          last_seen_at?: string | null
+          name?: string
+          phone_number?: string | null
+          session_key?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }

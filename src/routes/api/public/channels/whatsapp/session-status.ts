@@ -72,8 +72,8 @@ export const Route = createFileRoute("/api/public/channels/whatsapp/session-stat
           updated_at: nowIso,
         };
 
-        const { error: upErr } = await supabaseAdmin
-          .from("channel_whatsapp_sessions")
+        const { error: upErr } = await (supabaseAdmin as any)
+          .from("channel_whatsapp_session_status")
           .upsert(upsertRow, { onConflict: "user_id,channel_id" });
         if (upErr) {
           console.error("[WA][SESSION] upsert error", upErr.message);

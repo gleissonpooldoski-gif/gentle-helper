@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { parseShopeeCsv, type ShopeeCsvRow } from "@/modules/products/shopee-import/csv.processor";
@@ -18,6 +18,15 @@ import {
   disconnectWhatsAppSession,
   type WhatsAppSessionDTO,
 } from "@/modules/channels/whatsapp/session.functions";
+import {
+  listWhatsAppSessions,
+  createWhatsAppSession,
+  confirmWhatsAppSession,
+  getChannelWhatsAppSession,
+  linkChannelToSession,
+  unlinkChannelSession,
+  type WASessionDTO,
+} from "@/modules/channels/whatsapp/sessions.functions";
 
 import {
   AlertTriangle,
@@ -1853,51 +1862,8 @@ function WhatsAppGroupsPanel() {
       </div>
 
       {/* Sessões WhatsApp */}
-      <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <h3 className="font-display text-[15px] font-bold uppercase tracking-wider text-foreground">
-              Sessões WhatsApp
-            </h3>
-            <span className="rounded-md bg-gradient-to-r from-[oklch(0.78_0.16_75)] to-[oklch(0.68_0.18_60)] px-1.5 py-0.5 text-[9px] font-bold uppercase text-white">
-              Premium
-            </span>
-          </div>
-          <span className="text-[12px] font-semibold text-muted-foreground">
-            <span className="text-foreground">1</span>/5 sessões
-          </span>
-        </div>
+      <WhatsAppSessionsPanel />
 
-        <div className="flex flex-col gap-4 rounded-2xl border border-border/70 bg-card p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-4">
-            <div className="relative">
-              <div className="grid h-14 w-14 place-items-center rounded-full bg-gradient-to-br from-[oklch(0.72_0.18_150)] to-[oklch(0.55_0.2_155)] font-display text-xl font-bold text-white">
-                SP
-              </div>
-              <span className="absolute -bottom-0.5 -right-0.5 grid h-5 w-5 place-items-center rounded-full border-2 border-card bg-[oklch(0.72_0.18_150)] text-white">
-                <MessageCircle className="h-2.5 w-2.5" strokeWidth={3} />
-              </span>
-            </div>
-            <div className="min-w-0">
-              <p className="truncate font-semibold text-foreground">Segredo das Promoções</p>
-              <p className="text-[12.5px] text-muted-foreground">+55 (11) 98452-1207</p>
-              <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-[oklch(0.94_0.08_150)] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[oklch(0.42_0.15_155)]">
-                <Check className="h-2.5 w-2.5" strokeWidth={3.5} /> Conectado
-              </span>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" className="rounded-lg">Desvincular</Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5 rounded-lg border-[oklch(0.9_0.06_25)] text-[color:var(--color-danger)] hover:bg-[oklch(0.97_0.03_25)]"
-            >
-              <Trash2 className="h-3.5 w-3.5" /> Excluir sessão
-            </Button>
-          </div>
-        </div>
-      </section>
 
       {/* Operational alerts */}
       <div className="grid gap-3 md:grid-cols-[1.4fr_1fr]">
@@ -3554,6 +3520,231 @@ function ShopeePanel() {
         </div>
       </div>
     </div>
+  );
+}
+
+function WhatsAppSessionsPanel() {
+  const { id: channelId } = Route.useParams();
+  const listFn = useServerFn(listWhatsAppSessions);
+  const createFn = useServerFn(createWhatsAppSession);
+  const confirmFn = useServerFn(confirmWhatsAppSession);
+  const getLinkFn = useServerFn(getChannelWhatsAppSession);
+  const linkFn = useServerFn(linkChannelToSession);
+  const unlinkFn = useServerFn(unlinkChannelSession);
+
+  const [sessions, setSessions] = useState<WASessionDTO[]>([]);
+  const [linked, setLinked] = useState<WASessionDTO | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [pickerId, setPickerId] = useState<string>("");
+  const [busy, setBusy] = useState<string | null>(null);
+
+  // create-new modal
+  const [creating, setCreating] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [pendingSessionId, setPendingSessionId] = useState<string | null>(null);
+
+  const reload = useCallback(async () => {
+    try {
+      const [list, link] = await Promise.all([
+        listFn(),
+        getLinkFn({ data: { channelId } }),
+      ]);
+      setSessions(list);
+      setLinked(link.session);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao carregar sessões");
+    } finally {
+      setLoading(false);
+    }
+  }, [listFn, getLinkFn, channelId]);
+
+  useEffect(() => {
+    reload();
+  }, [reload]);
+
+  // poll while pending new session
+  useEffect(() => {
+    if (!pendingSessionId) return;
+    const iv = window.setInterval(async () => {
+      try {
+        const list = await listFn();
+        setSessions(list);
+        const s = list.find((x) => x.id === pendingSessionId);
+        if (s?.status === "connected") {
+          window.clearInterval(iv);
+          toast.success("Sessão WhatsApp conectada");
+          setPendingSessionId(null);
+        }
+      } catch {
+        /* silent */
+      }
+    }, 3000);
+    return () => window.clearInterval(iv);
+  }, [pendingSessionId, listFn]);
+
+  const connected = sessions.filter((s) => s.status === "connected");
+
+  const handleLink = async () => {
+    if (!pickerId) return;
+    try {
+      setBusy("link");
+      await linkFn({ data: { channelId, sessionId: pickerId } });
+      toast.success("Sessão vinculada");
+      setPickerId("");
+      await reload();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao vincular");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleUnlink = async () => {
+    try {
+      setBusy("unlink");
+      await unlinkFn({ data: { channelId } });
+      setLinked(null);
+      toast.success("Sessão desvinculada");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao desvincular");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleCreate = async () => {
+    if (!newName.trim()) return;
+    try {
+      setBusy("create");
+      const res = await createFn({ data: { name: newName.trim() } });
+      setPendingSessionId(res.id);
+      setNewName("");
+      toast.success("Sessão criada. Escaneie o QR Code na extensão.");
+      await reload();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao criar sessão");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleSimulateConnect = async (sessionId: string) => {
+    // Manual confirm helper (extension will do this automatically in prod)
+    try {
+      setBusy(`confirm:${sessionId}`);
+      await confirmFn({ data: { sessionId } });
+      await reload();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao confirmar");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h3 className="font-display text-[15px] font-bold uppercase tracking-wider text-foreground">
+          Sessões WhatsApp
+        </h3>
+        <span className="text-[12px] font-semibold text-muted-foreground">
+          <span className="text-foreground">{connected.length}</span> conectadas
+        </span>
+      </div>
+
+      {loading ? (
+        <div className="rounded-2xl border border-border/70 bg-card p-5 text-sm text-muted-foreground">
+          Carregando…
+        </div>
+      ) : linked ? (
+        <div className="flex flex-col gap-4 rounded-2xl border border-border/70 bg-card p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <p className="truncate font-semibold text-foreground">{linked.name}</p>
+            <p className="text-[12.5px] text-muted-foreground">
+              {linked.phoneNumber ?? "Número não informado"}
+            </p>
+            <span
+              className={`mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                linked.status === "connected"
+                  ? "bg-[oklch(0.94_0.08_150)] text-[oklch(0.42_0.15_155)]"
+                  : "bg-muted text-muted-foreground"
+              }`}
+            >
+              {linked.status === "connected" ? "Conectado" : linked.status}
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" onClick={handleUnlink} disabled={busy === "unlink"}>
+              Desvincular
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-3 rounded-2xl border border-border/70 bg-card p-5 shadow-sm">
+          <p className="text-sm text-muted-foreground">
+            Nenhuma sessão WhatsApp vinculada a este canal.
+          </p>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <select
+              value={pickerId}
+              onChange={(e) => setPickerId(e.target.value)}
+              className="h-9 flex-1 rounded-lg border border-border bg-background px-3 text-sm"
+            >
+              <option value="">Usar número existente…</option>
+              {connected.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name} {s.phoneNumber ? `— ${s.phoneNumber}` : ""}
+                </option>
+              ))}
+            </select>
+            <Button size="sm" onClick={handleLink} disabled={!pickerId || busy === "link"}>
+              🔗 Vincular
+            </Button>
+          </div>
+          <div className="pt-1">
+            {creating ? (
+              <div className="space-y-2 rounded-lg border border-dashed border-border/70 p-3">
+                <input
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  placeholder="Nome da sessão (ex: Loja Principal)"
+                  className="h-9 w-full rounded-md border border-border bg-background px-3 text-sm"
+                />
+                {pendingSessionId ? (
+                  <div className="rounded-md bg-muted/40 p-3 text-xs text-muted-foreground">
+                    Sessão criada. Abra a extensão em web.whatsapp.com e escaneie o QR Code.
+                    Aguardando autenticação…
+                    <div className="mt-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleSimulateConnect(pendingSessionId)}
+                        disabled={busy?.startsWith("confirm")}
+                      >
+                        Já autenticado? Confirmar
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={handleCreate} disabled={busy === "create" || !newName.trim()}>
+                      Criar sessão
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setCreating(false)}>
+                      Cancelar
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <Button size="sm" variant="outline" onClick={() => setCreating(true)}>
+                ⊕ Conectar novo número
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+    </section>
   );
 }
 
