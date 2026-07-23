@@ -2877,7 +2877,12 @@ function ShopeePanel() {
               onClick={handlePickCsv}
               className="w-full gap-2 rounded-full bg-primary hover:bg-primary/90"
             >
-              <Upload className="h-4 w-4" /> {importing ? "Importando..." : "Importar"}
+              <Upload className="h-4 w-4" />
+              {importing
+                ? progress
+                  ? `Importando ${progress.done} / ${progress.total}...`
+                  : "Importando..."
+                : "Importar"}
             </Button>
           </div>
 
