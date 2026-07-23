@@ -15,14 +15,16 @@ export async function importBatch(
   userId: string,
   rows: ShopeeCsvRow[],
 ): Promise<BatchOutcome> {
-  const missing = rows
-    .filter((r) => !r.imageUrl && r.itemId && r.productUrl)
+  // Priority: Shopee API (by Item Id) → CSV field → page scrape.
+  // Query the API for every row that has a product URL, so we can extract shop id.
+  const lookups = rows
+    .filter((r) => r.itemId && r.productUrl)
     .map((r) => ({ itemId: r.itemId, productUrl: r.productUrl }));
-  const resolved = missing.length > 0 ? await resolveImages(missing) : new Map<string, string>();
+  const resolved = lookups.length > 0 ? await resolveImages(lookups) : new Map<string, string>();
 
   const candidates: Array<{ row: ShopeeCsvRow; candidate: string | null }> = rows.map((r) => ({
     row: r,
-    candidate: r.imageUrl ?? resolved.get(r.itemId) ?? null,
+    candidate: resolved.get(r.itemId) ?? r.imageUrl ?? null,
   }));
 
   // Validate reachability in parallel (best-effort, bounded timeout).
