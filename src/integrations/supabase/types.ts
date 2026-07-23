@@ -14,7 +14,156 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      monitored_groups: {
+        Row: {
+          created_at: string
+          group_jid: string
+          group_name: string
+          id: string
+          is_active: boolean
+          platform: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          group_jid: string
+          group_name: string
+          id?: string
+          is_active?: boolean
+          platform?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          group_jid?: string
+          group_name?: string
+          id?: string
+          is_active?: boolean
+          platform?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "monitored_groups_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      products: {
+        Row: {
+          affiliate_link: string
+          category: string | null
+          commission_rate: number | null
+          created_at: string
+          id: string
+          image_url: string | null
+          original_price: number | null
+          promo_price: number | null
+          raw_link: string
+          title: string
+          user_id: string
+        }
+        Insert: {
+          affiliate_link: string
+          category?: string | null
+          commission_rate?: number | null
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          original_price?: number | null
+          promo_price?: number | null
+          raw_link: string
+          title: string
+          user_id: string
+        }
+        Update: {
+          affiliate_link?: string
+          category?: string | null
+          commission_rate?: number | null
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          original_price?: number | null
+          promo_price?: number | null
+          raw_link?: string
+          title?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "products_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sessions: {
+        Row: {
+          created_at: string
+          hmac_token: string
+          id: string
+          last_active_at: string | null
+          phone_number: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          hmac_token: string
+          id?: string
+          last_active_at?: string | null
+          phone_number?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          hmac_token?: string
+          id?: string
+          last_active_at?: string | null
+          phone_number?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sessions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      users: {
+        Row: {
+          created_at: string
+          email: string
+          full_name: string | null
+          id: string
+          plan: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          full_name?: string | null
+          id: string
+          plan?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          full_name?: string | null
+          id?: string
+          plan?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
