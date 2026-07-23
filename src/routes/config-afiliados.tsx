@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
+import { toast } from "sonner";
 import {
   AlertTriangle,
   BadgeCheck,
@@ -15,6 +16,7 @@ import {
 } from "lucide-react";
 
 import { AppSidebar } from "@/components/app-sidebar";
+import { SHOPEE_STORAGE_KEYS } from "@/lib/shopee-affiliate";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/config-afiliados")({
@@ -273,17 +275,26 @@ function Alert({
 
 function ShopeeCard() {
   const [shopeeId, setShopeeId] = useState(() =>
-    typeof window !== "undefined" ? localStorage.getItem("shopee_affiliate_id") ?? "" : "",
+    typeof window !== "undefined" ? localStorage.getItem(SHOPEE_STORAGE_KEYS.affiliateId) ?? "" : "",
   );
   const [shopeeApiKey, setShopeeApiKey] = useState(() =>
-    typeof window !== "undefined" ? localStorage.getItem("shopee_api_key") ?? "" : "",
+    typeof window !== "undefined" ? localStorage.getItem(SHOPEE_STORAGE_KEYS.apiKey) ?? "" : "",
   );
 
   const handleSaveShopee = () => {
-    localStorage.setItem("shopee_affiliate_id", shopeeId);
-    localStorage.setItem("shopee_api_key", shopeeApiKey);
-    alert("Configurações da Shopee salvas com sucesso!");
+    if (!shopeeId.trim()) {
+      toast.error("Informe o Shopee ID de Afiliado antes de salvar.");
+      return;
+    }
+    localStorage.setItem(SHOPEE_STORAGE_KEYS.affiliateId, shopeeId.trim());
+    localStorage.setItem(SHOPEE_STORAGE_KEYS.apiKey, shopeeApiKey.trim());
+    toast.success("Configurações da Shopee salvas!", {
+      description: shopeeApiKey.trim()
+        ? "ID e API Key salvos. Links serão gerados via API oficial quando possível."
+        : "ID de afiliado salvo. Links serão gerados automaticamente no formato comissionado.",
+    });
   };
+
 
   return (
     <PlatformCard

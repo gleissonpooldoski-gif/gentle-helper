@@ -1,5 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useRef, useState } from "react";
+import Papa from "papaparse";
+import { toast } from "sonner";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -39,7 +41,10 @@ import {
 import { AppSidebar } from "@/components/app-sidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { buildShopeeAffiliateLink, getShopeeCredentials, tagShopeeLink } from "@/lib/shopee-affiliate";
 import { cn } from "@/lib/utils";
+
+
 
 export const Route = createFileRoute("/canais/$id/editar")({
   head: () => ({
@@ -2598,7 +2603,11 @@ type ShopeeProduct = {
   original: string;
   discount: number;
   when: string;
+  affiliateLink?: string;
+  rawLink?: string;
+  imageUrl?: string;
 };
+
 
 const SHOPEE_PRODUCTS: ShopeeProduct[] = [
   { id: "s1", title: "Gelatina Modeladora Salon Line Todecacho 550g", emoji: "🧴", color: "oklch(0.9 0.06 30)", format: "FEED", price: "R$ 14,90", original: "R$ 29,90", discount: 50, when: "Hoje 10:22" },
@@ -2618,9 +2627,84 @@ const SHOPEE_PRODUCTS: ShopeeProduct[] = [
 function ShopeePanel() {
   const [tags, setTags] = useState<ShopeeTag[]>(SHOPEE_TAGS);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
-  const allChecked = SHOPEE_PRODUCTS.every((p) => selected[p.id]);
+  const [importedProducts, setImportedProducts] = useState<ShopeeProduct[]>([]);
+  const [importing, setImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const products = [...importedProducts, ...SHOPEE_PRODUCTS];
+  const allChecked = products.length > 0 && products.every((p) => selected[p.id]);
 
   const removeTag = (id: string) => setTags((t) => t.filter((x) => x.id !== id));
+
+  const handlePickCsv = () => fileInputRef.current?.click();
+
+  const handleCsvFile = async (file: File | null | undefined) => {
+    if (!file) return;
+    const { affiliateId, apiKey } = getShopeeCredentials();
+    if (!affiliateId) {
+      toast.error("Configure seu Shopee ID de Afiliado antes de importar.", {
+        description: "Vá em Configurações de Afiliados → Shopee para salvar seu ID.",
+      });
+      return;
+    }
+    setImporting(true);
+    try {
+      const text = await file.text();
+      const parsed = Papa.parse<Record<string, string>>(text, {
+        header: true,
+        skipEmptyLines: true,
+        transformHeader: (h) => h.trim(),
+      });
+      const rows = (parsed.data ?? []).filter((r) => r && (r["Item Id"] || r["Item Name"]));
+      if (rows.length === 0) {
+        toast.error("CSV vazio ou sem colunas reconhecidas.", {
+          description: "Verifique os cabeçalhos: Item Id, Item Name, Product Link / Offer Link.",
+        });
+        return;
+      }
+      const items: ShopeeProduct[] = await Promise.all(
+        rows.map(async (row, i) => {
+          const rawLink = (row["Offer Link"] || row["Product Link"] || "").trim();
+          const affiliateLink = rawLink
+            ? await buildShopeeAffiliateLink(rawLink, { affiliateId, apiKey })
+            : tagShopeeLink(rawLink, affiliateId);
+          const priceNum = Number((row["Price"] || "").replace(/[^\d.,-]/g, "").replace(",", "."));
+          const price = Number.isFinite(priceNum) && priceNum > 0
+            ? `R$ ${priceNum.toFixed(2).replace(".", ",")}`
+            : (row["Price"] || "").trim() || "—";
+          return {
+            id: `csv-${row["Item Id"] || i}-${i}`,
+            title: (row["Item Name"] || "Produto Shopee").trim(),
+            emoji: "🛍️",
+            color: "oklch(0.92 0.06 30)",
+            format: i % 2 === 0 ? "FEED" : "STORY",
+            price,
+            original: price,
+            discount: Number((row["Commission Rate"] || "").replace("%", "")) || 0,
+            when: "Importado agora",
+            affiliateLink,
+            rawLink,
+            imageUrl: (row["Image"] || row["Image Url"] || "").trim() || undefined,
+          };
+        }),
+      );
+      setImportedProducts((prev) => [...items, ...prev]);
+      toast.success(`${items.length} produtos importados`, {
+        description: apiKey
+          ? "Links comissionados gerados com sua API Key."
+          : "Links comissionados gerados com seu ID de afiliado.",
+      });
+    } catch (err) {
+      console.error(err);
+      toast.error("Falha ao processar CSV", {
+        description: err instanceof Error ? err.message : "Erro desconhecido.",
+      });
+    } finally {
+      setImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
 
   return (
     <div className="mt-6 space-y-6">
@@ -2739,13 +2823,30 @@ function ShopeePanel() {
           </p>
 
           <div className="mt-4 space-y-3">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv,text/csv"
+              className="hidden"
+              onChange={(e) => handleCsvFile(e.target.files?.[0])}
+            />
             <div>
               <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Arquivo de Produtos .CSV</label>
-              <div className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border/70 bg-muted/20 px-4 py-6 text-center">
+              <div
+                onClick={handlePickCsv}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  handleCsvFile(e.dataTransfer.files?.[0]);
+                }}
+                className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border/70 bg-muted/20 px-4 py-6 text-center transition hover:border-primary/60 hover:bg-muted/40"
+              >
                 <Upload className="h-6 w-6 text-muted-foreground" />
                 <p className="text-[12.5px] font-medium text-foreground">Arraste seu arquivo aqui</p>
                 <p className="text-[11px] text-muted-foreground">ou clique para selecionar</p>
-                <Button variant="outline" size="sm" className="mt-1 h-8 rounded-full text-[12px]">Escolher .CSV</Button>
+                <Button type="button" variant="outline" size="sm" className="mt-1 h-8 rounded-full text-[12px]" onClick={(e) => { e.stopPropagation(); handlePickCsv(); }}>
+                  Escolher .CSV
+                </Button>
               </div>
             </div>
             <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
@@ -2762,10 +2863,16 @@ function ShopeePanel() {
                 <code className="rounded bg-background px-1">Offer Link</code>
               </p>
             </div>
-            <Button className="w-full gap-2 rounded-full bg-primary hover:bg-primary/90">
-              <Upload className="h-4 w-4" /> Importar
+            <Button
+              type="button"
+              disabled={importing}
+              onClick={handlePickCsv}
+              className="w-full gap-2 rounded-full bg-primary hover:bg-primary/90"
+            >
+              <Upload className="h-4 w-4" /> {importing ? "Importando..." : "Importar"}
             </Button>
           </div>
+
         </div>
       </div>
 
@@ -2876,7 +2983,7 @@ function ShopeePanel() {
                   onChange={(e) => {
                     const v = e.target.checked;
                     const next: Record<string, boolean> = {};
-                    SHOPEE_PRODUCTS.forEach((p) => (next[p.id] = v));
+                    products.forEach((p) => (next[p.id] = v));
                     setSelected(next);
                   }}
                   className="h-3.5 w-3.5 accent-[oklch(0.62_0.19_256)]"
@@ -2901,7 +3008,7 @@ function ShopeePanel() {
         </div>
 
         <div className="grid grid-cols-2 gap-4 p-5 md:grid-cols-3 xl:grid-cols-4">
-          {SHOPEE_PRODUCTS.map((p) => (
+          {products.map((p) => (
             <div key={p.id} className="group flex flex-col overflow-hidden rounded-xl border border-border/60 bg-background shadow-sm transition hover:shadow-md">
               <div className="relative aspect-square w-full overflow-hidden" style={{ background: p.color }}>
                 <input
@@ -2918,10 +3025,16 @@ function ShopeePanel() {
                 )}>
                   {p.format}
                 </span>
-                <span className="absolute bottom-2.5 right-2.5 rounded-md bg-[oklch(0.62_0.24_25)] px-2 py-0.5 text-[10px] font-bold text-white shadow-sm">
-                  -{p.discount}%
-                </span>
-                <div className="flex h-full items-center justify-center text-6xl">{p.emoji}</div>
+                {p.discount > 0 ? (
+                  <span className="absolute bottom-2.5 right-2.5 rounded-md bg-[oklch(0.62_0.24_25)] px-2 py-0.5 text-[10px] font-bold text-white shadow-sm">
+                    -{p.discount}%
+                  </span>
+                ) : null}
+                {p.imageUrl ? (
+                  <img src={p.imageUrl} alt={p.title} className="h-full w-full object-cover" />
+                ) : (
+                  <div className="flex h-full items-center justify-center text-6xl">{p.emoji}</div>
+                )}
               </div>
 
               <div className="flex flex-1 flex-col gap-2 p-3">
@@ -2935,6 +3048,32 @@ function ShopeePanel() {
                 <div className="flex items-center gap-1 text-[10.5px] text-muted-foreground">
                   <Calendar className="h-3 w-3" /> {p.when}
                 </div>
+
+                {p.affiliateLink ? (
+                  <div className="flex items-center gap-1.5 rounded-md border border-[oklch(0.9_0.08_150)] bg-[oklch(0.97_0.04_150)] px-2 py-1.5">
+                    <Tag className="h-3 w-3 shrink-0 text-[oklch(0.5_0.19_150)]" />
+                    <a
+                      href={p.affiliateLink}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex-1 truncate text-[10.5px] font-medium text-[oklch(0.4_0.15_150)] hover:underline"
+                      title={p.affiliateLink}
+                    >
+                      {p.affiliateLink}
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(p.affiliateLink!);
+                        toast.success("Link comissionado copiado!");
+                      }}
+                      className="text-[oklch(0.5_0.19_150)] hover:text-[oklch(0.4_0.19_150)]"
+                      title="Copiar link"
+                    >
+                      <Copy className="h-3 w-3" />
+                    </button>
+                  </div>
+                ) : null}
 
                 <div className="mt-1 grid grid-cols-3 gap-1.5">
                   <Button size="sm" className="h-8 gap-1 rounded-md bg-[oklch(0.62_0.19_150)] px-1.5 text-[11px] hover:bg-[oklch(0.55_0.19_150)]">
@@ -2951,6 +3090,7 @@ function ShopeePanel() {
             </div>
           ))}
         </div>
+
 
         {/* Pagination */}
         <div className="flex flex-col items-center justify-between gap-3 border-t border-border/60 bg-muted/20 px-5 py-3 sm:flex-row">
