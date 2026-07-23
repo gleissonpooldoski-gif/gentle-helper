@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { getShopeeConfig, saveShopeeConfig } from "@/lib/shopee-config.functions";
 import { getMLConnection, saveMLConnection } from "@/modules/affiliate/mercado-livre/controller.functions";
+import { getMagaluConnection, saveMagaluConnection } from "@/modules/affiliate/magalu/controller.functions";
 
 
 import {
@@ -665,20 +666,103 @@ function AmazonCard() {
 }
 
 function MagaluCard() {
+  const fetchConn = useServerFn(getMagaluConnection);
+  const saveConn = useServerFn(saveMagaluConnection);
+
+  const [storeName, setStoreName] = useState("");
+  const [status, setStatus] = useState<"connected" | "pending" | "error">("pending");
+  const [lastError, setLastError] = useState<string | null>(null);
+  const [updatedAt, setUpdatedAt] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const conn = await fetchConn();
+        if (!alive || !conn) return;
+        setStoreName(conn.storeName ?? "");
+        setStatus(conn.status);
+        setLastError(conn.lastError);
+        setUpdatedAt(conn.updatedAt);
+      } catch {
+        /* silent — usuário verá o estado padrão "pendente" */
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [fetchConn]);
+
+  const handleSave = async () => {
+    const trimmed = storeName.trim();
+    if (!trimmed) {
+      toast.error("Informe o nome da loja Magalu.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const conn = await saveConn({ data: { storeName: trimmed } });
+      setStoreName(conn.storeName);
+      setStatus(conn.status);
+      setLastError(conn.lastError);
+      setUpdatedAt(conn.updatedAt);
+      if (conn.status === "connected") {
+        toast.success("Loja configurada — links Magalu podem ser gerados.");
+      } else {
+        toast.warning(conn.lastError ?? "Configure seu nome de loja Magalu.");
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Falha ao salvar configuração Magalu.";
+      setStatus("error");
+      setLastError(msg);
+      toast.error(msg);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const statusBadge =
+    status === "connected"
+      ? { label: "Conectado", tone: "active" as const }
+      : status === "error"
+        ? { label: "Erro", tone: "off" as const }
+        : { label: "Pendente", tone: "pending" as const };
+
   return (
     <PlatformCard
       accent="blue"
       logo={<Store className="h-5 w-5" />}
       title="Afiliados Magalu"
-      subtitle="Parceiro Magalu · captura de subtag"
-      status={{ label: "Ativo", tone: "active" }}
+      subtitle="Parceiro Magalu · nome da loja"
+      status={statusBadge}
     >
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Magalu Partner ID" placeholder="magalupartner_xxx" />
-        <Field label="Subtag padrão" placeholder="divulgalinks" />
+        <Field
+          label="Magalu Nome da Loja"
+          placeholder="segredopromocoes"
+          value={storeName}
+          onChange={(e) => setStoreName(e.target.value)}
+          autoComplete="off"
+        />
       </div>
+      {status === "connected" ? (
+        <Alert tone="info" title="✓ Loja configurada">
+          Links Magalu podem ser gerados automaticamente usando{" "}
+          <strong>{storeName}</strong>.
+          {updatedAt ? (
+            <span className="ml-1 text-[color:var(--muted-foreground)]">
+              · atualizado em {new Date(updatedAt).toLocaleString("pt-BR")}
+            </span>
+          ) : null}
+        </Alert>
+      ) : (
+        <Alert tone="warning" title="⚠ Configure seu nome de loja Magalu">
+          {lastError ?? "Preencha o nome da sua loja para começar a gerar links comissionados."}
+        </Alert>
+      )}
       <div className="flex justify-end">
-        <SaveButton>Salvar Magalu</SaveButton>
+        <SaveButton onClick={handleSave}>{saving ? "Salvando…" : "Salvar Magalu"}</SaveButton>
       </div>
     </PlatformCard>
   );
