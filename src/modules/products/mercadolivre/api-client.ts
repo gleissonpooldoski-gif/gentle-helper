@@ -59,18 +59,17 @@ async function fetchJson<T>(url: string, accessToken?: string): Promise<T> {
     if (!res.ok) {
       let friendly = `Mercado Livre API ${res.status}`;
       if (res.status === 401) {
-        friendly = "Token Mercado Livre expirado. Reconecte a integração.";
+        friendly = "Token Mercado Livre inválido ou expirado (401).";
       } else if (res.status === 403) {
-        friendly = accessToken
-          ? "Acesso negado pelo Mercado Livre (403). Verifique escopos do app."
-          : "Endpoint bloqueado (403). Conecte sua conta Mercado Livre.";
+        friendly = "Permissão negada pelo Mercado Livre (403) — endpoint bloqueado ou fora do escopo do app.";
       } else if (res.status === 404) {
-        friendly = "Recurso não encontrado no Mercado Livre.";
+        friendly = "Produto não encontrado no Mercado Livre (404).";
       } else if (res.status === 429) {
         friendly = "Mercado Livre limitou as requisições (429). Aguarde alguns instantes.";
       } else if (res.status >= 500) {
         friendly = `Mercado Livre indisponível (${res.status}).`;
       }
+      console.warn("[ML][api] error", { url, status: res.status, bodySnippet: bodyText.slice(0, 200) });
       throw new MLApiError(friendly, url, res.status);
     }
     return JSON.parse(bodyText) as T;
