@@ -51,9 +51,9 @@ async function fetchText(
 }
 
 function toShopeeImageUrl(hash: string): string {
-  // Susercontent CDN serves original + resized variants; use the base URL.
   if (/^https?:\/\//i.test(hash)) return hash;
-  return `https://down-br.img.susercontent.com/file/${hash}`;
+  // Official Shopee BR CDN pattern.
+  return `https://cf.shopee.com.br/file/${hash}`;
 }
 
 async function tryShopeeApi(itemId: string, shopId: string): Promise<string | null> {
