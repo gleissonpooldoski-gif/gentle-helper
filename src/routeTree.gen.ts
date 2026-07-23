@@ -13,6 +13,7 @@ import { Route as RelatoriosRouteImport } from './routes/relatorios'
 import { Route as ConfigAfiliadosRouteImport } from './routes/config-afiliados'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ConfiguracoesSessoesWhatsappRouteImport } from './routes/configuracoes.sessoes-whatsapp'
 import { Route as CanaisIdEditarRouteImport } from './routes/canais.$id.editar'
 import { Route as ApiMlProbeRouteImport } from './routes/api/ml/probe'
 import { Route as ApiMlCallbackRouteImport } from './routes/api/ml/callback'
@@ -39,6 +40,12 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ConfiguracoesSessoesWhatsappRoute =
+  ConfiguracoesSessoesWhatsappRouteImport.update({
+    id: '/configuracoes/sessoes-whatsapp',
+    path: '/configuracoes/sessoes-whatsapp',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const CanaisIdEditarRoute = CanaisIdEditarRouteImport.update({
   id: '/canais/$id/editar',
   path: '/canais/$id/editar',
@@ -72,6 +79,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/config-afiliados': typeof ConfigAfiliadosRoute
   '/relatorios': typeof RelatoriosRoute
+  '/configuracoes/sessoes-whatsapp': typeof ConfiguracoesSessoesWhatsappRoute
   '/api/ml/callback': typeof ApiMlCallbackRoute
   '/api/ml/probe': typeof ApiMlProbeRoute
   '/canais/$id/editar': typeof CanaisIdEditarRoute
@@ -83,6 +91,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/config-afiliados': typeof ConfigAfiliadosRoute
   '/relatorios': typeof RelatoriosRoute
+  '/configuracoes/sessoes-whatsapp': typeof ConfiguracoesSessoesWhatsappRoute
   '/api/ml/callback': typeof ApiMlCallbackRoute
   '/api/ml/probe': typeof ApiMlProbeRoute
   '/canais/$id/editar': typeof CanaisIdEditarRoute
@@ -95,6 +104,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/config-afiliados': typeof ConfigAfiliadosRoute
   '/relatorios': typeof RelatoriosRoute
+  '/configuracoes/sessoes-whatsapp': typeof ConfiguracoesSessoesWhatsappRoute
   '/api/ml/callback': typeof ApiMlCallbackRoute
   '/api/ml/probe': typeof ApiMlProbeRoute
   '/canais/$id/editar': typeof CanaisIdEditarRoute
@@ -108,6 +118,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/config-afiliados'
     | '/relatorios'
+    | '/configuracoes/sessoes-whatsapp'
     | '/api/ml/callback'
     | '/api/ml/probe'
     | '/canais/$id/editar'
@@ -119,6 +130,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/config-afiliados'
     | '/relatorios'
+    | '/configuracoes/sessoes-whatsapp'
     | '/api/ml/callback'
     | '/api/ml/probe'
     | '/canais/$id/editar'
@@ -130,6 +142,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/config-afiliados'
     | '/relatorios'
+    | '/configuracoes/sessoes-whatsapp'
     | '/api/ml/callback'
     | '/api/ml/probe'
     | '/canais/$id/editar'
@@ -142,6 +155,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   ConfigAfiliadosRoute: typeof ConfigAfiliadosRoute
   RelatoriosRoute: typeof RelatoriosRoute
+  ConfiguracoesSessoesWhatsappRoute: typeof ConfiguracoesSessoesWhatsappRoute
   ApiMlCallbackRoute: typeof ApiMlCallbackRoute
   ApiMlProbeRoute: typeof ApiMlProbeRoute
   CanaisIdEditarRoute: typeof CanaisIdEditarRoute
@@ -177,6 +191,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/configuracoes/sessoes-whatsapp': {
+      id: '/configuracoes/sessoes-whatsapp'
+      path: '/configuracoes/sessoes-whatsapp'
+      fullPath: '/configuracoes/sessoes-whatsapp'
+      preLoaderRoute: typeof ConfiguracoesSessoesWhatsappRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/canais/$id/editar': {
@@ -222,6 +243,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   ConfigAfiliadosRoute: ConfigAfiliadosRoute,
   RelatoriosRoute: RelatoriosRoute,
+  ConfiguracoesSessoesWhatsappRoute: ConfiguracoesSessoesWhatsappRoute,
   ApiMlCallbackRoute: ApiMlCallbackRoute,
   ApiMlProbeRoute: ApiMlProbeRoute,
   CanaisIdEditarRoute: CanaisIdEditarRoute,
