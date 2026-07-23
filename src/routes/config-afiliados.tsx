@@ -41,7 +41,7 @@ export const Route = createFileRoute("/config-afiliados")({
 /*                                   Layout                                   */
 /* -------------------------------------------------------------------------- */
 
-export function ConfigAfiliadosPage() {
+function ConfigAfiliadosPage() {
   return (
     <div className="flex min-h-screen w-full bg-[var(--background)]">
       <AppSidebar activeId="afiliados" />
