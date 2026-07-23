@@ -603,6 +603,52 @@ function MercadoLivreCard() {
       subtitle="Captura de tag via extensão ou manual"
       status={statusBadge}
     >
+      {/* OAuth oficial Mercado Livre */}
+      <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+              Oficial · OAuth
+            </span>
+            <h3 className="mt-2 text-sm font-semibold text-emerald-950">
+              Conectar conta Mercado Livre
+            </h3>
+            <p className="mt-1 text-xs text-emerald-900/80">
+              Autorize sua conta para buscar produtos via API oficial. Tokens ficam
+              criptografados no backend — nada é exposto no navegador.
+            </p>
+            {oauth?.connected ? (
+              <p className="mt-2 text-[11px] text-emerald-900/80">
+                Usuário ML: <b>{oauth.mlUserId ?? "—"}</b>
+                {oauth.expiresAt ? (
+                  <> · expira em {new Date(oauth.expiresAt).toLocaleString("pt-BR")}</>
+                ) : null}
+              </p>
+            ) : null}
+          </div>
+          {oauth?.connected ? (
+            <button
+              type="button"
+              onClick={handleDisconnectOAuth}
+              disabled={oauthBusy}
+              className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-emerald-300 bg-white px-3.5 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+            >
+              Desconectar
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleConnectOAuth}
+              disabled={oauthBusy}
+              className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-emerald-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50"
+            >
+              <KeyRound className="h-4 w-4" />
+              {oauthBusy ? "Redirecionando…" : "Conectar Mercado Livre"}
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* Option 1 */}
       <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-4">
         <div className="flex items-start justify-between gap-3">
