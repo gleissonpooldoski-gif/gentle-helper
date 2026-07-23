@@ -21,7 +21,7 @@ type Item = {
 };
 
 const MAIN: Item[] = [
-  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, href: "/dashboard" },
 ];
 
 const CONFIG: Item[] = [
