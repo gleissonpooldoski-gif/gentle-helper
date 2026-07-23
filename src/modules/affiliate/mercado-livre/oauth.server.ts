@@ -132,24 +132,26 @@ async function tokenRequest(body: URLSearchParams): Promise<TokenResponse> {
     scope: parsed.scope ?? null,
     payloadKeys: Object.keys(payload),
   });
-  if (!parsed.access_token || !parsed.refresh_token || !parsed.expires_in || parsed.user_id == null) {
+  if (!parsed.access_token || !parsed.expires_in || parsed.user_id == null) {
     const providerMessage =
       (typeof payload.error_description === "string" && payload.error_description) ||
       (typeof payload.message === "string" && payload.message) ||
       (typeof payload.error === "string" && payload.error);
     const missing = [
       !parsed.access_token && "access_token",
-      !parsed.refresh_token && "refresh_token",
       !parsed.expires_in && "expires_in",
       parsed.user_id == null && "user_id",
     ].filter(Boolean).join(", ");
     const scopeInfo = parsed.scope ? ` (scope retornado: "${parsed.scope}")` : "";
-    const refreshHint = !parsed.refresh_token
-      ? " O Mercado Livre só devolve refresh_token quando o app tem 'offline_access' habilitado E o usuário autoriza esse escopo. Verifique em https://developers.mercadolivre.com.br › seu app › escopos se 'offline_access' está marcado, e reconecte."
-      : "";
     throw new Error(providerMessage
-      ? `Mercado Livre OAuth ${res.status}: ${providerMessage}${scopeInfo}${refreshHint}`
-      : `Token Mercado Livre não recebido (campos ausentes: ${missing})${scopeInfo}.${refreshHint}`);
+      ? `Mercado Livre OAuth ${res.status}: ${providerMessage}${scopeInfo}`
+      : `Token Mercado Livre não recebido (campos ausentes: ${missing})${scopeInfo}.`);
+  }
+  if (!parsed.refresh_token) {
+    console.warn("[ML][oauth] refresh_token ausente na resposta", {
+      scopeReturned: parsed.scope ?? null,
+      hint: "Verifique se o app tem 'offline_access' habilitado no painel do Mercado Livre e reautorize.",
+    });
   }
   return parsed;
 }
