@@ -60,15 +60,22 @@ export function verifyState(state: string): { userId: string; redirectUri: strin
 export function buildAuthorizeUrl(redirectUri: string, state: string): string {
   const clientId = process.env.ML_CLIENT_ID;
   if (!clientId) throw new Error("ML_CLIENT_ID não configurado no backend.");
+  // Mercado Livre só devolve refresh_token quando o scope inclui offline_access.
+  const scope = "offline_access read";
   const params = new URLSearchParams({
     response_type: "code",
     client_id: clientId,
     redirect_uri: redirectUri,
     state,
-    // offline_access é obrigatório para o Mercado Livre devolver refresh_token.
-    scope: "offline_access read write",
+    scope,
   });
-  return `${AUTH_URL}?${params.toString()}`;
+  const url = `${AUTH_URL}?${params.toString()}`;
+  console.log("[ML][oauth] authorize URL gerado", {
+    scopeRequested: scope,
+    redirectUri,
+    hasClientId: !!clientId,
+  });
+  return url;
 }
 
 type TokenResponse = {
@@ -125,24 +132,26 @@ async function tokenRequest(body: URLSearchParams): Promise<TokenResponse> {
     scope: parsed.scope ?? null,
     payloadKeys: Object.keys(payload),
   });
-  if (!parsed.access_token || !parsed.refresh_token || !parsed.expires_in || parsed.user_id == null) {
+  if (!parsed.access_token || !parsed.expires_in || parsed.user_id == null) {
     const providerMessage =
       (typeof payload.error_description === "string" && payload.error_description) ||
       (typeof payload.message === "string" && payload.message) ||
       (typeof payload.error === "string" && payload.error);
     const missing = [
       !parsed.access_token && "access_token",
-      !parsed.refresh_token && "refresh_token",
       !parsed.expires_in && "expires_in",
       parsed.user_id == null && "user_id",
     ].filter(Boolean).join(", ");
     const scopeInfo = parsed.scope ? ` (scope retornado: "${parsed.scope}")` : "";
-    const refreshHint = !parsed.refresh_token
-      ? " O Mercado Livre só devolve refresh_token quando o app tem 'offline_access' habilitado E o usuário autoriza esse escopo. Verifique em https://developers.mercadolivre.com.br › seu app › escopos se 'offline_access' está marcado, e reconecte."
-      : "";
     throw new Error(providerMessage
-      ? `Mercado Livre OAuth ${res.status}: ${providerMessage}${scopeInfo}${refreshHint}`
-      : `Token Mercado Livre não recebido (campos ausentes: ${missing})${scopeInfo}.${refreshHint}`);
+      ? `Mercado Livre OAuth ${res.status}: ${providerMessage}${scopeInfo}`
+      : `Token Mercado Livre não recebido (campos ausentes: ${missing})${scopeInfo}.`);
+  }
+  if (!parsed.refresh_token) {
+    console.warn("[ML][oauth] refresh_token ausente na resposta", {
+      scopeReturned: parsed.scope ?? null,
+      hint: "Verifique se o app tem 'offline_access' habilitado no painel do Mercado Livre e reautorize.",
+    });
   }
   return parsed;
 }
@@ -189,25 +198,39 @@ export async function refreshToken(refresh: string): Promise<TokenResponse> {
 /** Persist tokens (encrypted) for the given user via the service-role client. */
 export async function persistTokens(userId: string, t: TokenResponse): Promise<void> {
   if (!userId) throw new Error("Configuração Mercado Livre incompleta (userId ausente).");
-  if (!t?.access_token || !t?.refresh_token) {
-    throw new Error("Token Mercado Livre não recebido (access/refresh ausentes).");
+  if (!t?.access_token) {
+    throw new Error("Token Mercado Livre não recebido (access_token ausente).");
   }
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const expiresAt = new Date(Date.now() + (t.expires_in - 60) * 1000).toISOString();
+
+  // Se o Mercado Livre não devolveu refresh_token nesta resposta, mantemos o existente.
+  let refreshCiphertext: string | null = null;
+  if (t.refresh_token) {
+    refreshCiphertext = encryptSecret(t.refresh_token);
+  } else {
+    const { data: existing } = await supabaseAdmin
+      .from("mercadolivre_integrations")
+      .select("refresh_token_ciphertext")
+      .eq("user_id", userId)
+      .maybeSingle();
+    refreshCiphertext =
+      (existing as { refresh_token_ciphertext: string } | null)?.refresh_token_ciphertext ?? null;
+  }
+
+  const row: Record<string, unknown> = {
+    user_id: userId,
+    ml_user_id: String(t.user_id),
+    access_token_ciphertext: encryptSecret(t.access_token),
+    expires_at: expiresAt,
+    scope: t.scope ?? null,
+    updated_at: new Date().toISOString(),
+  };
+  if (refreshCiphertext) row.refresh_token_ciphertext = refreshCiphertext;
+
   const { error } = await supabaseAdmin
     .from("mercadolivre_integrations")
-    .upsert(
-      {
-        user_id: userId,
-        ml_user_id: String(t.user_id),
-        access_token_ciphertext: encryptSecret(t.access_token),
-        refresh_token_ciphertext: encryptSecret(t.refresh_token),
-        expires_at: expiresAt,
-        scope: t.scope ?? null,
-        updated_at: new Date().toISOString(),
-      } as never,
-      { onConflict: "user_id" },
-    );
+    .upsert(row as never, { onConflict: "user_id" });
   if (error) throw new Error(`Falha ao gravar integração ML: ${error.message}`);
 }
 
