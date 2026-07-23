@@ -2631,7 +2631,9 @@ function ShopeePanel() {
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [importedProducts, setImportedProducts] = useState<ShopeeProduct[]>([]);
   const [importing, setImporting] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const importBatchFn = useServerFn(importShopeeBatch);
 
   const products = [...importedProducts, ...SHOPEE_PRODUCTS];
   const allChecked = products.length > 0 && products.every((p) => selected[p.id]);
@@ -2640,69 +2642,73 @@ function ShopeePanel() {
 
   const handlePickCsv = () => fileInputRef.current?.click();
 
+  const rowToPreview = (row: ShopeeCsvRow, index: number): ShopeeProduct => {
+    const priceLabel =
+      row.price != null
+        ? `R$ ${row.price.toFixed(2).replace(".", ",")}`
+        : "—";
+    return {
+      id: `csv-${row.itemId}-${index}`,
+      title: row.itemName,
+      emoji: "🛍️",
+      color: "oklch(0.92 0.06 30)",
+      format: index % 2 === 0 ? "FEED" : "STORY",
+      price: priceLabel,
+      original: priceLabel,
+      discount: Math.round(row.commissionRate ?? 0),
+      when: "Importado agora",
+      affiliateLink: row.offerUrl,
+      rawLink: row.productUrl,
+      imageUrl: row.imageUrl ?? undefined,
+    };
+  };
+
   const handleCsvFile = async (file: File | null | undefined) => {
     if (!file) return;
-    const { affiliateId, apiKey } = getShopeeCredentials();
-    if (!affiliateId) {
-      toast.error("Configure seu Shopee ID de Afiliado antes de importar.", {
-        description: "Vá em Configurações de Afiliados → Shopee para salvar seu ID.",
-      });
-      return;
-    }
     setImporting(true);
+    setProgress(null);
     try {
       const text = await file.text();
-      const parsed = Papa.parse<Record<string, string>>(text, {
-        header: true,
-        skipEmptyLines: true,
-        transformHeader: (h) => h.trim(),
-      });
-      const rows = (parsed.data ?? []).filter((r) => r && (r["Item Id"] || r["Item Name"]));
-      if (rows.length === 0) {
-        toast.error("CSV vazio ou sem colunas reconhecidas.", {
-          description: "Verifique os cabeçalhos: Item Id, Item Name, Product Link / Offer Link.",
-        });
+      const parsed = parseShopeeCsv(text);
+      if (!parsed.ok) {
+        toast.error(parsed.error);
         return;
       }
-      const items: ShopeeProduct[] = await Promise.all(
-        rows.map(async (row, i) => {
-          const rawLink = (row["Offer Link"] || row["Product Link"] || "").trim();
-          const affiliateLink = rawLink
-            ? await buildShopeeAffiliateLink(rawLink, { affiliateId, apiKey })
-            : tagShopeeLink(rawLink, affiliateId);
-          const priceNum = Number((row["Price"] || "").replace(/[^\d.,-]/g, "").replace(",", "."));
-          const price = Number.isFinite(priceNum) && priceNum > 0
-            ? `R$ ${priceNum.toFixed(2).replace(".", ",")}`
-            : (row["Price"] || "").trim() || "—";
-          return {
-            id: `csv-${row["Item Id"] || i}-${i}`,
-            title: (row["Item Name"] || "Produto Shopee").trim(),
-            emoji: "🛍️",
-            color: "oklch(0.92 0.06 30)",
-            format: i % 2 === 0 ? "FEED" : "STORY",
-            price,
-            original: price,
-            discount: Number((row["Commission Rate"] || "").replace("%", "")) || 0,
-            when: "Importado agora",
-            affiliateLink,
-            rawLink,
-            imageUrl: (row["Image"] || row["Image Url"] || "").trim() || undefined,
-          };
-        }),
-      );
-      setImportedProducts((prev) => [...items, ...prev]);
-      toast.success(`${items.length} produtos importados`, {
-        description: apiKey
-          ? "Links comissionados gerados com sua API Key."
-          : "Links comissionados gerados com seu ID de afiliado.",
+      const rows = parsed.rows;
+      if (rows.length === 0) {
+        toast.error("Nenhum produto reconhecido na planilha.");
+        return;
+      }
+
+      const BATCH = 200;
+      let inserted = 0;
+      let updated = 0;
+      setProgress({ done: 0, total: rows.length });
+
+      for (let i = 0; i < rows.length; i += BATCH) {
+        const chunk = rows.slice(i, i + BATCH);
+        const outcome = await importBatchFn({ data: { rows: chunk } });
+        inserted += outcome.inserted;
+        updated += outcome.updated;
+        setProgress({ done: Math.min(i + chunk.length, rows.length), total: rows.length });
+      }
+
+      setImportedProducts((prev) => [
+        ...rows.slice(0, 60).map((r, i) => rowToPreview(r, i)),
+        ...prev,
+      ]);
+
+      toast.success(`${rows.length} produtos processados`, {
+        description: `${inserted} novos · ${updated} atualizados`,
       });
     } catch (err) {
       console.error(err);
-      toast.error("Falha ao processar CSV", {
+      toast.error("Falha ao importar CSV", {
         description: err instanceof Error ? err.message : "Erro desconhecido.",
       });
     } finally {
       setImporting(false);
+      setProgress(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
