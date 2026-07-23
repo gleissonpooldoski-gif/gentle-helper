@@ -12,6 +12,9 @@ function key(): Buffer {
 }
 
 export function encryptSecret(plain: string): string {
+  if (typeof plain !== "string" || plain.length === 0) {
+    throw new Error("encryptSecret: valor ausente (undefined/empty).");
+  }
   const iv = randomBytes(12);
   const c = createCipheriv("aes-256-gcm", key(), iv);
   const ct = Buffer.concat([c.update(plain, "utf8"), c.final()]);
