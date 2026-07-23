@@ -1,10 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ConnectNewNumberModal } from "@/components/whatsapp/ConnectNewNumberModal";
+import { supabase } from "@/integrations/supabase/client";
+import { ConnectNewNumberModal, type CreatedSession } from "@/components/whatsapp/ConnectNewNumberModal";
 import {
   listWhatsAppSessions,
   createWhatsAppSession,
