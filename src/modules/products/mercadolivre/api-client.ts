@@ -25,7 +25,12 @@ export type MLItem = {
 };
 
 export class MLApiError extends Error {
-  constructor(message: string, public url: string, public status?: number) {
+  constructor(
+    message: string,
+    public url: string,
+    public status?: number,
+    public body?: unknown,
+  ) {
     super(message);
   }
 }
