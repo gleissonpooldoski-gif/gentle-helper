@@ -2236,11 +2236,155 @@ const ML_PRODUCTS: MLProduct[] = [
   { id: "8", title: "Percarbonato de Sódio Puro 1kg Tira Manchas Multiuso", emoji: "🧴", color: "oklch(0.9 0.07 180)", format: "FEED", price: "R$ 34,90", original: "R$ 59,90", discount: 42, when: "2 dias atrás" },
 ];
 
+// Real Mercado Livre category ids (BR site).
+const ML_CATEGORY_MAP: Record<string, string | null> = {
+  "Selecione uma categoria": null,
+  "Eletrônicos, Áudio e Vídeo": "MLB1000",
+  "Celulares e Telefones": "MLB1051",
+  "Informática": "MLB1648",
+  "Casa, Móveis e Decoração": "MLB1574",
+  "Beleza e Cuidado Pessoal": "MLB1246",
+  "Esportes e Fitness": "MLB1276",
+  "Saúde": "MLB1276",
+  "Ferramentas": "MLB263532",
+  "Alimentos e Bebidas": "MLB1403",
+};
+
+type MLSearchItem = {
+  id: string;
+  title: string;
+  price: number | null;
+  originalPrice: number | null;
+  discount: number | null;
+  thumbnail: string | null;
+  permalink: string;
+};
+
+function formatBRL(v: number | null): string {
+  if (v == null) return "—";
+  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
 function MercadoLivrePanel() {
   const [autoAffiliate, setAutoAffiliate] = useState(true);
   const [bestSellers, setBestSellers] = useState(false);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const allChecked = ML_PRODUCTS.every((p) => selected[p.id]);
+
+  // === Add by link ===
+  const [linkInput, setLinkInput] = useState("");
+  const [addingLink, setAddingLink] = useState(false);
+
+  // === Search ===
+  const [categoryLabel, setCategoryLabel] = useState<string>(ML_CATEGORIES[0]!);
+  const [keyword, setKeyword] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [results, setResults] = useState<MLSearchItem[]>([]);
+  const [pagination, setPagination] = useState<{ offset: number; limit: number; total: number } | null>(null);
+  const [addingIds, setAddingIds] = useState<Set<string>>(new Set());
+  const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
+  const [searchCtx, setSearchCtx] = useState<{
+    mode: "search" | "deals" | "best_sellers";
+    query?: string;
+    categoryId?: string;
+  } | null>(null);
+
+  const addByLinkFn = useServerFn(addMLProductByLink);
+  const searchFn = useServerFn(searchMLProducts);
+  const addByIdsFn = useServerFn(addMLProductsByIds);
+
+  const handleAddByLink = async () => {
+    const link = linkInput.trim();
+    if (!link) {
+      toast.error("Cole um link do Mercado Livre.");
+      return;
+    }
+    setAddingLink(true);
+    try {
+      const res = await addByLinkFn({ data: { link } });
+      const label = res.inserted > 0 ? "Produto adicionado" : "Produto atualizado";
+      toast.success(label, {
+        description: `${res.product.title.slice(0, 60)}${res.product.title.length > 60 ? "…" : ""}`,
+      });
+      if (!res.product.affiliateReady && autoAffiliate) {
+        toast.message("Configure sua conta Mercado Livre em Afiliados para gerar link comissionado.");
+      }
+      setLinkInput("");
+    } catch (err) {
+      toast.error("Falha ao adicionar produto", {
+        description: err instanceof Error ? err.message : "Erro desconhecido.",
+      });
+    } finally {
+      setAddingLink(false);
+    }
+  };
+
+  const runSearch = async (offset = 0) => {
+    const categoryId = ML_CATEGORY_MAP[categoryLabel] ?? undefined;
+    const query = keyword.trim() || undefined;
+    if (!query && !categoryId && !bestSellers) {
+      toast.error("Escolha uma categoria, digite uma palavra ou marque Mais Vendidos.");
+      return;
+    }
+    const mode: "search" | "deals" | "best_sellers" = bestSellers
+      ? "best_sellers"
+      : query || categoryId
+        ? "search"
+        : "deals";
+    setSearching(true);
+    setSearchCtx({ mode, query, categoryId });
+    try {
+      const res = await searchFn({
+        data: { query, categoryId, mode, offset, limit: 24 },
+      });
+      const items: MLSearchItem[] = res.items.map((i) => ({
+        id: i.id,
+        title: i.title,
+        price: i.price,
+        originalPrice: i.originalPrice,
+        discount: i.discount,
+        thumbnail: i.thumbnail,
+        permalink: i.permalink,
+      }));
+      setResults(items);
+      setPagination({ offset: res.offset, limit: res.limit, total: res.total });
+      if (items.length === 0) toast.message("Nenhum produto encontrado.");
+    } catch (err) {
+      toast.error("Falha ao buscar produtos", {
+        description: err instanceof Error ? err.message : "Erro desconhecido.",
+      });
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const goToOffset = (offset: number) => {
+    if (!searchCtx || !pagination) return;
+    void runSearch(Math.max(0, offset));
+  };
+
+  const handleAddOne = async (id: string) => {
+    setAddingIds((s) => new Set(s).add(id));
+    try {
+      const res = await addByIdsFn({ data: { ids: [id] } });
+      if (res.inserted + res.updated > 0) {
+        setAddedIds((s) => new Set(s).add(id));
+        toast.success(res.inserted > 0 ? "Produto adicionado" : "Produto atualizado");
+      } else {
+        toast.error("Não foi possível adicionar este produto.");
+      }
+    } catch (err) {
+      toast.error("Falha ao adicionar", {
+        description: err instanceof Error ? err.message : "Erro desconhecido.",
+      });
+    } finally {
+      setAddingIds((s) => {
+        const next = new Set(s);
+        next.delete(id);
+        return next;
+      });
+    }
+  };
 
   return (
     <div className="mt-6 space-y-6">
@@ -2288,7 +2432,15 @@ function MercadoLivrePanel() {
           <div className="mt-4 space-y-3">
             <div>
               <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Link</label>
-              <Input placeholder="https://mercadolivre.com.br/..." className="h-10" />
+              <Input
+                placeholder="https://mercadolivre.com.br/... ou MLB1234567890"
+                className="h-10"
+                value={linkInput}
+                onChange={(e) => setLinkInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !addingLink) void handleAddByLink();
+                }}
+              />
             </div>
             <div>
               <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Cabeçalho Dinâmico</label>
@@ -2303,8 +2455,12 @@ function MercadoLivrePanel() {
               <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Novo Cabeçalho</label>
               <Input placeholder="Digite um cabeçalho personalizado..." className="h-10" />
             </div>
-            <Button className="w-full gap-2 rounded-full bg-primary hover:bg-primary/90">
-              <Plus className="h-4 w-4" /> Adicionar produto
+            <Button
+              className="w-full gap-2 rounded-full bg-primary hover:bg-primary/90"
+              disabled={addingLink}
+              onClick={() => void handleAddByLink()}
+            >
+              <Plus className="h-4 w-4" /> {addingLink ? "Adicionando..." : "Adicionar produto"}
             </Button>
           </div>
         </div>
@@ -2315,30 +2471,37 @@ function MercadoLivrePanel() {
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[oklch(0.95_0.04_240)] text-[oklch(0.55_0.19_256)]">
               <Search className="h-4 w-4" />
             </div>
-            <h3 className="text-[14px] font-semibold">Buscar por Categoria — Ofertas do Dia</h3>
+            <h3 className="text-[14px] font-semibold">Encontrar Ofertas — Mercado Livre</h3>
           </div>
           <p className="mt-3 text-[12.5px] leading-relaxed text-muted-foreground">
-            Escolha uma <b>categoria principal</b> e, se quiser, refine com uma <b>subcategoria</b> opcional para importar ofertas em lote.
+            Escolha uma <b>categoria</b>, digite uma <b>palavra-chave</b> ou marque <b>Mais Vendidos</b> para descobrir produtos.
           </p>
 
           <div className="mt-4 space-y-3">
             <div>
-              <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Categoria Principal</label>
+              <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Categoria</label>
               <div className="relative">
-                <select className="h-10 w-full appearance-none rounded-md border border-input bg-background px-3 pr-9 text-sm">
+                <select
+                  className="h-10 w-full appearance-none rounded-md border border-input bg-background px-3 pr-9 text-sm"
+                  value={categoryLabel}
+                  onChange={(e) => setCategoryLabel(e.target.value)}
+                >
                   {ML_CATEGORIES.map((c) => <option key={c}>{c}</option>)}
                 </select>
                 <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               </div>
             </div>
             <div>
-              <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Subcategoria (Opcional)</label>
-              <div className="relative">
-                <select className="h-10 w-full appearance-none rounded-md border border-input bg-background px-3 pr-9 text-sm">
-                  <option>Todas as subcategorias</option>
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              </div>
+              <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Palavra-chave (opcional)</label>
+              <Input
+                placeholder="Ex: whey protein"
+                className="h-10"
+                value={keyword}
+                onChange={(e) => setKeyword(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !searching) void runSearch(0);
+                }}
+              />
             </div>
             <label className="flex items-start gap-2 rounded-lg border border-border/60 bg-muted/30 p-3">
               <input
@@ -2348,14 +2511,15 @@ function MercadoLivrePanel() {
                 className="mt-0.5 h-4 w-4 accent-[oklch(0.62_0.19_256)]"
               />
               <span className="text-[12px] leading-relaxed text-foreground">
-                Buscar <b>Mais Vendidos</b>{" "}
-                <a className="text-primary underline decoration-dotted underline-offset-2 hover:text-primary/80" href="#">
-                  como buscar?
-                </a>
+                Buscar <b>Mais Vendidos</b>
               </span>
             </label>
-            <Button className="w-full gap-2 rounded-full bg-[oklch(0.62_0.19_256)] hover:bg-[oklch(0.55_0.19_256)]">
-              <Search className="h-4 w-4" /> Buscar ofertas
+            <Button
+              className="w-full gap-2 rounded-full bg-[oklch(0.62_0.19_256)] hover:bg-[oklch(0.55_0.19_256)]"
+              disabled={searching}
+              onClick={() => void runSearch(0)}
+            >
+              <Search className="h-4 w-4" /> {searching ? "Buscando produtos..." : "Buscar ofertas"}
             </Button>
           </div>
         </div>
@@ -2397,9 +2561,114 @@ function MercadoLivrePanel() {
         </div>
       </div>
 
-      {/* Product list */}
+      {/* Search results */}
+      {(searching || results.length > 0) && (
+        <div className="overflow-hidden rounded-2xl border border-border/60 bg-card shadow-sm">
+          <div className="flex flex-col gap-3 border-b border-border/60 bg-muted/20 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="text-[15px] font-semibold">Resultados da busca</h3>
+              <p className="text-[12px] text-muted-foreground">
+                {searching
+                  ? "Buscando produtos..."
+                  : pagination
+                    ? `${pagination.offset + 1} – ${pagination.offset + results.length} de ${pagination.total} produtos`
+                    : ""}
+              </p>
+            </div>
+            {pagination && !searching && (
+              <div className="flex items-center gap-1">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 rounded-md"
+                  disabled={pagination.offset === 0}
+                  onClick={() => goToOffset(pagination.offset - pagination.limit)}
+                >
+                  Anterior
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 rounded-md"
+                  disabled={pagination.offset + pagination.limit >= pagination.total}
+                  onClick={() => goToOffset(pagination.offset + pagination.limit)}
+                >
+                  Próximo
+                </Button>
+              </div>
+            )}
+          </div>
+
+          {searching ? (
+            <div className="flex items-center justify-center gap-2 p-10 text-[13px] text-muted-foreground">
+              <RefreshCw className="h-4 w-4 animate-spin" /> Buscando produtos...
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2 xl:grid-cols-4">
+              {results.map((p) => {
+                const isAdding = addingIds.has(p.id);
+                const isAdded = addedIds.has(p.id);
+                return (
+                  <div key={p.id} className="group flex flex-col overflow-hidden rounded-xl border border-border/60 bg-background shadow-sm transition hover:shadow-md">
+                    <div className="relative aspect-square w-full overflow-hidden bg-muted/40">
+                      {p.thumbnail ? (
+                        <img
+                          src={p.thumbnail}
+                          alt={p.title}
+                          loading="lazy"
+                          className="h-full w-full object-contain"
+                        />
+                      ) : (
+                        <div className="flex h-full items-center justify-center text-4xl text-muted-foreground">🛒</div>
+                      )}
+                      {p.discount != null && p.discount > 0 && (
+                        <span className="absolute right-2.5 top-2.5 rounded-md bg-[oklch(0.6_0.22_20)] px-2 py-0.5 text-[10px] font-bold text-white shadow-sm">
+                          -{p.discount}%
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex flex-1 flex-col gap-2 p-3">
+                      <p className="line-clamp-2 min-h-[34px] text-[12.5px] font-medium leading-snug text-foreground">
+                        {p.title}
+                      </p>
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-[15px] font-bold text-[oklch(0.55_0.19_150)]">{formatBRL(p.price)}</span>
+                        {p.originalPrice != null && p.originalPrice > (p.price ?? 0) && (
+                          <span className="text-[11px] text-muted-foreground line-through">
+                            {formatBRL(p.originalPrice)}
+                          </span>
+                        )}
+                      </div>
+                      <Button
+                        size="sm"
+                        disabled={isAdding || isAdded}
+                        onClick={() => void handleAddOne(p.id)}
+                        className={cn(
+                          "mt-1 h-8 gap-1 rounded-md text-[11.5px]",
+                          isAdded
+                            ? "bg-[oklch(0.62_0.19_150)] hover:bg-[oklch(0.55_0.19_150)]"
+                            : "bg-primary hover:bg-primary/90",
+                        )}
+                      >
+                        {isAdded ? (
+                          <><Check className="h-3.5 w-3.5" /> Adicionado</>
+                        ) : isAdding ? (
+                          <><RefreshCw className="h-3.5 w-3.5 animate-spin" /> Adicionando...</>
+                        ) : (
+                          <><Plus className="h-3.5 w-3.5" /> Adicionar</>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Product list (static placeholder — kept as-is to preserve layout) */}
       <div className="overflow-hidden rounded-2xl border border-border/60 bg-card shadow-sm">
-        {/* Header + filters */}
         <div className="border-b border-border/60 bg-muted/20 px-5 py-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -2479,11 +2748,9 @@ function MercadoLivrePanel() {
           </div>
         </div>
 
-        {/* Grid */}
         <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2 xl:grid-cols-4">
           {ML_PRODUCTS.map((p) => (
             <div key={p.id} className="group flex flex-col overflow-hidden rounded-xl border border-border/60 bg-background shadow-sm transition hover:shadow-md">
-              {/* Image */}
               <div className="relative aspect-square w-full overflow-hidden" style={{ background: p.color }}>
                 <input
                   type="checkbox"
@@ -2505,7 +2772,6 @@ function MercadoLivrePanel() {
                 <div className="flex h-full items-center justify-center text-6xl">{p.emoji}</div>
               </div>
 
-              {/* Info */}
               <div className="flex flex-1 flex-col gap-2 p-3">
                 <p className="line-clamp-2 min-h-[34px] text-[12.5px] font-medium leading-snug text-foreground">
                   {p.title}
@@ -2534,7 +2800,6 @@ function MercadoLivrePanel() {
           ))}
         </div>
 
-        {/* Pagination footer */}
         <div className="flex items-center justify-between border-t border-border/60 bg-muted/20 px-5 py-3">
           <p className="text-[12px] text-muted-foreground">Mostrando 1 – 8 de 272 produtos</p>
           <div className="flex items-center gap-1">
