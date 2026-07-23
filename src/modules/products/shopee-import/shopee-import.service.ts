@@ -20,11 +20,21 @@ export async function importBatch(
     .map((r) => ({ itemId: r.itemId, productUrl: r.productUrl }));
   const resolved = missing.length > 0 ? await resolveImages(missing) : new Map<string, string>();
 
-  const enriched: ShopeeCsvRow[] = rows.map((r) =>
-    r.imageUrl ? r : { ...r, imageUrl: resolved.get(r.itemId) ?? null },
-  );
-
+  const enriched: ShopeeCsvRow[] = rows.map((r) => {
+    const candidate = r.imageUrl ?? resolved.get(r.itemId) ?? null;
+    return { ...r, imageUrl: isValidHttpUrl(candidate) ? candidate : null };
+  });
 
   const payload = enriched.map((r) => mapRowToProduct(userId, r));
   return upsertBatch(supabase, userId, payload);
+}
+
+function isValidHttpUrl(v: string | null): v is string {
+  if (!v) return false;
+  try {
+    const u = new URL(v);
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch {
+    return false;
+  }
 }
