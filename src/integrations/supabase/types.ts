@@ -414,6 +414,9 @@ export type Database = {
           last_seen_at: string | null
           name: string
           phone_number: string | null
+          provider: string
+          qr_code: string | null
+          session_id: string | null
           session_key: string | null
           status: string
           token_hash: string | null
@@ -430,6 +433,9 @@ export type Database = {
           last_seen_at?: string | null
           name: string
           phone_number?: string | null
+          provider?: string
+          qr_code?: string | null
+          session_id?: string | null
           session_key?: string | null
           status?: string
           token_hash?: string | null
@@ -446,6 +452,9 @@ export type Database = {
           last_seen_at?: string | null
           name?: string
           phone_number?: string | null
+          provider?: string
+          qr_code?: string | null
+          session_id?: string | null
           session_key?: string | null
           status?: string
           token_hash?: string | null
