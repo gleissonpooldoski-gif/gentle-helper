@@ -18,6 +18,15 @@ import {
   disconnectWhatsAppSession,
   type WhatsAppSessionDTO,
 } from "@/modules/channels/whatsapp/session.functions";
+import {
+  listWhatsAppSessions,
+  createWhatsAppSession,
+  confirmWhatsAppSession,
+  getChannelWhatsAppSession,
+  linkChannelToSession,
+  unlinkChannelSession,
+  type WASessionDTO,
+} from "@/modules/channels/whatsapp/sessions.functions";
 
 import {
   AlertTriangle,
