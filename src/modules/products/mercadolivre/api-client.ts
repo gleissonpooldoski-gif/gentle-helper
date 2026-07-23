@@ -67,9 +67,12 @@ export function parseMLBId(input: string): string | null {
   if (!input) return null;
   const s = input.trim();
 
-  // Direct match anywhere in the string, with optional dash.
+  // MLB-1234567890, MLB1234567890, /p/MLB1234567890, ...-i.MLB1234567890
   const m = s.match(/MLB-?\s*([0-9]{6,15})/i);
   if (m) return `MLB${m[1]}`;
+
+  // Pure numeric input assumed to be an MLB id.
+  if (/^[0-9]{8,15}$/.test(s)) return `MLB${s}`;
 
   return null;
 }
