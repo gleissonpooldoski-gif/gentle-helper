@@ -200,8 +200,7 @@ function SessionsPage() {
       <ConnectNewNumberModal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        onSubmit={handleCreate}
-        busy={busy === "create"}
+        onCreate={handleCreate}
       />
     </div>
   );
