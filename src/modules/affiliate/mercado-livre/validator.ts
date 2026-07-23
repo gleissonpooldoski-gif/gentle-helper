@@ -16,8 +16,13 @@ export function validateAffiliateInput(input: {
   const link = (input.affiliateLink ?? "").trim();
   if (!link) errors.push("Informe o link de afiliado do Mercado Livre.");
   if (link.length > 2000) errors.push("Link muito longo.");
-  if (link && !/mercadoli(vre|bre)|mercadolibre|mercadolivre|\/sec\//i.test(link)) {
-    errors.push("Link não parece ser do Mercado Livre.");
+  if (link) {
+    try {
+      // eslint-disable-next-line no-new
+      new URL(link);
+    } catch {
+      errors.push("Link inválido — cole a URL completa (com https://).");
+    }
   }
   if (input.cookie && input.cookie.length > 8000) errors.push("Cookie muito longo.");
   return { ok: errors.length === 0, errors };
