@@ -65,6 +65,8 @@ export function buildAuthorizeUrl(redirectUri: string, state: string): string {
     client_id: clientId,
     redirect_uri: redirectUri,
     state,
+    // offline_access é obrigatório para o Mercado Livre devolver refresh_token.
+    scope: "offline_access read write",
   });
   return `${AUTH_URL}?${params.toString()}`;
 }
