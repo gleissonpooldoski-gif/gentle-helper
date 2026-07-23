@@ -105,39 +105,57 @@ export type Database = {
           affiliate_link: string
           category: string | null
           commission_rate: number | null
+          commission_value: number | null
           created_at: string
           id: string
           image_url: string | null
+          item_id: string | null
           original_price: number | null
+          platform: string
           promo_price: number | null
           raw_link: string
+          sales: number | null
+          store_name: string | null
           title: string
+          updated_at: string
           user_id: string
         }
         Insert: {
           affiliate_link: string
           category?: string | null
           commission_rate?: number | null
+          commission_value?: number | null
           created_at?: string
           id?: string
           image_url?: string | null
+          item_id?: string | null
           original_price?: number | null
+          platform?: string
           promo_price?: number | null
           raw_link: string
+          sales?: number | null
+          store_name?: string | null
           title: string
+          updated_at?: string
           user_id: string
         }
         Update: {
           affiliate_link?: string
           category?: string | null
           commission_rate?: number | null
+          commission_value?: number | null
           created_at?: string
           id?: string
           image_url?: string | null
+          item_id?: string | null
           original_price?: number | null
+          platform?: string
           promo_price?: number | null
           raw_link?: string
+          sales?: number | null
+          store_name?: string | null
           title?: string
+          updated_at?: string
           user_id?: string
         }
         Relationships: [
