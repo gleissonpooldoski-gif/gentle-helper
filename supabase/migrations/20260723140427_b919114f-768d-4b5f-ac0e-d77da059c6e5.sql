@@ -1,0 +1,1 @@
+ALTER TABLE public.mercadolivre_integrations ALTER COLUMN refresh_token_ciphertext DROP NOT NULL;

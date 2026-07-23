@@ -197,16 +197,24 @@ export async function refreshToken(refresh: string): Promise<TokenResponse> {
 
 /** Persist tokens (encrypted) for the given user via the service-role client. */
 export async function persistTokens(userId: string, t: TokenResponse): Promise<void> {
+  console.log("[ML][persistTokens] tokens recebidos", {
+    access_token: t?.access_token ? "SIM" : "NÃO",
+    refresh_token: t?.refresh_token ? "SIM" : "NÃO",
+    expires_in: t?.expires_in ?? null,
+    user_id: t?.user_id ?? null,
+    scope: t?.scope ?? null,
+  });
   if (!userId) throw new Error("Configuração Mercado Livre incompleta (userId ausente).");
   if (!t?.access_token) {
     throw new Error("Token Mercado Livre não recebido (access_token ausente).");
   }
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const expiresAt = new Date(Date.now() + (t.expires_in - 60) * 1000).toISOString();
+  const expiresAt = new Date(Date.now() + ((t.expires_in ?? 3600) - 60) * 1000).toISOString();
 
-  // Se o Mercado Livre não devolveu refresh_token nesta resposta, mantemos o existente.
+  // Só criptografa quando o refresh_token realmente veio na resposta.
+  // Se não veio, tentamos preservar o que já existe no banco.
   let refreshCiphertext: string | null = null;
-  if (t.refresh_token) {
+  if (typeof t.refresh_token === "string" && t.refresh_token.length > 0) {
     refreshCiphertext = encryptSecret(t.refresh_token);
   } else {
     const { data: existing } = await supabaseAdmin
@@ -215,18 +223,21 @@ export async function persistTokens(userId: string, t: TokenResponse): Promise<v
       .eq("user_id", userId)
       .maybeSingle();
     refreshCiphertext =
-      (existing as { refresh_token_ciphertext: string } | null)?.refresh_token_ciphertext ?? null;
+      (existing as { refresh_token_ciphertext: string | null } | null)?.refresh_token_ciphertext ?? null;
+    console.log("[ML][persistTokens] refresh_token ausente na resposta OAuth", {
+      refresh_token_ciphertext_preservado: refreshCiphertext ? "SIM" : "NÃO",
+    });
   }
 
   const row: Record<string, unknown> = {
     user_id: userId,
     ml_user_id: String(t.user_id),
     access_token_ciphertext: encryptSecret(t.access_token),
+    refresh_token_ciphertext: refreshCiphertext, // pode ser NULL (coluna é nullable)
     expires_at: expiresAt,
     scope: t.scope ?? null,
     updated_at: new Date().toISOString(),
   };
-  if (refreshCiphertext) row.refresh_token_ciphertext = refreshCiphertext;
 
   const { error } = await supabaseAdmin
     .from("mercadolivre_integrations")
