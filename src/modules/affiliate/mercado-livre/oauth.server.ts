@@ -137,7 +137,8 @@ export async function exchangeCode(code: string, redirectUri: string): Promise<T
 export async function refreshToken(refresh: string): Promise<TokenResponse> {
   const clientId = process.env.ML_CLIENT_ID;
   const clientSecret = process.env.ML_CLIENT_SECRET;
-  if (!clientId || !clientSecret) throw new Error("ML_CLIENT_ID/ML_CLIENT_SECRET ausentes.");
+  if (!clientId || !clientSecret) throw new Error("Configuração Mercado Livre incompleta (ML_CLIENT_ID/ML_CLIENT_SECRET ausentes).");
+  if (!refresh) throw new Error("Token Mercado Livre não recebido (refresh_token ausente).");
   return tokenRequest(
     new URLSearchParams({
       grant_type: "refresh_token",
