@@ -14,6 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      affiliate_connections: {
+        Row: {
+          affiliate_link: string | null
+          affiliate_tag: string | null
+          cookie_encrypted: string | null
+          created_at: string
+          id: string
+          last_error: string | null
+          platform: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          affiliate_link?: string | null
+          affiliate_tag?: string | null
+          cookie_encrypted?: string | null
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          platform: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          affiliate_link?: string | null
+          affiliate_tag?: string | null
+          cookie_encrypted?: string | null
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          platform?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       monitored_groups: {
         Row: {
           created_at: string
