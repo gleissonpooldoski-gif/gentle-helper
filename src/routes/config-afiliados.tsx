@@ -4,6 +4,11 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { getShopeeConfig, saveShopeeConfig } from "@/lib/shopee-config.functions";
 import { getMLConnection, saveMLConnection } from "@/modules/affiliate/mercado-livre/controller.functions";
+import {
+  getMLIntegrationStatus,
+  startMLOAuth,
+  disconnectMLIntegration,
+} from "@/modules/affiliate/mercado-livre/oauth.functions";
 import { getMagaluConnection, saveMagaluConnection } from "@/modules/affiliate/magalu/controller.functions";
 
 
