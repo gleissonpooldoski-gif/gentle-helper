@@ -14,6 +14,7 @@ import { Route as ConfigAfiliadosRouteImport } from './routes/config-afiliados'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as CanaisIdEditarRouteImport } from './routes/canais.$id.editar'
+import { Route as ApiMlProbeRouteImport } from './routes/api/ml/probe'
 import { Route as ApiMlCallbackRouteImport } from './routes/api/ml/callback'
 
 const RelatoriosRoute = RelatoriosRouteImport.update({
@@ -41,6 +42,11 @@ const CanaisIdEditarRoute = CanaisIdEditarRouteImport.update({
   path: '/canais/$id/editar',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMlProbeRoute = ApiMlProbeRouteImport.update({
+  id: '/api/ml/probe',
+  path: '/api/ml/probe',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiMlCallbackRoute = ApiMlCallbackRouteImport.update({
   id: '/api/ml/callback',
   path: '/api/ml/callback',
@@ -53,6 +59,7 @@ export interface FileRoutesByFullPath {
   '/config-afiliados': typeof ConfigAfiliadosRoute
   '/relatorios': typeof RelatoriosRoute
   '/api/ml/callback': typeof ApiMlCallbackRoute
+  '/api/ml/probe': typeof ApiMlProbeRoute
   '/canais/$id/editar': typeof CanaisIdEditarRoute
 }
 export interface FileRoutesByTo {
@@ -61,6 +68,7 @@ export interface FileRoutesByTo {
   '/config-afiliados': typeof ConfigAfiliadosRoute
   '/relatorios': typeof RelatoriosRoute
   '/api/ml/callback': typeof ApiMlCallbackRoute
+  '/api/ml/probe': typeof ApiMlProbeRoute
   '/canais/$id/editar': typeof CanaisIdEditarRoute
 }
 export interface FileRoutesById {
@@ -70,6 +78,7 @@ export interface FileRoutesById {
   '/config-afiliados': typeof ConfigAfiliadosRoute
   '/relatorios': typeof RelatoriosRoute
   '/api/ml/callback': typeof ApiMlCallbackRoute
+  '/api/ml/probe': typeof ApiMlProbeRoute
   '/canais/$id/editar': typeof CanaisIdEditarRoute
 }
 export interface FileRouteTypes {
@@ -80,6 +89,7 @@ export interface FileRouteTypes {
     | '/config-afiliados'
     | '/relatorios'
     | '/api/ml/callback'
+    | '/api/ml/probe'
     | '/canais/$id/editar'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -88,6 +98,7 @@ export interface FileRouteTypes {
     | '/config-afiliados'
     | '/relatorios'
     | '/api/ml/callback'
+    | '/api/ml/probe'
     | '/canais/$id/editar'
   id:
     | '__root__'
@@ -96,6 +107,7 @@ export interface FileRouteTypes {
     | '/config-afiliados'
     | '/relatorios'
     | '/api/ml/callback'
+    | '/api/ml/probe'
     | '/canais/$id/editar'
   fileRoutesById: FileRoutesById
 }
@@ -105,6 +117,7 @@ export interface RootRouteChildren {
   ConfigAfiliadosRoute: typeof ConfigAfiliadosRoute
   RelatoriosRoute: typeof RelatoriosRoute
   ApiMlCallbackRoute: typeof ApiMlCallbackRoute
+  ApiMlProbeRoute: typeof ApiMlProbeRoute
   CanaisIdEditarRoute: typeof CanaisIdEditarRoute
 }
 
@@ -145,6 +158,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CanaisIdEditarRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/ml/probe': {
+      id: '/api/ml/probe'
+      path: '/api/ml/probe'
+      fullPath: '/api/ml/probe'
+      preLoaderRoute: typeof ApiMlProbeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/ml/callback': {
       id: '/api/ml/callback'
       path: '/api/ml/callback'
@@ -161,6 +181,7 @@ const rootRouteChildren: RootRouteChildren = {
   ConfigAfiliadosRoute: ConfigAfiliadosRoute,
   RelatoriosRoute: RelatoriosRoute,
   ApiMlCallbackRoute: ApiMlCallbackRoute,
+  ApiMlProbeRoute: ApiMlProbeRoute,
   CanaisIdEditarRoute: CanaisIdEditarRoute,
 }
 export const routeTree = rootRouteImport
