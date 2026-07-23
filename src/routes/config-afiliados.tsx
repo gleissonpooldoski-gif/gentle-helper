@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { getShopeeConfig, saveShopeeConfig } from "@/lib/shopee-config.functions";
 import { getMLConnection, saveMLConnection } from "@/modules/affiliate/mercado-livre/controller.functions";
-import { getMagaluConnection, saveMagaluConnection } from "@/modules/affiliate/magalu/controller.functions";
+import { loadMagaluLocal, saveMagaluLocal } from "@/modules/affiliate/magalu/local-store";
 
 
 import {
@@ -664,35 +664,19 @@ function AmazonCard() {
 }
 
 function MagaluCard() {
-  const fetchConn = useServerFn(getMagaluConnection);
-  const saveConn = useServerFn(saveMagaluConnection);
-
   const [storeName, setStoreName] = useState("");
-  const [status, setStatus] = useState<"connected" | "pending" | "error">("pending");
-  const [lastError, setLastError] = useState<string | null>(null);
+  const [status, setStatus] = useState<"connected" | "pending">("pending");
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        const conn = await fetchConn();
-        if (!alive || !conn) return;
-        setStoreName(conn.storeName ?? "");
-        setStatus(conn.status);
-        setLastError(conn.lastError);
-        setUpdatedAt(conn.updatedAt);
-      } catch {
-        /* silent — usuário verá o estado padrão "pendente" */
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [fetchConn]);
+    const conn = loadMagaluLocal();
+    setStoreName(conn.storeName);
+    setStatus(conn.status);
+    setUpdatedAt(conn.updatedAt);
+  }, []);
 
-  const handleSave = async () => {
+  const handleSave = () => {
     const trimmed = storeName.trim();
     if (!trimmed) {
       toast.error("Informe o nome da loja Magalu.");
@@ -700,20 +684,13 @@ function MagaluCard() {
     }
     setSaving(true);
     try {
-      const conn = await saveConn({ data: { storeName: trimmed } });
+      const conn = saveMagaluLocal(trimmed);
       setStoreName(conn.storeName);
       setStatus(conn.status);
-      setLastError(conn.lastError);
       setUpdatedAt(conn.updatedAt);
-      if (conn.status === "connected") {
-        toast.success("Loja configurada — links Magalu podem ser gerados.");
-      } else {
-        toast.warning(conn.lastError ?? "Configure seu nome de loja Magalu.");
-      }
+      toast.success("Loja configurada — links Magalu podem ser gerados.");
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Falha ao salvar configuração Magalu.";
-      setStatus("error");
-      setLastError(msg);
       toast.error(msg);
     } finally {
       setSaving(false);
@@ -723,9 +700,7 @@ function MagaluCard() {
   const statusBadge =
     status === "connected"
       ? { label: "Conectado", tone: "active" as const }
-      : status === "error"
-        ? { label: "Erro", tone: "off" as const }
-        : { label: "Pendente", tone: "pending" as const };
+      : { label: "Pendente", tone: "pending" as const };
 
   return (
     <PlatformCard
@@ -756,7 +731,7 @@ function MagaluCard() {
         </Alert>
       ) : (
         <Alert tone="warning" title="⚠ Configure seu nome de loja Magalu">
-          {lastError ?? "Preencha o nome da sua loja para começar a gerar links comissionados."}
+          Preencha o nome da sua loja para começar a gerar links comissionados.
         </Alert>
       )}
       <div className="flex justify-end">
