@@ -1,0 +1,1 @@
+ALTER TABLE public.affiliate_connections ADD COLUMN IF NOT EXISTS store_name text;
