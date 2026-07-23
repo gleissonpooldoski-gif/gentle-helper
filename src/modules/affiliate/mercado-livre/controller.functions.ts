@@ -5,16 +5,12 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { validateAffiliateInput } from "./validator";
-import {
-  getConnection,
-  saveConnection,
-  generateAffiliateUrl,
-  type MLConnectionView,
-} from "./service";
+import type { MLConnectionView } from "./service";
 
 export const getMLConnection = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<MLConnectionView | null> => {
+    const { getConnection } = await import("./service");
     return getConnection(context.supabase, context.userId);
   });
 
@@ -28,7 +24,22 @@ export const saveMLConnection = createServerFn({ method: "POST" })
     return { affiliateLink, cookie, clearCookie: !!input.clearCookie };
   })
   .handler(async ({ data, context }): Promise<MLConnectionView> => {
-    return saveConnection(context.supabase, context.userId, data);
+    try {
+      const { saveConnection } = await import("./service");
+      return await saveConnection(context.supabase, context.userId, data);
+    } catch (error) {
+      console.error("affiliate_config_save_error", {
+        endpoint: "saveMLConnection",
+        userId: context.userId,
+        platform: "mercado_livre",
+        error: error instanceof Error ? error.message : String(error),
+        occurredAt: new Date().toISOString(),
+      });
+      if (error instanceof Error && error.message.includes("SHOPEE_CONFIG_ENC_KEY")) {
+        throw new Error("Não foi possível validar a conexão.");
+      }
+      throw new Error("Não foi possível salvar a configuração.");
+    }
   });
 
 export const buildMLAffiliateUrl = createServerFn({ method: "POST" })
@@ -39,5 +50,6 @@ export const buildMLAffiliateUrl = createServerFn({ method: "POST" })
     return { productUrl };
   })
   .handler(async ({ data, context }) => {
+    const { generateAffiliateUrl } = await import("./service");
     return generateAffiliateUrl(context.supabase, context.userId, data.productUrl);
   });

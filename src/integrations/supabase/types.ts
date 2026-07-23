@@ -16,8 +16,10 @@ export type Database = {
     Tables: {
       affiliate_connections: {
         Row: {
+          affiliate_id: string | null
           affiliate_link: string | null
           affiliate_tag: string | null
+          api_key_encrypted: string | null
           cookie_encrypted: string | null
           created_at: string
           id: string
@@ -29,8 +31,10 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          affiliate_id?: string | null
           affiliate_link?: string | null
           affiliate_tag?: string | null
+          api_key_encrypted?: string | null
           cookie_encrypted?: string | null
           created_at?: string
           id?: string
@@ -42,8 +46,10 @@ export type Database = {
           user_id: string
         }
         Update: {
+          affiliate_id?: string | null
           affiliate_link?: string | null
           affiliate_tag?: string | null
+          api_key_encrypted?: string | null
           cookie_encrypted?: string | null
           created_at?: string
           id?: string
