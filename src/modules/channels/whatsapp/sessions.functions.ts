@@ -109,16 +109,20 @@ export const createWhatsAppSession = createServerFn({ method: "POST" })
       throw new Error(`Você atingiu o limite de ${limit} sessões WhatsApp do seu plano.`);
     }
 
-    const sessionKey = makeSessionKey();
+    const token = makeToken();
+    const tokenHash = hashToken(token);
+    const expiresAt = new Date(Date.now() + TOKEN_TTL_MINUTES * 60_000).toISOString();
     const { data: row, error } = await (supabase as any)
       .from("whatsapp_sessions")
       .insert({
         user_id: userId,
         name: data.name,
-        session_key: sessionKey,
+        session_key: token, // legacy column kept in sync
+        token_hash: tokenHash,
+        expires_at: expiresAt,
         status: "pending",
       })
-      .select("id,name,phone_number,status,connected_at,last_seen_at,created_at,session_key")
+      .select("id,name,phone_number,status,connected_at,last_seen_at,created_at")
       .single();
     if (error) throw new Error(error.message);
     return {
@@ -129,7 +133,8 @@ export const createWhatsAppSession = createServerFn({ method: "POST" })
       connectedAt: row.connected_at,
       lastSeenAt: row.last_seen_at,
       createdAt: row.created_at,
-      sessionKey: row.session_key,
+      sessionKey: token,
+      expiresAt,
       linkedChannels: 0,
     };
   });
