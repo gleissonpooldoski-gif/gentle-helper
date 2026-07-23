@@ -124,21 +124,44 @@ export const searchMLProducts = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const token = await tryLoadToken(context.userId);
-    console.log("[ML][ctrl] search", {
-      mode: data.mode, query: data.query, categoryId: data.categoryId,
-      offset: data.offset, limit: data.limit, tokenValid: token ? "SIM" : "NAO",
+
+    // Recreate the exact URL that api-client will hit so it shows up here too.
+    const params = new URLSearchParams();
+    if (data.query) params.set("q", data.query);
+    if (data.categoryId) params.set("category", data.categoryId);
+    params.set("offset", String(data.offset));
+    params.set("limit", String(data.limit));
+    const fullUrl = `https://api.mercadolibre.com/sites/MLB/search?${params.toString()}`;
+
+    console.log("[ML][SEARCH] REQUEST", {
+      method: "GET",
+      url: fullUrl,
+      user_id: context.userId,
+      hasAccessToken: !!token,
+      mode: data.mode,
     });
-    if (data.mode === "deals") return getHighlights(data.offset, data.limit, token ?? undefined);
-    return searchItems(
-      {
-        query: data.query,
-        categoryId: data.categoryId,
-        offset: data.offset,
-        limit: data.limit,
-        sort: data.mode === "best_sellers" ? "relevance" : "relevance",
-      },
-      token ?? undefined,
-    );
+
+    try {
+      if (data.mode === "deals") return await getHighlights(data.offset, data.limit, token ?? undefined);
+      return await searchItems(
+        {
+          query: data.query,
+          categoryId: data.categoryId,
+          offset: data.offset,
+          limit: data.limit,
+          sort: data.mode === "best_sellers" ? "relevance" : "relevance",
+        },
+        token ?? undefined,
+      );
+    } catch (err) {
+      const anyErr = err as { status?: number; url?: string; message?: string; body?: unknown };
+      console.error("[ML][SEARCH] ERROR", {
+        status: anyErr?.status ?? null,
+        endpoint: anyErr?.url ?? fullUrl,
+        body: anyErr?.body ?? anyErr?.message ?? String(err),
+      });
+      throw err;
+    }
   });
 
 /** Add many products by MLB id. */

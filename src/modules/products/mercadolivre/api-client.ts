@@ -25,7 +25,12 @@ export type MLItem = {
 };
 
 export class MLApiError extends Error {
-  constructor(message: string, public url: string, public status?: number) {
+  constructor(
+    message: string,
+    public url: string,
+    public status?: number,
+    public body?: unknown,
+  ) {
     super(message);
   }
 }
@@ -72,7 +77,7 @@ async function fetchJson<T>(url: string, accessToken?: string): Promise<T> {
         friendly = `Mercado Livre indisponível (${res.status}).`;
       }
       console.warn("[ML][api] error", { method, url, status: res.status, body: bodyJson ?? bodyText });
-      throw new MLApiError(friendly, url, res.status);
+      throw new MLApiError(friendly, url, res.status, bodyJson ?? bodyText);
     }
     return (bodyJson ?? JSON.parse(bodyText)) as T;
 
