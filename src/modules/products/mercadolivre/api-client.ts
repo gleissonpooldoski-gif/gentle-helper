@@ -32,22 +32,50 @@ export class MLApiError extends Error {
 async function fetchJson<T>(url: string): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  const headers: Record<string, string> = {
+    "user-agent": UA,
+    accept: "application/json",
+  };
+  // Optional server-side access token (never exposed to the frontend).
+  const token =
+    typeof process !== "undefined" ? process.env?.ML_ACCESS_TOKEN : undefined;
+  if (token) headers["authorization"] = `Bearer ${token}`;
+
+  console.log("[ML][api] request", {
+    url,
+    headers: { ...headers, authorization: token ? "Bearer ***" : undefined },
+  });
+
   try {
     const res = await fetch(url, {
       signal: controller.signal,
       redirect: "follow",
-      headers: { "user-agent": UA, accept: "application/json" },
+      headers,
     });
-    console.log("[ML][api]", { url, status: res.status });
+    const bodyText = await res.text().catch(() => "");
+    console.log("[ML][api] response", {
+      url,
+      status: res.status,
+      body: bodyText.slice(0, 500),
+    });
     if (!res.ok) {
-      const body = await res.text().catch(() => "");
+      let friendly = `ML API ${res.status}`;
+      if (res.status === 401 || res.status === 403) {
+        friendly = token
+          ? "Falha na autenticação Mercado Livre (token inválido/expirado)."
+          : "Endpoint bloqueado pelo Mercado Livre (403). Este recurso agora exige Access Token — configure ML_ACCESS_TOKEN no backend.";
+      } else if (res.status === 429) {
+        friendly = "Mercado Livre limitou as requisições (429). Tente novamente em instantes.";
+      } else if (res.status >= 500) {
+        friendly = `Mercado Livre indisponível (${res.status}).`;
+      }
       throw new MLApiError(
-        `ML API ${res.status}: ${body.slice(0, 200) || res.statusText}`,
+        `${friendly} ${bodyText.slice(0, 200)}`.trim(),
         url,
         res.status,
       );
     }
-    return (await res.json()) as T;
+    return JSON.parse(bodyText) as T;
   } catch (err) {
     if (err instanceof MLApiError) throw err;
     const msg = err instanceof Error ? err.message : String(err);
