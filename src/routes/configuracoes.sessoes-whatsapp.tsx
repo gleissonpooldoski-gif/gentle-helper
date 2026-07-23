@@ -201,6 +201,10 @@ function SessionsPage() {
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         onCreate={handleCreate}
+        onConnected={() => {
+          toast.success("WhatsApp conectado");
+          reload();
+        }}
       />
     </div>
   );
