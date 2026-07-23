@@ -206,8 +206,8 @@ export async function searchItems(
   // Endpoint público de catálogo — usado para descobrir produtos p/ divulgação
   // afiliada (NÃO gerencia anúncios do vendedor).
   const url = `https://api.mercadolibre.com/sites/MLB/search?${params.toString()}`;
-  console.log("[ML][api] search endpoint", { endpoint: url, auth: accessToken ? "bearer" : "none" });
-  const raw = await fetchJson<SearchResult>(url, accessToken);
+  console.log("[ML][api] search endpoint", { endpoint: url, auth: "none (public)" });
+  const raw = await fetchJson<SearchResult>(url);
   const items = (raw.results ?? []).map(normalize).filter((i): i is MLItem => !!i);
   return {
     items,
@@ -229,8 +229,8 @@ export async function getHighlights(
     discount: "5-100",
   });
   const url = `https://api.mercadolibre.com/sites/MLB/search?${params.toString()}`;
-  console.log("[ML][api] highlights endpoint", { endpoint: url, auth: accessToken ? "bearer" : "none" });
-  const raw = await fetchJson<SearchResult>(url, accessToken);
+  console.log("[ML][api] highlights endpoint", { endpoint: url, auth: "none (public)" });
+  const raw = await fetchJson<SearchResult>(url);
   const items = (raw.results ?? []).map(normalize).filter((i): i is MLItem => !!i);
   return {
     items,
