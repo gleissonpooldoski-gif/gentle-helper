@@ -15,12 +15,15 @@ export async function importBatch(
   userId: string,
   rows: ShopeeCsvRow[],
 ): Promise<BatchOutcome> {
-  const missing = rows.filter((r) => !r.imageUrl && r.productUrl).map((r) => r.productUrl);
+  const missing = rows
+    .filter((r) => !r.imageUrl && r.itemId && r.productUrl)
+    .map((r) => ({ itemId: r.itemId, productUrl: r.productUrl }));
   const resolved = missing.length > 0 ? await resolveImages(missing) : new Map<string, string>();
 
   const enriched: ShopeeCsvRow[] = rows.map((r) =>
-    r.imageUrl ? r : { ...r, imageUrl: resolved.get(r.productUrl) ?? null },
+    r.imageUrl ? r : { ...r, imageUrl: resolved.get(r.itemId) ?? null },
   );
+
 
   const payload = enriched.map((r) => mapRowToProduct(userId, r));
   return upsertBatch(supabase, userId, payload);
