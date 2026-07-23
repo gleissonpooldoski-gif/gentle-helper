@@ -211,9 +211,38 @@ export type SearchOptions = {
   sort?: "relevance" | "price_asc" | "price_desc";
 };
 
+async function probeVariant(
+  label: string,
+  url: string,
+  headers: Record<string, string>,
+): Promise<{ ok: boolean; status: number | null; body: unknown }> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  console.log("[ML][api] FINAL REQUEST", { label, url, headers });
+  try {
+    const res = await fetch(url, { method: "GET", signal: controller.signal, headers });
+    const bodyText = await res.text().catch(() => "");
+    let bodyJson: unknown = null;
+    try { bodyJson = JSON.parse(bodyText); } catch { /* not JSON */ }
+    console.log("[ML][api] FINAL RESPONSE", {
+      label,
+      url,
+      status: res.status,
+      body: bodyJson ?? bodyText,
+    });
+    return { ok: res.ok, status: res.status, body: bodyJson ?? bodyText };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn("[ML][api] FINAL RESPONSE", { label, url, status: null, body: msg });
+    return { ok: false, status: null, body: msg };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function searchItems(
   opts: SearchOptions,
-  accessToken?: string,
+  _accessToken?: string,
 ): Promise<{ items: MLItem[]; total: number; offset: number; limit: number }> {
   const params = new URLSearchParams();
   if (opts.query) params.set("q", opts.query);
@@ -223,11 +252,41 @@ export async function searchItems(
   if (opts.sort === "price_asc") params.set("sort", "price_asc");
   if (opts.sort === "price_desc") params.set("sort", "price_desc");
 
-  // Endpoint público de catálogo — usado para descobrir produtos p/ divulgação
-  // afiliada (NÃO gerencia anúncios do vendedor).
   const url = `https://api.mercadolibre.com/sites/MLB/search?${params.toString()}`;
-  console.log("[ML][api] search endpoint", { endpoint: url, auth: "none (public)" });
-  const raw = await fetchJson<SearchResult>(url);
+
+  // Diagnóstico: três variantes para identificar se o 403 vem de header/UA/etc.
+  const v1 = await probeVariant("no-headers", url, {});
+  let winner = v1;
+  if (!v1.ok) {
+    const v2 = await probeVariant("accept-only", url, { Accept: "application/json" });
+    winner = v2.ok ? v2 : winner;
+    if (!v2.ok) {
+      const v3 = await probeVariant("ua+accept", url, {
+        Accept: "application/json",
+        "User-Agent": UA,
+      });
+      winner = v3.ok ? v3 : winner;
+
+      // Probe alternativo — /sites/MLB/items?ids=... para confirmar se toda a API
+      // pública está bloqueada ou apenas /search.
+      const probeUrl = "https://api.mercadolibre.com/sites/MLB/items?ids=MLB123456789";
+      await probeVariant("items-probe", probeUrl, { Accept: "application/json" });
+    }
+  }
+
+  if (!winner.ok) {
+    const status = winner.status ?? 0;
+    throw new MLApiError(
+      status === 403
+        ? "Permissão negada pelo Mercado Livre (403) na API pública de busca."
+        : `Falha ao consultar Mercado Livre (${status}).`,
+      url,
+      status || undefined,
+      winner.body,
+    );
+  }
+
+  const raw = (winner.body ?? {}) as SearchResult;
   const items = (raw.results ?? []).map(normalize).filter((i): i is MLItem => !!i);
   return {
     items,
