@@ -16,6 +16,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as CanaisIdEditarRouteImport } from './routes/canais.$id.editar'
 import { Route as ApiMlProbeRouteImport } from './routes/api/ml/probe'
 import { Route as ApiMlCallbackRouteImport } from './routes/api/ml/callback'
+import { Route as ApiPublicChannelsWhatsappConnectRouteImport } from './routes/api/public/channels/whatsapp/connect'
 
 const RelatoriosRoute = RelatoriosRouteImport.update({
   id: '/relatorios',
@@ -52,6 +53,12 @@ const ApiMlCallbackRoute = ApiMlCallbackRouteImport.update({
   path: '/api/ml/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicChannelsWhatsappConnectRoute =
+  ApiPublicChannelsWhatsappConnectRouteImport.update({
+    id: '/api/public/channels/whatsapp/connect',
+    path: '/api/public/channels/whatsapp/connect',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -61,6 +68,7 @@ export interface FileRoutesByFullPath {
   '/api/ml/callback': typeof ApiMlCallbackRoute
   '/api/ml/probe': typeof ApiMlProbeRoute
   '/canais/$id/editar': typeof CanaisIdEditarRoute
+  '/api/public/channels/whatsapp/connect': typeof ApiPublicChannelsWhatsappConnectRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -70,6 +78,7 @@ export interface FileRoutesByTo {
   '/api/ml/callback': typeof ApiMlCallbackRoute
   '/api/ml/probe': typeof ApiMlProbeRoute
   '/canais/$id/editar': typeof CanaisIdEditarRoute
+  '/api/public/channels/whatsapp/connect': typeof ApiPublicChannelsWhatsappConnectRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -80,6 +89,7 @@ export interface FileRoutesById {
   '/api/ml/callback': typeof ApiMlCallbackRoute
   '/api/ml/probe': typeof ApiMlProbeRoute
   '/canais/$id/editar': typeof CanaisIdEditarRoute
+  '/api/public/channels/whatsapp/connect': typeof ApiPublicChannelsWhatsappConnectRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -91,6 +101,7 @@ export interface FileRouteTypes {
     | '/api/ml/callback'
     | '/api/ml/probe'
     | '/canais/$id/editar'
+    | '/api/public/channels/whatsapp/connect'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -100,6 +111,7 @@ export interface FileRouteTypes {
     | '/api/ml/callback'
     | '/api/ml/probe'
     | '/canais/$id/editar'
+    | '/api/public/channels/whatsapp/connect'
   id:
     | '__root__'
     | '/'
@@ -109,6 +121,7 @@ export interface FileRouteTypes {
     | '/api/ml/callback'
     | '/api/ml/probe'
     | '/canais/$id/editar'
+    | '/api/public/channels/whatsapp/connect'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -119,6 +132,7 @@ export interface RootRouteChildren {
   ApiMlCallbackRoute: typeof ApiMlCallbackRoute
   ApiMlProbeRoute: typeof ApiMlProbeRoute
   CanaisIdEditarRoute: typeof CanaisIdEditarRoute
+  ApiPublicChannelsWhatsappConnectRoute: typeof ApiPublicChannelsWhatsappConnectRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -172,6 +186,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMlCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/channels/whatsapp/connect': {
+      id: '/api/public/channels/whatsapp/connect'
+      path: '/api/public/channels/whatsapp/connect'
+      fullPath: '/api/public/channels/whatsapp/connect'
+      preLoaderRoute: typeof ApiPublicChannelsWhatsappConnectRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -183,6 +204,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMlCallbackRoute: ApiMlCallbackRoute,
   ApiMlProbeRoute: ApiMlProbeRoute,
   CanaisIdEditarRoute: CanaisIdEditarRoute,
+  ApiPublicChannelsWhatsappConnectRoute: ApiPublicChannelsWhatsappConnectRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
