@@ -1799,6 +1799,8 @@ function WhatsAppGroupsPanel() {
 
   return (
     <div className="mt-6 space-y-6">
+      <WhatsAppConnectionCard />
+
       {/* WhatsApp Web / Passkey solution */}
       <div className="overflow-hidden rounded-2xl border border-[oklch(0.85_0.12_150)] bg-gradient-to-br from-[oklch(0.97_0.05_150)] to-[oklch(0.95_0.06_155)] shadow-[0_1px_2px_rgba(15,23,42,0.04),0_10px_30px_-18px_rgba(20,150,90,0.35)]">
         <div className="flex flex-col gap-5 p-6 sm:flex-row sm:items-start">
