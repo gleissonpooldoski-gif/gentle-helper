@@ -140,6 +140,39 @@ export type Database = {
           },
         ]
       }
+      shopee_affiliate_configs: {
+        Row: {
+          affiliate_id: string
+          api_key_ciphertext: string | null
+          created_at: string
+          has_api_key: boolean
+          last_error: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          affiliate_id: string
+          api_key_ciphertext?: string | null
+          created_at?: string
+          has_api_key?: boolean
+          last_error?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          affiliate_id?: string
+          api_key_ciphertext?: string | null
+          created_at?: string
+          has_api_key?: boolean
+          last_error?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       users: {
         Row: {
           created_at: string
