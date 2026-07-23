@@ -60,15 +60,22 @@ export function verifyState(state: string): { userId: string; redirectUri: strin
 export function buildAuthorizeUrl(redirectUri: string, state: string): string {
   const clientId = process.env.ML_CLIENT_ID;
   if (!clientId) throw new Error("ML_CLIENT_ID não configurado no backend.");
+  // Mercado Livre só devolve refresh_token quando o scope inclui offline_access.
+  const scope = "offline_access read";
   const params = new URLSearchParams({
     response_type: "code",
     client_id: clientId,
     redirect_uri: redirectUri,
     state,
-    // offline_access é obrigatório para o Mercado Livre devolver refresh_token.
-    scope: "offline_access read write",
+    scope,
   });
-  return `${AUTH_URL}?${params.toString()}`;
+  const url = `${AUTH_URL}?${params.toString()}`;
+  console.log("[ML][oauth] authorize URL gerado", {
+    scopeRequested: scope,
+    redirectUri,
+    hasClientId: !!clientId,
+  });
+  return url;
 }
 
 type TokenResponse = {
