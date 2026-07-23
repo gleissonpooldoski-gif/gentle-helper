@@ -21,12 +21,12 @@ type Item = {
 };
 
 const MAIN: Item[] = [
-  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, href: "/dashboard" },
+  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
 ];
 
 const CONFIG: Item[] = [
   { id: "afiliados", label: "Config Afiliados", icon: Settings, href: "/config-afiliados" },
-  { id: "canais", label: "Canais/Grupos", icon: Radio, href: "/canais" },
+  { id: "canais", label: "Canais/Grupos", icon: Radio, href: "/" },
   { id: "relatorios", label: "Relatórios", icon: BarChart3, href: "/relatorios" },
 ];
 
