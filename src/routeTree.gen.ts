@@ -9,38 +9,87 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as RelatoriosRouteImport } from './routes/relatorios'
+import { Route as ConfigAfiliadosRouteImport } from './routes/config-afiliados'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as CanaisIdEditarRouteImport } from './routes/canais.$id.editar'
 
+const RelatoriosRoute = RelatoriosRouteImport.update({
+  id: '/relatorios',
+  path: '/relatorios',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConfigAfiliadosRoute = ConfigAfiliadosRouteImport.update({
+  id: '/config-afiliados',
+  path: '/config-afiliados',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CanaisIdEditarRoute = CanaisIdEditarRouteImport.update({
+  id: '/canais/$id/editar',
+  path: '/canais/$id/editar',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/config-afiliados': typeof ConfigAfiliadosRoute
+  '/relatorios': typeof RelatoriosRoute
+  '/canais/$id/editar': typeof CanaisIdEditarRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/config-afiliados': typeof ConfigAfiliadosRoute
+  '/relatorios': typeof RelatoriosRoute
+  '/canais/$id/editar': typeof CanaisIdEditarRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/config-afiliados': typeof ConfigAfiliadosRoute
+  '/relatorios': typeof RelatoriosRoute
+  '/canais/$id/editar': typeof CanaisIdEditarRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/config-afiliados' | '/relatorios' | '/canais/$id/editar'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/config-afiliados' | '/relatorios' | '/canais/$id/editar'
+  id:
+    | '__root__'
+    | '/'
+    | '/config-afiliados'
+    | '/relatorios'
+    | '/canais/$id/editar'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ConfigAfiliadosRoute: typeof ConfigAfiliadosRoute
+  RelatoriosRoute: typeof RelatoriosRoute
+  CanaisIdEditarRoute: typeof CanaisIdEditarRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/relatorios': {
+      id: '/relatorios'
+      path: '/relatorios'
+      fullPath: '/relatorios'
+      preLoaderRoute: typeof RelatoriosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/config-afiliados': {
+      id: '/config-afiliados'
+      path: '/config-afiliados'
+      fullPath: '/config-afiliados'
+      preLoaderRoute: typeof ConfigAfiliadosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,22 +97,22 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/canais/$id/editar': {
+      id: '/canais/$id/editar'
+      path: '/canais/$id/editar'
+      fullPath: '/canais/$id/editar'
+      preLoaderRoute: typeof CanaisIdEditarRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ConfigAfiliadosRoute: ConfigAfiliadosRoute,
+  RelatoriosRoute: RelatoriosRoute,
+  CanaisIdEditarRoute: CanaisIdEditarRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
