@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
+import { toast } from "sonner";
 import {
   AlertTriangle,
   BadgeCheck,
@@ -15,6 +16,7 @@ import {
 } from "lucide-react";
 
 import { AppSidebar } from "@/components/app-sidebar";
+import { SHOPEE_STORAGE_KEYS } from "@/lib/shopee-affiliate";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/config-afiliados")({
