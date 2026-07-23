@@ -14,6 +14,12 @@ import {
   type WhatsAppConnectionDTO,
 } from "@/modules/channels/whatsapp/connection.functions";
 import {
+  getWhatsAppSession,
+  disconnectWhatsAppSession,
+  type WhatsAppSessionDTO,
+} from "@/modules/channels/whatsapp/session.functions";
+
+import {
   AlertTriangle,
   ArrowLeft,
   Calendar,
@@ -3556,39 +3562,77 @@ function WhatsAppConnectionCard() {
   const loadFn = useServerFn(getWhatsAppConnection);
   const generateFn = useServerFn(generateWhatsAppToken);
   const reconnectFn = useServerFn(reconnectWhatsApp);
+  const sessionFn = useServerFn(getWhatsAppSession);
+  const disconnectFn = useServerFn(disconnectWhatsAppSession);
 
   const [connection, setConnection] = useState<WhatsAppConnectionDTO | null>(null);
+  const [session, setSession] = useState<WhatsAppSessionDTO | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState<"generate" | "reconnect" | null>(null);
+  const [busy, setBusy] = useState<"generate" | "reconnect" | "disconnect" | null>(null);
 
   useEffect(() => {
     let alive = true;
     setLoading(true);
-    loadFn({ data: { channelId } })
-      .then((res) => {
+    Promise.all([
+      loadFn({ data: { channelId } }),
+      sessionFn({ data: { channelId } }),
+    ])
+      .then(([conn, sess]) => {
         if (!alive) return;
-        setConnection(res);
+        setConnection(conn);
+        setSession(sess);
       })
       .catch((err) => toast.error(err instanceof Error ? err.message : "Falha ao carregar conexão"))
       .finally(() => alive && setLoading(false));
     return () => {
       alive = false;
     };
-  }, [channelId, loadFn]);
+  }, [channelId, loadFn, sessionFn]);
 
-  const status: "disconnected" | "pending" | "connected" = connection?.status ?? "disconnected";
+  // Effective status combines link+session: connected requires session=connected
+  const effectiveStatus: "disconnected" | "pending" | "connected" =
+    session?.status === "connected"
+      ? "connected"
+      : session?.status === "disconnected"
+        ? "disconnected"
+        : connection?.status ?? "disconnected";
+
+  // Poll session every 3s while pending
+  useEffect(() => {
+    if (effectiveStatus !== "pending") return;
+    let alive = true;
+    const iv = window.setInterval(async () => {
+      try {
+        const s = await sessionFn({ data: { channelId } });
+        if (!alive) return;
+        setSession(s);
+        if (s?.status === "connected") {
+          window.clearInterval(iv);
+          toast.success("WhatsApp conectado");
+        }
+      } catch {
+        /* silent */
+      }
+    }, 3000);
+    return () => {
+      alive = false;
+      window.clearInterval(iv);
+    };
+  }, [effectiveStatus, channelId, sessionFn]);
+
   const statusMeta = {
     disconnected: { label: "Não conectado", cls: "bg-muted text-muted-foreground" },
     pending: { label: "Aguardando conexão", cls: "bg-[oklch(0.94_0.09_75)] text-[oklch(0.42_0.15_60)]" },
     connected: { label: "Conectado", cls: "bg-[oklch(0.94_0.08_150)] text-[oklch(0.42_0.15_155)]" },
-  }[status];
+  }[effectiveStatus];
 
   const handleGenerate = async () => {
     try {
       setBusy("generate");
       const res = await generateFn({ data: { channelId } });
       setConnection(res.connection);
+      setSession(null);
       setToken(res.token);
       toast.success("Token gerado. Copie e cole na extensão.");
     } catch (err) {
@@ -3611,18 +3655,41 @@ function WhatsAppConnectionCard() {
     }
   };
 
-
   const handleReconnect = async () => {
     try {
       setBusy("reconnect");
       const res = await reconnectFn({ data: { channelId } });
       setConnection(res);
+      setSession(null);
       setToken(null);
       toast.success("Solicitação de reconexão enviada");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Falha ao reconectar");
     } finally {
       setBusy(null);
+    }
+  };
+
+  const handleDisconnect = async () => {
+    try {
+      setBusy("disconnect");
+      await disconnectFn({ data: { channelId } });
+      setSession((s) => (s ? { ...s, status: "disconnected", connectedAt: null } : s));
+      setConnection((c) => (c ? { ...c, status: "disconnected", connectedAt: null } : c));
+      toast.success("Número desconectado");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao desconectar");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const formatWhen = (iso: string | null) => {
+    if (!iso) return "—";
+    try {
+      return new Date(iso).toLocaleString("pt-BR");
+    } catch {
+      return iso;
     }
   };
 
@@ -3649,41 +3716,74 @@ function WhatsAppConnectionCard() {
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button
-            size="sm"
-            onClick={handleGenerate}
-            disabled={busy !== null || loading}
-            className="rounded-lg"
-          >
-            <Sparkles className="mr-1.5 h-3.5 w-3.5" />
-            {busy === "generate" ? "Gerando…" : "Gerar token de conexão"}
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleCopy}
-            disabled={!token}
-            className="rounded-lg"
-          >
-            <Copy className="mr-1.5 h-3.5 w-3.5" /> Copiar token
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleReconnect}
-            disabled={busy !== null || loading}
-            className="rounded-lg"
-          >
-            <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-            {busy === "reconnect" ? "Reconectando…" : "Reconectar"}
-          </Button>
+          {effectiveStatus !== "connected" ? (
+            <>
+              <Button
+                size="sm"
+                onClick={handleGenerate}
+                disabled={busy !== null || loading}
+                className="rounded-lg"
+              >
+                <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+                {busy === "generate" ? "Gerando…" : "Gerar token de conexão"}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleCopy}
+                disabled={!token}
+                className="rounded-lg"
+              >
+                <Copy className="mr-1.5 h-3.5 w-3.5" /> Copiar token
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleReconnect}
+                disabled={busy !== null || loading}
+                className="rounded-lg"
+              >
+                <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                {busy === "reconnect" ? "Reconectando…" : "Reconectar"}
+              </Button>
+            </>
+          ) : (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleDisconnect}
+              disabled={busy !== null}
+              className="rounded-lg"
+            >
+              {busy === "disconnect" ? "Desconectando…" : "Desconectar número"}
+            </Button>
+          )}
         </div>
       </div>
 
-      {token && (
+      {effectiveStatus === "connected" ? (
+        <div className="mt-4 grid gap-2 rounded-lg border border-[oklch(0.85_0.09_150)] bg-[oklch(0.97_0.05_150)] p-4 text-[13px]">
+          <div className="flex items-center gap-2 font-semibold text-[oklch(0.35_0.15_155)]">
+            <Check className="h-4 w-4" /> WhatsApp conectado
+          </div>
+          <div className="text-muted-foreground">
+            <b className="text-foreground">Número:</b> {session?.phoneNumber || "não informado"}
+          </div>
+          <div className="text-muted-foreground">
+            <b className="text-foreground">Última conexão:</b> {formatWhen(session?.connectedAt || session?.lastSeenAt || null)}
+          </div>
+        </div>
+      ) : effectiveStatus === "pending" ? (
+        <div className="mt-4 flex items-center gap-2 rounded-lg border border-dashed border-border/70 bg-muted/40 p-3 text-[12.5px] text-muted-foreground">
+          <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+          Aguardando conexão… abra a extensão, escaneie o QR Code no WhatsApp Web e o painel atualiza sozinho.
+        </div>
+      ) : null}
+
+      {token && effectiveStatus !== "connected" && (
         <div className="mt-4 flex flex-wrap items-center gap-2 rounded-lg border border-dashed border-border/70 bg-muted/40 p-3 font-mono text-[12.5px]">
           <span className="text-muted-foreground">Token:</span>
-          <span className="break-all font-semibold text-foreground">{token}</span>
+          <span className="break-all font-semibold text-foreground">{token}|{channelId}</span>
           <span className="ml-auto text-[10.5px] uppercase tracking-wider text-muted-foreground">
             visível somente agora
           </span>
@@ -3691,5 +3791,6 @@ function WhatsAppConnectionCard() {
       )}
     </div>
   );
+
 }
 
