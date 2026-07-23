@@ -2640,6 +2640,8 @@ function ShopeePanel() {
   const [bulkBusy, setBulkBusy] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const importBatchFn = useServerFn(importShopeeBatch);
+  const listPendingFn = useServerFn(listPendingShopeeImages);
+  const enrichOneFn = useServerFn(enrichShopeeImageOne);
   const deleteByItemsFn = useServerFn(deleteProductsByItemIds);
   const deleteAllFn = useServerFn(deleteAllProducts);
 
