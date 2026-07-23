@@ -2627,9 +2627,84 @@ const SHOPEE_PRODUCTS: ShopeeProduct[] = [
 function ShopeePanel() {
   const [tags, setTags] = useState<ShopeeTag[]>(SHOPEE_TAGS);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
-  const allChecked = SHOPEE_PRODUCTS.every((p) => selected[p.id]);
+  const [importedProducts, setImportedProducts] = useState<ShopeeProduct[]>([]);
+  const [importing, setImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const products = [...importedProducts, ...SHOPEE_PRODUCTS];
+  const allChecked = products.length > 0 && products.every((p) => selected[p.id]);
 
   const removeTag = (id: string) => setTags((t) => t.filter((x) => x.id !== id));
+
+  const handlePickCsv = () => fileInputRef.current?.click();
+
+  const handleCsvFile = async (file: File | null | undefined) => {
+    if (!file) return;
+    const { affiliateId, apiKey } = getShopeeCredentials();
+    if (!affiliateId) {
+      toast.error("Configure seu Shopee ID de Afiliado antes de importar.", {
+        description: "Vá em Configurações de Afiliados → Shopee para salvar seu ID.",
+      });
+      return;
+    }
+    setImporting(true);
+    try {
+      const text = await file.text();
+      const parsed = Papa.parse<Record<string, string>>(text, {
+        header: true,
+        skipEmptyLines: true,
+        transformHeader: (h) => h.trim(),
+      });
+      const rows = (parsed.data ?? []).filter((r) => r && (r["Item Id"] || r["Item Name"]));
+      if (rows.length === 0) {
+        toast.error("CSV vazio ou sem colunas reconhecidas.", {
+          description: "Verifique os cabeçalhos: Item Id, Item Name, Product Link / Offer Link.",
+        });
+        return;
+      }
+      const items: ShopeeProduct[] = await Promise.all(
+        rows.map(async (row, i) => {
+          const rawLink = (row["Offer Link"] || row["Product Link"] || "").trim();
+          const affiliateLink = rawLink
+            ? await buildShopeeAffiliateLink(rawLink, { affiliateId, apiKey })
+            : tagShopeeLink(rawLink, affiliateId);
+          const priceNum = Number((row["Price"] || "").replace(/[^\d.,-]/g, "").replace(",", "."));
+          const price = Number.isFinite(priceNum) && priceNum > 0
+            ? `R$ ${priceNum.toFixed(2).replace(".", ",")}`
+            : (row["Price"] || "").trim() || "—";
+          return {
+            id: `csv-${row["Item Id"] || i}-${i}`,
+            title: (row["Item Name"] || "Produto Shopee").trim(),
+            emoji: "🛍️",
+            color: "oklch(0.92 0.06 30)",
+            format: i % 2 === 0 ? "FEED" : "STORY",
+            price,
+            original: price,
+            discount: Number((row["Commission Rate"] || "").replace("%", "")) || 0,
+            when: "Importado agora",
+            affiliateLink,
+            rawLink,
+            imageUrl: (row["Image"] || row["Image Url"] || "").trim() || undefined,
+          };
+        }),
+      );
+      setImportedProducts((prev) => [...items, ...prev]);
+      toast.success(`${items.length} produtos importados`, {
+        description: apiKey
+          ? "Links comissionados gerados com sua API Key."
+          : "Links comissionados gerados com seu ID de afiliado.",
+      });
+    } catch (err) {
+      console.error(err);
+      toast.error("Falha ao processar CSV", {
+        description: err instanceof Error ? err.message : "Erro desconhecido.",
+      });
+    } finally {
+      setImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
 
   return (
     <div className="mt-6 space-y-6">
