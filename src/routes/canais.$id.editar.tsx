@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { parseShopeeCsv, type ShopeeCsvRow } from "@/modules/products/shopee-import/csv.processor";
 import { importShopeeBatch } from "@/modules/products/shopee-import/shopee-import.controller.functions";
 import { deleteProductsByItemIds, deleteAllProducts } from "@/modules/products/shopee-import/product-delete.functions";
+import { listPendingShopeeImages, enrichShopeeImageOne } from "@/modules/products/shopee-import/image-enrich.functions";
 import {
   AlertTriangle,
   ArrowLeft,
