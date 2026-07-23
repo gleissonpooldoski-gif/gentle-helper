@@ -503,7 +503,9 @@ function MercadoLivreCard() {
   const handleConnectOAuth = async () => {
     setOauthBusy(true);
     try {
-      const redirectUri = `${window.location.origin}/api/ml/callback`;
+      // Redirect URI fixo — precisa bater exatamente com o cadastrado no painel Mercado Livre Developers.
+      const redirectUri =
+        "https://id-preview--c8d0a9f8-2712-4d4d-b2f8-6b9530849b41.lovable.app/api/ml/callback";
       const { authorizationUrl } = await startOAuth({ data: { redirectUri } });
       window.location.href = authorizationUrl;
     } catch (err) {
