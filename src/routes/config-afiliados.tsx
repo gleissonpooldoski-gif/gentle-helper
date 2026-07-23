@@ -3,6 +3,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { getShopeeConfig, saveShopeeConfig } from "@/lib/shopee-config.functions";
+import { getMLConnection, saveMLConnection } from "@/modules/affiliate/mercado-livre/controller.functions";
+
 
 import {
   AlertTriangle,
@@ -442,13 +444,99 @@ function ShopeeCard() {
 
 
 function MercadoLivreCard() {
+  const [affiliateLink, setAffiliateLink] = useState("");
+  const [cookie, setCookie] = useState("");
+  const [hasStoredCookie, setHasStoredCookie] = useState(false);
+  const [tag, setTag] = useState<string | null>(null);
+  const [status, setStatus] = useState<"connected" | "pending" | "error" | "cookie_expired">(
+    "pending",
+  );
+  const [lastError, setLastError] = useState<string | null>(null);
+  const [updatedAt, setUpdatedAt] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  const load = useServerFn(getMLConnection);
+  const save = useServerFn(saveMLConnection);
+
+  useEffect(() => {
+    let alive = true;
+    load()
+      .then((cfg) => {
+        if (!alive || !cfg) return;
+        setAffiliateLink(cfg.affiliateLink);
+        setHasStoredCookie(cfg.hasCookie);
+        setTag(cfg.affiliateTag);
+        setStatus(cfg.status);
+        setLastError(cfg.lastError);
+        setUpdatedAt(cfg.updatedAt);
+      })
+      .catch(() => {
+        /* preview / signed-out */
+      })
+      .finally(() => alive && setLoading(false));
+    return () => {
+      alive = false;
+    };
+  }, [load]);
+
+  const handleSave = async () => {
+    if (!affiliateLink.trim()) {
+      toast.error("Cole o link de afiliado do Mercado Livre.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const result = await save({
+        data: {
+          affiliateLink: affiliateLink.trim(),
+          cookie: cookie.trim() || undefined,
+        },
+      });
+      setTag(result.affiliateTag);
+      setHasStoredCookie(result.hasCookie);
+      setStatus(result.status);
+      setLastError(result.lastError);
+      setUpdatedAt(result.updatedAt);
+      setCookie("");
+      if (result.status === "connected") {
+        toast.success("Mercado Livre conectado!", {
+          description: `Tag detectada: ${result.affiliateTag}`,
+        });
+      } else if (result.status === "cookie_expired") {
+        toast.warning("Cookie expirado", {
+          description: "Atualize seu cookie do Mercado Livre para continuar gerando links.",
+        });
+      } else {
+        toast.warning("Configuração salva com pendências", {
+          description: result.lastError ?? "Complete os campos para conectar.",
+        });
+      }
+    } catch (err) {
+      toast.error("Falha ao salvar Mercado Livre", {
+        description: err instanceof Error ? err.message : "Erro desconhecido.",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const statusBadge =
+    status === "connected"
+      ? { label: "Conectado", tone: "active" as const }
+      : status === "cookie_expired"
+        ? { label: "Cookie expirado", tone: "off" as const }
+        : status === "error"
+          ? { label: "Erro", tone: "off" as const }
+          : { label: "Pendente", tone: "pending" as const };
+
   return (
     <PlatformCard
       accent="yellow"
       logo={<Store className="h-5 w-5 text-blue-900" />}
       title="Afiliados Mercado Livre"
       subtitle="Captura de tag via extensão ou manual"
-      status={{ label: "Tag configurada", tone: "active" }}
+      status={statusBadge}
     >
       {/* Option 1 */}
       <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-4">
@@ -476,14 +564,25 @@ function MercadoLivreCard() {
         <div className="mt-3 flex items-center gap-2 rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs">
           <span className="text-blue-900/70">Tag configurada:</span>
           <code className="rounded bg-blue-100 px-2 py-0.5 font-mono text-[11px] font-semibold text-blue-900">
-            gc20241201082726
+            {tag ?? "—"}
           </code>
-          <BadgeCheck className="ml-auto h-4 w-4 text-emerald-600" />
+          {tag ? <BadgeCheck className="ml-auto h-4 w-4 text-emerald-600" /> : null}
         </div>
       </div>
 
+      {status === "cookie_expired" ? (
+        <Alert tone="warning" title="Cookie expirado">
+          Atualize seu cookie do Mercado Livre para continuar gerando links.
+        </Alert>
+      ) : null}
+      {status === "error" && lastError ? (
+        <Alert tone="danger" title="Erro na configuração">
+          {lastError}
+        </Alert>
+      ) : null}
+
       {/* Option 2 */}
-      <details className="rounded-xl border border-[color:var(--border)] bg-[color:var(--muted)]/30 p-4">
+      <details className="rounded-xl border border-[color:var(--border)] bg-[color:var(--muted)]/30 p-4" open={!tag}>
         <summary className="cursor-pointer text-sm font-semibold text-[color:var(--foreground)]">
           Opção 2 · Configuração manual
         </summary>
@@ -496,17 +595,39 @@ function MercadoLivreCard() {
           </li>
         </ol>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          <Field label="Link de afiliado" placeholder="https://mercadolivre.com/sec/..." />
-          <Field label="Cookie c_uid" placeholder="Cole aqui o valor" />
+          <Field
+            label="Link de afiliado"
+            placeholder="https://mercadolivre.com/sec/..."
+            value={affiliateLink}
+            onChange={(e) => setAffiliateLink(e.target.value)}
+            disabled={loading || saving}
+          />
+          <Field
+            label="Cookie c_uid"
+            hint={hasStoredCookie ? "Salvo · digite para substituir" : undefined}
+            placeholder={hasStoredCookie ? "•••••••• (salvo)" : "Cole aqui o valor"}
+            type="password"
+            value={cookie}
+            onChange={(e) => setCookie(e.target.value)}
+            disabled={loading || saving}
+          />
         </div>
       </details>
 
-      <div className="flex justify-end">
-        <SaveButton>Salvar Mercado Livre</SaveButton>
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-[color:var(--muted-foreground)]">
+          {updatedAt
+            ? `Última atualização: ${new Date(updatedAt).toLocaleString("pt-BR")}`
+            : "Ainda não configurado"}
+        </p>
+        <SaveButton onClick={handleSave}>
+          {saving ? "Salvando…" : "Salvar Mercado Livre"}
+        </SaveButton>
       </div>
     </PlatformCard>
   );
 }
+
 
 function AmazonCard() {
   return (
