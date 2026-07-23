@@ -1862,51 +1862,8 @@ function WhatsAppGroupsPanel() {
       </div>
 
       {/* Sessões WhatsApp */}
-      <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <h3 className="font-display text-[15px] font-bold uppercase tracking-wider text-foreground">
-              Sessões WhatsApp
-            </h3>
-            <span className="rounded-md bg-gradient-to-r from-[oklch(0.78_0.16_75)] to-[oklch(0.68_0.18_60)] px-1.5 py-0.5 text-[9px] font-bold uppercase text-white">
-              Premium
-            </span>
-          </div>
-          <span className="text-[12px] font-semibold text-muted-foreground">
-            <span className="text-foreground">1</span>/5 sessões
-          </span>
-        </div>
+      <WhatsAppSessionsPanel />
 
-        <div className="flex flex-col gap-4 rounded-2xl border border-border/70 bg-card p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-4">
-            <div className="relative">
-              <div className="grid h-14 w-14 place-items-center rounded-full bg-gradient-to-br from-[oklch(0.72_0.18_150)] to-[oklch(0.55_0.2_155)] font-display text-xl font-bold text-white">
-                SP
-              </div>
-              <span className="absolute -bottom-0.5 -right-0.5 grid h-5 w-5 place-items-center rounded-full border-2 border-card bg-[oklch(0.72_0.18_150)] text-white">
-                <MessageCircle className="h-2.5 w-2.5" strokeWidth={3} />
-              </span>
-            </div>
-            <div className="min-w-0">
-              <p className="truncate font-semibold text-foreground">Segredo das Promoções</p>
-              <p className="text-[12.5px] text-muted-foreground">+55 (11) 98452-1207</p>
-              <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-[oklch(0.94_0.08_150)] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[oklch(0.42_0.15_155)]">
-                <Check className="h-2.5 w-2.5" strokeWidth={3.5} /> Conectado
-              </span>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" className="rounded-lg">Desvincular</Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5 rounded-lg border-[oklch(0.9_0.06_25)] text-[color:var(--color-danger)] hover:bg-[oklch(0.97_0.03_25)]"
-            >
-              <Trash2 className="h-3.5 w-3.5" /> Excluir sessão
-            </Button>
-          </div>
-        </div>
-      </section>
 
       {/* Operational alerts */}
       <div className="grid gap-3 md:grid-cols-[1.4fr_1fr]">
