@@ -1,19 +1,18 @@
 import { createServerFn } from "@tanstack/react-start";
-import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { ShopeeConfigView } from "./shopee-config.server";
 
 type ShopeeInput = { affiliateId: string; apiKey?: string; clearApiKey?: boolean };
 
 export const getShopeeConfig = createServerFn({ method: "GET" })
-  .middleware([attachSupabaseAuth, requireSupabaseAuth])
+  .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<ShopeeConfigView | null> => {
     const { getShopeeConnection } = await import("./shopee-config.server");
     return getShopeeConnection(context.supabase, context.userId);
   });
 
 export const saveShopeeConfig = createServerFn({ method: "POST" })
-  .middleware([attachSupabaseAuth, requireSupabaseAuth])
+  .middleware([requireSupabaseAuth])
   .inputValidator((input: ShopeeInput) => {
     const affiliateId = String(input.affiliateId ?? "").trim();
     if (!affiliateId || affiliateId.length > 128) throw new Error("Verifique os dados informados.");
@@ -41,7 +40,7 @@ export const saveShopeeConfig = createServerFn({ method: "POST" })
   });
 
 export const buildShopeeLinkForUser = createServerFn({ method: "POST" })
-  .middleware([attachSupabaseAuth, requireSupabaseAuth])
+  .middleware([requireSupabaseAuth])
   .inputValidator((input: { rawLink: string }) => {
     const rawLink = String(input.rawLink ?? "").trim();
     if (!rawLink) throw new Error("Link é obrigatório.");

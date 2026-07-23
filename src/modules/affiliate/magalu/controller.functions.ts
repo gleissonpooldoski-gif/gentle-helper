@@ -3,7 +3,6 @@
  * RPC endpoints consumed by the config-afiliados UI and by campaign/product flows.
  */
 import { createServerFn } from "@tanstack/react-start";
-import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { validateStoreName } from "./validator";
 import {
@@ -14,13 +13,13 @@ import {
 } from "./service";
 
 export const getMagaluConnection = createServerFn({ method: "GET" })
-  .middleware([attachSupabaseAuth, requireSupabaseAuth])
+  .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<MagaluConnectionView | null> => {
     return getConnection(context.supabase, context.userId);
   });
 
 export const saveMagaluConnection = createServerFn({ method: "POST" })
-  .middleware([attachSupabaseAuth, requireSupabaseAuth])
+  .middleware([requireSupabaseAuth])
   .inputValidator((input: { storeName: string }) => {
     const storeName = String(input.storeName ?? "").trim();
     const check = validateStoreName(storeName);
@@ -32,7 +31,7 @@ export const saveMagaluConnection = createServerFn({ method: "POST" })
   });
 
 export const buildMagaluAffiliateUrlFn = createServerFn({ method: "POST" })
-  .middleware([attachSupabaseAuth, requireSupabaseAuth])
+  .middleware([requireSupabaseAuth])
   .inputValidator((input: { productUrl: string }) => {
     const productUrl = String(input.productUrl ?? "").trim();
     if (!productUrl) throw new Error("productUrl é obrigatório.");
