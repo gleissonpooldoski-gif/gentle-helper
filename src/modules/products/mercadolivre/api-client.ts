@@ -226,13 +226,11 @@ export async function getHighlights(offset = 0, limit = 24): Promise<{
     // Bias to items showing discount.
     discount: "5-100",
   });
-  const raw = await fetchJson<SearchResult>(
-    `https://api.mercadolibre.com/sites/MLB/search?${params.toString()}`,
-  );
-  if (!raw) return { items: [], total: 0, offset, limit };
-  const items = (raw.results ?? [])
-    .map(normalize)
-    .filter((i): i is MLItem => !!i);
+  const url = `https://api.mercadolibre.com/sites/MLB/search?${params.toString()}`;
+  console.log("[ML][highlights]", { url });
+  const raw = await fetchJson<SearchResult>(url);
+  const items = (raw.results ?? []).map(normalize).filter((i): i is MLItem => !!i);
+  console.log("[ML][highlights] resposta", { total: raw.paging?.total, retornados: items.length });
   return {
     items,
     total: raw.paging?.total ?? items.length,
