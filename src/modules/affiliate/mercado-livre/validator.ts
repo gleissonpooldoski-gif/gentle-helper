@@ -71,6 +71,6 @@ export function computeStatus(input: {
       error: "Não foi possível identificar a tag de afiliado — configure manualmente.",
     };
   }
-  if (!input.cookie?.trim()) return { status: "pending", error: "Cookie do Mercado Livre ausente." };
+  // Cookie is optional; a valid affiliate tag is enough to save and use the connection.
   return { status: "connected", error: null };
 }

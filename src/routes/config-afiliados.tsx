@@ -347,8 +347,8 @@ function ShopeeCard() {
         });
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Erro ao salvar.";
-      toast.error("Falha ao salvar Shopee", { description: message });
+      const message = err instanceof Error ? err.message : "Não foi possível salvar a configuração.";
+      toast.error(message);
     } finally {
       setSaving(false);
     }
@@ -514,9 +514,7 @@ function MercadoLivreCard() {
         });
       }
     } catch (err) {
-      toast.error("Falha ao salvar Mercado Livre", {
-        description: err instanceof Error ? err.message : "Erro desconhecido.",
-      });
+      toast.error(err instanceof Error ? err.message : "Não foi possível salvar a configuração.");
     } finally {
       setSaving(false);
     }
