@@ -126,11 +126,7 @@ async function tryPageScrape(productUrl: string): Promise<string | null> {
 }
 
 async function resolveOne(input: ImageLookup): Promise<string | null> {
-  const shopId = extractShopId(input.productUrl);
-  if (shopId) {
-    const fromApi = await tryShopeeApi(input.itemId, shopId);
-    if (fromApi) return fromApi;
-  }
+  // Affiliate API doesn't expose product images — only scrape the product page.
   return tryPageScrape(input.productUrl);
 }
 
