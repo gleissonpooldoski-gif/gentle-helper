@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { parseShopeeCsv, type ShopeeCsvRow } from "@/modules/products/shopee-import/csv.processor";
@@ -7,6 +7,12 @@ import { importShopeeBatch } from "@/modules/products/shopee-import/shopee-impor
 import { deleteProductsByItemIds, deleteAllProducts } from "@/modules/products/shopee-import/product-delete.functions";
 import { listPendingShopeeImages, enrichShopeeImageOne } from "@/modules/products/shopee-import/image-enrich.functions";
 import { addMLProductByLink, searchMLProducts, addMLProductsByIds } from "@/modules/products/mercadolivre/controller.functions";
+import {
+  getWhatsAppConnection,
+  generateWhatsAppToken,
+  reconnectWhatsApp,
+  type WhatsAppConnectionDTO,
+} from "@/modules/channels/whatsapp/connection.functions";
 import {
   AlertTriangle,
   ArrowLeft,
