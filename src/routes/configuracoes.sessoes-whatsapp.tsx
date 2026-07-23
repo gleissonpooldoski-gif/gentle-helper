@@ -2,7 +2,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ConnectNewNumberModal } from "@/components/whatsapp/ConnectNewNumberModal";
 import {
   listWhatsAppSessions,
   createWhatsAppSession,
@@ -33,8 +35,9 @@ function SessionsPage() {
 
   const [sessions, setSessions] = useState<WASessionDTO[]>([]);
   const [loading, setLoading] = useState(true);
-  const [name, setName] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+
 
   const reload = useCallback(async () => {
     try {
@@ -50,13 +53,12 @@ function SessionsPage() {
     reload();
   }, [reload]);
 
-  const handleCreate = async () => {
-    if (!name.trim()) return;
+  const handleCreate = async ({ name }: { name: string; mode: "qr" | "web" }) => {
     try {
       setBusy("create");
-      await createFn({ data: { name: name.trim() } });
-      setName("");
+      await createFn({ data: { name } });
       toast.success("Sessão criada. Escaneie o QR Code na extensão.");
+      setModalOpen(false);
       await reload();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Falha ao criar");
@@ -64,6 +66,7 @@ function SessionsPage() {
       setBusy(null);
     }
   };
+
 
   const handleDelete = async (id: string) => {
     if (!confirm("Excluir esta sessão?")) return;
@@ -101,17 +104,15 @@ function SessionsPage() {
         </p>
       </header>
 
-      <div className="flex gap-2 rounded-2xl border border-border/70 bg-card p-4">
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Nome da nova sessão"
-          className="h-9 flex-1 rounded-md border border-border bg-background px-3 text-sm"
-        />
-        <Button size="sm" onClick={handleCreate} disabled={busy === "create" || !name.trim()}>
-          ⊕ Nova sessão
+      <div className="flex items-center justify-between rounded-2xl border border-border/70 bg-card p-4">
+        <p className="text-sm text-muted-foreground">
+          {sessions.length} sessão(ões) cadastrada(s)
+        </p>
+        <Button size="sm" onClick={() => setModalOpen(true)}>
+          <Plus className="mr-1 h-4 w-4" /> Nova sessão
         </Button>
       </div>
+
 
       {loading ? (
         <p className="text-sm text-muted-foreground">Carregando…</p>
@@ -169,6 +170,13 @@ function SessionsPage() {
           ))}
         </ul>
       )}
+
+      <ConnectNewNumberModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        onSubmit={handleCreate}
+        busy={busy === "create"}
+      />
     </div>
   );
 }
