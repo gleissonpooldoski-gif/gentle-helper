@@ -25,16 +25,21 @@ function b64url(buf: Buffer | string): string {
   return Buffer.from(buf).toString("base64url");
 }
 
-/** Sign state as `<payload_b64>.<hmac_b64>` where payload = {u, e}. */
-export function signState(userId: string): string {
+/** Sign state as `<payload_b64>.<hmac_b64>` where payload = {u, r, e}. */
+export function signState(userId: string, redirectUri: string): string {
   if (!userId) throw new Error("Configuração Mercado Livre incompleta (userId ausente para state).");
-  const payload = JSON.stringify({ u: userId, e: Math.floor(Date.now() / 1000) + STATE_TTL_SECONDS });
+  if (!redirectUri) throw new Error("Configuração Mercado Livre incompleta (redirect_uri ausente para state).");
+  const payload = JSON.stringify({
+    u: userId,
+    r: redirectUri,
+    e: Math.floor(Date.now() / 1000) + STATE_TTL_SECONDS,
+  });
   const p = b64url(payload);
   const sig = b64url(createHmac("sha256", stateSecret()).update(p).digest());
   return `${p}.${sig}`;
 }
 
-export function verifyState(state: string): { userId: string } | null {
+export function verifyState(state: string): { userId: string; redirectUri: string } | null {
   const parts = state.split(".");
   if (parts.length !== 2) return null;
   const [p, sig] = parts;
@@ -43,10 +48,10 @@ export function verifyState(state: string): { userId: string } | null {
   const b = Buffer.from(expected);
   if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
   try {
-    const decoded = JSON.parse(Buffer.from(p, "base64url").toString("utf8")) as { u: string; e: number };
-    if (!decoded.u || !decoded.e) return null;
+    const decoded = JSON.parse(Buffer.from(p, "base64url").toString("utf8")) as { u: string; r: string; e: number };
+    if (!decoded.u || !decoded.r || !decoded.e) return null;
     if (Date.now() / 1000 > decoded.e) return null;
-    return { userId: decoded.u };
+    return { userId: decoded.u, redirectUri: decoded.r };
   } catch {
     return null;
   }
@@ -80,24 +85,36 @@ async function tokenRequest(body: URLSearchParams): Promise<TokenResponse> {
       accept: "application/json",
       "content-type": "application/x-www-form-urlencoded",
     },
-    body: body.toString(),
+    body,
   });
   const text = await res.text();
-  console.log("[ML][oauth] token endpoint response", { status: res.status, bodyLength: text.length });
+  let payload: Record<string, unknown> | null = null;
+  try {
+    payload = JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    payload = null;
+  }
+  console.log("[ML][oauth] token endpoint response", {
+    status: res.status,
+    hasAccessToken: typeof payload?.access_token === "string" && payload.access_token.length > 0,
+    hasRefreshToken: typeof payload?.refresh_token === "string" && payload.refresh_token.length > 0,
+  });
   if (!res.ok) {
-    let msg = text.slice(0, 300);
-    try {
-      const j = JSON.parse(text) as { message?: string; error?: string };
-      msg = j.message ?? j.error ?? msg;
-    } catch { /* keep raw */ }
+    const message = typeof payload?.message === "string" ? payload.message : null;
+    const error = typeof payload?.error === "string" ? payload.error : null;
+    const errorDescription = typeof payload?.error_description === "string" ? payload.error_description : null;
+    const msg = errorDescription ?? message ?? error ?? text.slice(0, 500) ?? "Erro desconhecido";
+    console.error("[ML][oauth] token endpoint error", {
+      status: res.status,
+      error: error ?? "não informado",
+      message: msg,
+    });
     throw new Error(`Mercado Livre OAuth ${res.status}: ${msg}`);
   }
-  let parsed: TokenResponse;
-  try {
-    parsed = JSON.parse(text) as TokenResponse;
-  } catch {
+  if (!payload) {
     throw new Error("Token Mercado Livre não recebido (resposta inválida).");
   }
+  const parsed = payload as TokenResponse;
   console.log("[ML][oauth] token fields present", {
     access_token: !!parsed.access_token,
     refresh_token: !!parsed.refresh_token,
@@ -105,7 +122,19 @@ async function tokenRequest(body: URLSearchParams): Promise<TokenResponse> {
     user_id: parsed.user_id,
   });
   if (!parsed.access_token || !parsed.refresh_token || !parsed.expires_in || parsed.user_id == null) {
-    throw new Error("Token Mercado Livre não recebido (campos obrigatórios ausentes).");
+    const providerMessage =
+      (typeof payload.error_description === "string" && payload.error_description) ||
+      (typeof payload.message === "string" && payload.message) ||
+      (typeof payload.error === "string" && payload.error);
+    const missing = [
+      !parsed.access_token && "access_token",
+      !parsed.refresh_token && "refresh_token",
+      !parsed.expires_in && "expires_in",
+      parsed.user_id == null && "user_id",
+    ].filter(Boolean).join(", ");
+    throw new Error(providerMessage
+      ? `Mercado Livre OAuth ${res.status}: ${providerMessage}`
+      : `Token Mercado Livre não recebido (campos ausentes: ${missing}).`);
   }
   return parsed;
 }

@@ -13,7 +13,7 @@ export const startMLOAuth = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { buildAuthorizeUrl, signState } = await import("./oauth.server");
-    const state = signState(context.userId);
+    const state = signState(context.userId, data.redirectUri);
     return { authorizationUrl: buildAuthorizeUrl(data.redirectUri, state) };
   });
 
