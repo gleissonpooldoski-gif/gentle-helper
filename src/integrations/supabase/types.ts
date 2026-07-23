@@ -62,6 +62,42 @@ export type Database = {
         }
         Relationships: []
       }
+      channel_whatsapp_connections: {
+        Row: {
+          channel_id: string
+          connected_at: string | null
+          created_at: string
+          id: string
+          last_seen_at: string | null
+          status: string
+          token_hash: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          channel_id: string
+          connected_at?: string | null
+          created_at?: string
+          id?: string
+          last_seen_at?: string | null
+          status?: string
+          token_hash?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          channel_id?: string
+          connected_at?: string | null
+          created_at?: string
+          id?: string
+          last_seen_at?: string | null
+          status?: string
+          token_hash?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       mercadolivre_integrations: {
         Row: {
           access_token_ciphertext: string
