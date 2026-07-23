@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as RelatoriosRouteImport } from './routes/relatorios'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as ConfigAfiliadosRouteImport } from './routes/config-afiliados'
+import { Route as CanaisRouteImport } from './routes/canais'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as CanaisIdEditarRouteImport } from './routes/canais.$id.editar'
@@ -31,6 +32,11 @@ const ConfigAfiliadosRoute = ConfigAfiliadosRouteImport.update({
   path: '/config-afiliados',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CanaisRoute = CanaisRouteImport.update({
+  id: '/canais',
+  path: '/canais',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
@@ -42,14 +48,15 @@ const IndexRoute = IndexRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 const CanaisIdEditarRoute = CanaisIdEditarRouteImport.update({
-  id: '/canais/$id/editar',
-  path: '/canais/$id/editar',
-  getParentRoute: () => rootRouteImport,
+  id: '/$id/editar',
+  path: '/$id/editar',
+  getParentRoute: () => CanaisRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/canais': typeof CanaisRouteWithChildren
   '/config-afiliados': typeof ConfigAfiliadosRoute
   '/dashboard': typeof DashboardRoute
   '/relatorios': typeof RelatoriosRoute
@@ -58,6 +65,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/canais': typeof CanaisRouteWithChildren
   '/config-afiliados': typeof ConfigAfiliadosRoute
   '/dashboard': typeof DashboardRoute
   '/relatorios': typeof RelatoriosRoute
@@ -67,6 +75,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/canais': typeof CanaisRouteWithChildren
   '/config-afiliados': typeof ConfigAfiliadosRoute
   '/dashboard': typeof DashboardRoute
   '/relatorios': typeof RelatoriosRoute
@@ -77,6 +86,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/canais'
     | '/config-afiliados'
     | '/dashboard'
     | '/relatorios'
@@ -85,6 +95,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/auth'
+    | '/canais'
     | '/config-afiliados'
     | '/dashboard'
     | '/relatorios'
@@ -93,6 +104,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/auth'
+    | '/canais'
     | '/config-afiliados'
     | '/dashboard'
     | '/relatorios'
@@ -102,10 +114,10 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthRoute: typeof AuthRoute
+  CanaisRoute: typeof CanaisRouteWithChildren
   ConfigAfiliadosRoute: typeof ConfigAfiliadosRoute
   DashboardRoute: typeof DashboardRoute
   RelatoriosRoute: typeof RelatoriosRoute
-  CanaisIdEditarRoute: typeof CanaisIdEditarRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -131,6 +143,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ConfigAfiliadosRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/canais': {
+      id: '/canais'
+      path: '/canais'
+      fullPath: '/canais'
+      preLoaderRoute: typeof CanaisRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/auth': {
       id: '/auth'
       path: '/auth'
@@ -147,21 +166,32 @@ declare module '@tanstack/react-router' {
     }
     '/canais/$id/editar': {
       id: '/canais/$id/editar'
-      path: '/canais/$id/editar'
+      path: '/$id/editar'
       fullPath: '/canais/$id/editar'
       preLoaderRoute: typeof CanaisIdEditarRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof CanaisRoute
     }
   }
 }
 
+interface CanaisRouteChildren {
+  CanaisIdEditarRoute: typeof CanaisIdEditarRoute
+}
+
+const CanaisRouteChildren: CanaisRouteChildren = {
+  CanaisIdEditarRoute: CanaisIdEditarRoute,
+}
+
+const CanaisRouteWithChildren =
+  CanaisRoute._addFileChildren(CanaisRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthRoute: AuthRoute,
+  CanaisRoute: CanaisRouteWithChildren,
   ConfigAfiliadosRoute: ConfigAfiliadosRoute,
   DashboardRoute: DashboardRoute,
   RelatoriosRoute: RelatoriosRoute,
-  CanaisIdEditarRoute: CanaisIdEditarRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

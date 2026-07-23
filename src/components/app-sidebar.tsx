@@ -26,7 +26,7 @@ const MAIN: Item[] = [
 
 const CONFIG: Item[] = [
   { id: "afiliados", label: "Config Afiliados", icon: Settings, href: "/config-afiliados" },
-  { id: "canais", label: "Canais/Grupos", icon: Radio, href: "/" },
+  { id: "canais", label: "Canais/Grupos", icon: Radio, href: "/canais" },
   { id: "relatorios", label: "Relatórios", icon: BarChart3, href: "/relatorios" },
 ];
 
