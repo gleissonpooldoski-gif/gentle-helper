@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { parseShopeeCsv, type ShopeeCsvRow } from "@/modules/products/shopee-import/csv.processor";
 import { importShopeeBatch } from "@/modules/products/shopee-import/shopee-import.controller.functions";
+import { deleteProductsByItemIds, deleteAllProducts } from "@/modules/products/shopee-import/product-delete.functions";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -2632,11 +2633,90 @@ function ShopeePanel() {
   const [importedProducts, setImportedProducts] = useState<ShopeeProduct[]>([]);
   const [importing, setImporting] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [bulkAction, setBulkAction] = useState<string>("");
+  const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
+  const [staticHidden, setStaticHidden] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const importBatchFn = useServerFn(importShopeeBatch);
+  const deleteByItemsFn = useServerFn(deleteProductsByItemIds);
+  const deleteAllFn = useServerFn(deleteAllProducts);
 
-  const products = [...importedProducts, ...SHOPEE_PRODUCTS];
+  const products = [
+    ...importedProducts,
+    ...(staticHidden ? [] : SHOPEE_PRODUCTS),
+  ].filter((p) => !deletedIds.has(p.id));
   const allChecked = products.length > 0 && products.every((p) => selected[p.id]);
+
+  // Extract Shopee item_id from a preview product id like `csv-<itemId>-<idx>`
+  const extractItemId = (previewId: string): string | null => {
+    const m = /^csv-(.+)-\d+$/.exec(previewId);
+    return m ? m[1] : null;
+  };
+
+  const handleExecute = async () => {
+    if (bulkBusy) return;
+    if (bulkAction !== "Excluir") {
+      toast.error("Selecione uma ação para executar.");
+      return;
+    }
+    const selectedIds = products.map((p) => p.id).filter((id) => selected[id]);
+    const isAll = products.length > 0 && selectedIds.length === products.length;
+
+    if (isAll) {
+      if (!window.confirm("Tem certeza que deseja excluir todos os produtos?")) return;
+      setBulkBusy(true);
+      try {
+        await deleteAllFn({ data: { platform: "shopee" } });
+        setImportedProducts([]);
+        setStaticHidden(true);
+        setDeletedIds(new Set());
+        setSelected({});
+        setBulkAction("");
+        toast.success("Produtos excluídos com sucesso.");
+      } catch (err) {
+        console.error(err);
+        toast.error("Não foi possível excluir os produtos.", {
+          description: err instanceof Error ? err.message : undefined,
+        });
+      } finally {
+        setBulkBusy(false);
+      }
+      return;
+    }
+
+    if (selectedIds.length === 0) {
+      toast.error("Selecione ao menos um produto.");
+      return;
+    }
+
+    const itemIds = Array.from(
+      new Set(selectedIds.map(extractItemId).filter((v): v is string => !!v)),
+    );
+
+    setBulkBusy(true);
+    try {
+      if (itemIds.length > 0) {
+        await deleteByItemsFn({ data: { platform: "shopee", itemIds } });
+      }
+      setDeletedIds((prev) => {
+        const next = new Set(prev);
+        for (const id of selectedIds) next.add(id);
+        return next;
+      });
+      setSelected({});
+      setBulkAction("");
+      toast.success("Produtos excluídos com sucesso.");
+    } catch (err) {
+      console.error(err);
+      toast.error("Não foi possível excluir os produtos.", {
+        description: err instanceof Error ? err.message : undefined,
+      });
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
 
   const removeTag = (id: string) => setTags((t) => t.filter((x) => x.id !== id));
 
@@ -3004,17 +3084,26 @@ function ShopeePanel() {
                 Todos
               </label>
               <div className="relative">
-                <select className="h-8 appearance-none rounded-md border border-input bg-background px-2.5 pr-7 text-[12px]">
-                  <option>Selecione uma ação...</option>
-                  <option>Enviar Feed WhatsApp</option>
-                  <option>Enviar Story Instagram</option>
-                  <option>Republicar</option>
-                  <option>Excluir</option>
+                <select
+                  className="h-8 appearance-none rounded-md border border-input bg-background px-2.5 pr-7 text-[12px]"
+                  value={bulkAction}
+                  onChange={(e) => setBulkAction(e.target.value)}
+                >
+                  <option value="">Selecione uma ação...</option>
+                  <option value="Enviar Feed WhatsApp">Enviar Feed WhatsApp</option>
+                  <option value="Enviar Story Instagram">Enviar Story Instagram</option>
+                  <option value="Republicar">Republicar</option>
+                  <option value="Excluir">Excluir</option>
                 </select>
                 <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               </div>
-              <Button size="sm" className="h-8 gap-1.5 rounded-md bg-[oklch(0.62_0.19_150)] px-3 text-[12px] hover:bg-[oklch(0.55_0.19_150)]">
-                <Play className="h-3 w-3" /> Executar
+              <Button
+                size="sm"
+                onClick={handleExecute}
+                disabled={bulkBusy}
+                className="h-8 gap-1.5 rounded-md bg-[oklch(0.62_0.19_150)] px-3 text-[12px] hover:bg-[oklch(0.55_0.19_150)]"
+              >
+                <Play className="h-3 w-3" /> {bulkBusy ? "Executando..." : "Executar"}
               </Button>
             </div>
           </div>
