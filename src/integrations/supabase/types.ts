@@ -69,7 +69,7 @@ export type Database = {
           expires_at: string
           id: string
           ml_user_id: string | null
-          refresh_token_ciphertext: string
+          refresh_token_ciphertext: string | null
           scope: string | null
           updated_at: string
           user_id: string
@@ -80,7 +80,7 @@ export type Database = {
           expires_at: string
           id?: string
           ml_user_id?: string | null
-          refresh_token_ciphertext: string
+          refresh_token_ciphertext?: string | null
           scope?: string | null
           updated_at?: string
           user_id: string
@@ -91,7 +91,7 @@ export type Database = {
           expires_at?: string
           id?: string
           ml_user_id?: string | null
-          refresh_token_ciphertext?: string
+          refresh_token_ciphertext?: string | null
           scope?: string | null
           updated_at?: string
           user_id?: string
