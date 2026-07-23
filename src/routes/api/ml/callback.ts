@@ -58,8 +58,11 @@ export const Route = createFileRoute("/api/ml/callback")({
           if (!parsed) {
             return redirectTo(`${back}?ml_error=${encodeURIComponent("State inválido ou expirado. Tente conectar novamente.")}`);
           }
-          const redirectUri = `${appOrigin(request)}/api/ml/callback`;
-          const tokens = await exchangeCode(code, redirectUri);
+          console.log("[ML][callback] redirect_uri recuperado do state", {
+            present: !!parsed.redirectUri,
+            matchesCallbackPath: new URL(parsed.redirectUri).pathname === "/api/ml/callback",
+          });
+          const tokens = await exchangeCode(code, parsed.redirectUri);
           console.log("[ML][callback] token recebido", {
             hasAccessToken: !!tokens?.access_token,
             hasRefreshToken: !!tokens?.refresh_token,
