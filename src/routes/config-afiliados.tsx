@@ -1,6 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { getShopeeConfig, saveShopeeConfig } from "@/lib/shopee-config.functions";
+
 import {
   AlertTriangle,
   BadgeCheck,
@@ -274,27 +277,105 @@ function Alert({
 /* -------------------------------------------------------------------------- */
 
 function ShopeeCard() {
-  const [shopeeId, setShopeeId] = useState(() =>
-    typeof window !== "undefined" ? localStorage.getItem(SHOPEE_STORAGE_KEYS.affiliateId) ?? "" : "",
-  );
-  const [shopeeApiKey, setShopeeApiKey] = useState(() =>
-    typeof window !== "undefined" ? localStorage.getItem(SHOPEE_STORAGE_KEYS.apiKey) ?? "" : "",
-  );
+  const [shopeeId, setShopeeId] = useState("");
+  const [shopeeApiKey, setShopeeApiKey] = useState("");
+  const [hasStoredApiKey, setHasStoredApiKey] = useState(false);
+  const [status, setStatus] = useState<"connected" | "pending" | "error">("pending");
+  const [lastError, setLastError] = useState<string | null>(null);
+  const [updatedAt, setUpdatedAt] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
-  const handleSaveShopee = () => {
+  const loadConfig = useServerFn(getShopeeConfig);
+  const persistConfig = useServerFn(saveShopeeConfig);
+
+  useEffect(() => {
+    let alive = true;
+    loadConfig()
+      .then((cfg) => {
+        if (!alive || !cfg) return;
+        setShopeeId(cfg.affiliateId);
+        setHasStoredApiKey(cfg.hasApiKey);
+        setStatus(cfg.status);
+        setLastError(cfg.lastError);
+        setUpdatedAt(cfg.updatedAt);
+        // Mirror to localStorage so downstream link builders work offline.
+        localStorage.setItem(SHOPEE_STORAGE_KEYS.affiliateId, cfg.affiliateId);
+      })
+      .catch((err) => {
+        console.error(err);
+        // Silently ignore for unauthenticated preview; state stays "pending".
+      })
+      .finally(() => alive && setLoading(false));
+    return () => {
+      alive = false;
+    };
+  }, [loadConfig]);
+
+  const handleSaveShopee = async () => {
     if (!shopeeId.trim()) {
       toast.error("Informe o Shopee ID de Afiliado antes de salvar.");
       return;
     }
-    localStorage.setItem(SHOPEE_STORAGE_KEYS.affiliateId, shopeeId.trim());
-    localStorage.setItem(SHOPEE_STORAGE_KEYS.apiKey, shopeeApiKey.trim());
-    toast.success("Configurações da Shopee salvas!", {
-      description: shopeeApiKey.trim()
-        ? "ID e API Key salvos. Links serão gerados via API oficial quando possível."
-        : "ID de afiliado salvo. Links serão gerados automaticamente no formato comissionado.",
-    });
+    setSaving(true);
+    try {
+      const trimmedApiKey = shopeeApiKey.trim();
+      const result = await persistConfig({
+        data: {
+          affiliateId: shopeeId.trim(),
+          apiKey: trimmedApiKey || undefined,
+        },
+      });
+      setStatus(result.status);
+      setHasStoredApiKey(result.hasApiKey);
+      setLastError(result.lastError);
+      setUpdatedAt(result.updatedAt);
+      setShopeeApiKey("");
+      localStorage.setItem(SHOPEE_STORAGE_KEYS.affiliateId, result.affiliateId);
+      if (result.status === "error") {
+        toast.error("Configuração salva com aviso", {
+          description: result.lastError ?? "Não foi possível validar a API Key.",
+        });
+      } else {
+        toast.success("Configurações da Shopee salvas!", {
+          description: result.hasApiKey
+            ? "ID e API Key salvos. Links serão gerados via API oficial quando possível."
+            : "ID de afiliado salvo. Links serão gerados automaticamente no formato comissionado.",
+        });
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Erro ao salvar.";
+      toast.error("Falha ao salvar Shopee", { description: message });
+    } finally {
+      setSaving(false);
+    }
   };
 
+  const handleClearApiKey = async () => {
+    if (!shopeeId.trim()) return;
+    setSaving(true);
+    try {
+      const result = await persistConfig({
+        data: { affiliateId: shopeeId.trim(), clearApiKey: true },
+      });
+      setHasStoredApiKey(false);
+      setStatus(result.status);
+      setShopeeApiKey("");
+      toast.success("API Key removida.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Erro ao remover.";
+      toast.error("Falha ao remover API Key", { description: message });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const statusBadge =
+    status === "connected"
+      ? { label: "Conectado", tone: "active" as const }
+      : status === "error"
+        ? { label: "Erro", tone: "off" as const }
+        : { label: "Pendente", tone: "pending" as const };
 
   return (
     <PlatformCard
@@ -302,12 +383,17 @@ function ShopeeCard() {
       logo={<Store className="h-5 w-5" />}
       title="Afiliados Shopee"
       subtitle="Gere links comissionados automaticamente"
-      status={{ label: "Ativo", tone: "active" }}
+      status={statusBadge}
     >
       <Alert tone="warning" title="Não tem senha de API? Sem problemas!">
         Basta preencher apenas o <b>ID de Afiliado</b> — o sistema gerará
         automaticamente um link comissionado usando o gerador oficial da Shopee.
       </Alert>
+      {status === "error" && lastError ? (
+        <Alert tone="danger" title="Erro na integração">
+          {lastError}
+        </Alert>
+      ) : null}
       <div className="grid gap-4 sm:grid-cols-2">
         <Field
           id="shopee-id"
@@ -315,26 +401,45 @@ function ShopeeCard() {
           placeholder="Ex: 18291049182"
           value={shopeeId}
           onChange={(e) => setShopeeId(e.target.value)}
+          disabled={loading || saving}
         />
         <Field
           id="shopee-api"
           label="Senha API / API Key"
-          hint="Opcional"
-          placeholder="••••••••••••••••"
+          hint={hasStoredApiKey ? "Salva · digite para substituir" : "Opcional"}
+          placeholder={hasStoredApiKey ? "•••••••• (salva)" : "••••••••••••••••"}
           type="password"
           value={shopeeApiKey}
           onChange={(e) => setShopeeApiKey(e.target.value)}
+          disabled={loading || saving}
         />
       </div>
-      <div className="flex items-center justify-between pt-1">
+      <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
         <p className="text-xs text-[color:var(--muted-foreground)]">
-          Última sincronização: há 3 minutos
+          {updatedAt
+            ? `Última atualização: ${new Date(updatedAt).toLocaleString("pt-BR")}`
+            : "Ainda não configurado"}
         </p>
-        <SaveButton onClick={handleSaveShopee}>Salvar Shopee</SaveButton>
+        <div className="flex items-center gap-2">
+          {hasStoredApiKey ? (
+            <button
+              type="button"
+              onClick={handleClearApiKey}
+              disabled={saving}
+              className="rounded-lg border border-[color:var(--border)] px-3 py-2 text-xs font-medium text-[color:var(--muted-foreground)] hover:bg-[color:var(--muted)]/40 disabled:opacity-50"
+            >
+              Remover API Key
+            </button>
+          ) : null}
+          <SaveButton onClick={handleSaveShopee}>
+            {saving ? "Salvando…" : "Salvar Shopee"}
+          </SaveButton>
+        </div>
       </div>
     </PlatformCard>
   );
 }
+
 
 function MercadoLivreCard() {
   return (
