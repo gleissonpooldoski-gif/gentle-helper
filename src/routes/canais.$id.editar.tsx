@@ -3604,12 +3604,13 @@ function WhatsAppConnectionCard() {
       return;
     }
     try {
-      await navigator.clipboard.writeText(token);
-      toast.success("Token copiado");
+      await navigator.clipboard.writeText(`${token}|${channelId}`);
+      toast.success("Token copiado (inclui o canal)");
     } catch {
       toast.error("Não foi possível copiar");
     }
   };
+
 
   const handleReconnect = async () => {
     try {

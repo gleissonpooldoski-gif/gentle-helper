@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "Disparo WhatsApp — Conector de Canal",
+  "version": "1.0.0",
+  "description": "Conecta o WhatsApp Web aberto no navegador a um canal específico do SaaS.",
+  "permissions": ["storage", "activeTab", "tabs"],
+  "host_permissions": [
+    "https://web.whatsapp.com/*",
+    "https://*.lovable.app/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Conectar canal WhatsApp",
+    "default_icon": "icon.png"
+  },
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    {
+      "matches": ["https://web.whatsapp.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": { "48": "icon.png", "128": "icon.png" }
+}
