@@ -33,7 +33,22 @@ async function loadToken(userId: string): Promise<string> {
   const { getValidAccessToken } = await import(
     "@/modules/affiliate/mercado-livre/oauth.server"
   );
-  return getValidAccessToken(userId);
+  const token = await getValidAccessToken(userId);
+  console.log("[ML][ctrl] getValidAccessToken", { userId, tokenValid: token ? "SIM" : "NAO" });
+  return token;
+}
+
+async function tryLoadToken(userId: string): Promise<string | null> {
+  try {
+    return await loadToken(userId);
+  } catch (e) {
+    console.log("[ML][ctrl] getValidAccessToken", {
+      userId,
+      tokenValid: "NAO",
+      reason: e instanceof Error ? e.message : String(e),
+    });
+    return null;
+  }
 }
 
 function toUpsert(userId: string, item: MLItem, affiliateTag: string | null): MLProductUpsert {
