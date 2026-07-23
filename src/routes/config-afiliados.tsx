@@ -465,6 +465,67 @@ function MercadoLivreCard() {
   const load = useServerFn(getMLConnection);
   const save = useServerFn(saveMLConnection);
 
+  // ---- OAuth oficial Mercado Livre ------------------------------------
+  const loadOAuth = useServerFn(getMLIntegrationStatus);
+  const startOAuth = useServerFn(startMLOAuth);
+  const disconnectOAuth = useServerFn(disconnectMLIntegration);
+  const [oauth, setOauth] = useState<{
+    connected: boolean;
+    mlUserId: string | null;
+    expiresAt: string | null;
+    updatedAt: string | null;
+  } | null>(null);
+  const [oauthBusy, setOauthBusy] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    loadOAuth()
+      .then((s) => { if (alive) setOauth(s); })
+      .catch(() => { /* preview / signed-out */ });
+    // Toast do callback (?ml_connected / ?ml_error).
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      if (url.searchParams.get("ml_connected") === "1") {
+        toast.success("Conta Mercado Livre conectada!");
+        url.searchParams.delete("ml_connected");
+        window.history.replaceState({}, "", url.toString());
+      }
+      const err = url.searchParams.get("ml_error");
+      if (err) {
+        toast.error("Falha ao conectar Mercado Livre", { description: err });
+        url.searchParams.delete("ml_error");
+        window.history.replaceState({}, "", url.toString());
+      }
+    }
+    return () => { alive = false; };
+  }, [loadOAuth]);
+
+  const handleConnectOAuth = async () => {
+    setOauthBusy(true);
+    try {
+      const redirectUri = `${window.location.origin}/api/ml/callback`;
+      const { authorizationUrl } = await startOAuth({ data: { redirectUri } });
+      window.location.href = authorizationUrl;
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Não foi possível iniciar OAuth.");
+      setOauthBusy(false);
+    }
+  };
+
+  const handleDisconnectOAuth = async () => {
+    setOauthBusy(true);
+    try {
+      await disconnectOAuth();
+      setOauth({ connected: false, mlUserId: null, expiresAt: null, updatedAt: null });
+      toast.success("Conta Mercado Livre desconectada.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao desconectar.");
+    } finally {
+      setOauthBusy(false);
+    }
+  };
+  // ---------------------------------------------------------------------
+
   useEffect(() => {
     let alive = true;
     load()
