@@ -149,6 +149,10 @@ export async function refreshToken(refresh: string): Promise<TokenResponse> {
 
 /** Persist tokens (encrypted) for the given user via the service-role client. */
 export async function persistTokens(userId: string, t: TokenResponse): Promise<void> {
+  if (!userId) throw new Error("Configuração Mercado Livre incompleta (userId ausente).");
+  if (!t?.access_token || !t?.refresh_token) {
+    throw new Error("Token Mercado Livre não recebido (access/refresh ausentes).");
+  }
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const expiresAt = new Date(Date.now() + (t.expires_in - 60) * 1000).toISOString();
   const { error } = await supabaseAdmin
