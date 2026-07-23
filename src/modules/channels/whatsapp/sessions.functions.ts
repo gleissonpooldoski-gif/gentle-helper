@@ -19,7 +19,10 @@ export interface WASessionDTO {
 }
 
 export interface WASessionWithKeyDTO extends WASessionDTO {
+  /** Raw connection token — returned only at creation time. */
   sessionKey: string;
+  /** ISO date when the token expires. */
+  expiresAt: string;
 }
 
 const PLAN_LIMITS: Record<string, number> = {
@@ -31,8 +34,13 @@ function planLimit(plan: string | null | undefined): number {
   return PLAN_LIMITS[plan ?? "free"] ?? 1;
 }
 
-function makeSessionKey(): string {
-  return `wask_${randomBytes(20).toString("hex")}`;
+function makeToken(): string {
+  // Short, easy-to-copy token
+  return `wa_${randomBytes(12).toString("hex")}`;
+}
+
+function hashToken(t: string): string {
+  return createHash("sha256").update(t).digest("hex");
 }
 
 async function fetchLinkedCounts(supabase: any, sessionIds: string[]) {
