@@ -2746,6 +2746,45 @@ function ShopeePanel() {
     };
   };
 
+  const enrichImagesInBackground = async () => {
+    try {
+      const pending = await listPendingFn();
+      if (!pending || pending.length === 0) return;
+      const total = pending.length;
+      let done = 0;
+      let found = 0;
+      const toastId = toast.loading("Buscando imagens dos produtos...", {
+        description: `0 / ${total}`,
+      });
+      const CONC = 5;
+      let cursor = 0;
+      const worker = async (): Promise<void> => {
+        while (cursor < pending.length) {
+          const idx = cursor++;
+          const item = pending[idx]!;
+          try {
+            const res = await enrichOneFn({ data: item });
+            if (res.found) found += 1;
+          } catch {
+            /* ignore individual failures */
+          }
+          done += 1;
+          toast.loading("Buscando imagens dos produtos...", {
+            id: toastId,
+            description: `Imagens encontradas: ${found} / ${done} (de ${total})`,
+          });
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(CONC, total) }, () => worker()));
+      toast.success("Busca de imagens concluída", {
+        id: toastId,
+        description: `Imagens encontradas: ${found} / ${total}`,
+      });
+    } catch (err) {
+      console.error("Enrichment failed", err);
+    }
+  };
+
   const handleCsvFile = async (file: File | null | undefined) => {
     if (!file) return;
     setImporting(true);
