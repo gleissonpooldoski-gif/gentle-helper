@@ -62,6 +62,42 @@ export type Database = {
         }
         Relationships: []
       }
+      mercadolivre_integrations: {
+        Row: {
+          access_token_ciphertext: string
+          created_at: string
+          expires_at: string
+          id: string
+          ml_user_id: string | null
+          refresh_token_ciphertext: string
+          scope: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_token_ciphertext: string
+          created_at?: string
+          expires_at: string
+          id?: string
+          ml_user_id?: string | null
+          refresh_token_ciphertext: string
+          scope?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_token_ciphertext?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          ml_user_id?: string | null
+          refresh_token_ciphertext?: string
+          scope?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       monitored_groups: {
         Row: {
           created_at: string
