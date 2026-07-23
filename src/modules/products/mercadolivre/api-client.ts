@@ -148,11 +148,17 @@ function normalize(raw: RawItem): MLItem | null {
 }
 
 export async function getItemById(mlbId: string): Promise<MLItem | null> {
-  const raw = await fetchJson<RawItem>(
-    `https://api.mercadolibre.com/items/${encodeURIComponent(mlbId)}`,
-  );
-  if (!raw) return null;
-  return normalize(raw);
+  const url = `https://api.mercadolibre.com/items/${encodeURIComponent(mlbId)}`;
+  console.log("[ML][getItemById]", { mlbId, url });
+  try {
+    const raw = await fetchJson<RawItem>(url);
+    const norm = normalize(raw);
+    console.log("[ML][getItemById] resposta", { id: raw.id, title: raw.title, ok: !!norm });
+    return norm;
+  } catch (err) {
+    if (err instanceof MLApiError && err.status === 404) return null;
+    throw err;
+  }
 }
 
 type SearchResult = {
@@ -183,11 +189,17 @@ export async function searchItems(opts: SearchOptions): Promise<{
   if (opts.sort === "price_desc") params.set("sort", "price_desc");
 
   const url = `https://api.mercadolibre.com/sites/MLB/search?${params.toString()}`;
+  console.log("[ML][search] chamada", {
+    termo: opts.query ?? "",
+    categoriaId: opts.categoryId ?? null,
+    url,
+  });
   const raw = await fetchJson<SearchResult>(url);
-  if (!raw) return { items: [], total: 0, offset: opts.offset ?? 0, limit: opts.limit ?? 24 };
-  const items = (raw.results ?? [])
-    .map(normalize)
-    .filter((i): i is MLItem => !!i);
+  const items = (raw.results ?? []).map(normalize).filter((i): i is MLItem => !!i);
+  console.log("[ML][search] resposta", {
+    total: raw.paging?.total ?? items.length,
+    retornados: items.length,
+  });
   return {
     items,
     total: raw.paging?.total ?? items.length,
