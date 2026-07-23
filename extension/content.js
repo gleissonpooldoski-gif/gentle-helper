@@ -38,9 +38,13 @@ async function processQueue() {
 }
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (msg?.type === 'PING') {
+    sendResponse({ ok: true });
+    return true;
+  }
   if (msg?.type === 'DISPATCH_QUEUE') {
     processQueue().then(sendResponse).catch((err) => sendResponse({ ok: false, error: String(err) }));
-    return true; // async response
+    return true;
   }
   if (msg?.type === 'ENQUEUE' && Array.isArray(msg.items)) {
     chrome.storage.local.get('messageQueue').then(({ messageQueue = [] }) => {
@@ -50,5 +54,6 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     return true;
   }
 });
+
 
 console.log('[Affiliate WhatsApp Sender] content script carregado.');
