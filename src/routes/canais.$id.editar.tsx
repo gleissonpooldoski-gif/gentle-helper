@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { parseShopeeCsv, type ShopeeCsvRow } from "@/modules/products/shopee-import/csv.processor";
 import { importShopeeBatch } from "@/modules/products/shopee-import/shopee-import.controller.functions";
 import { deleteProductsByItemIds, deleteAllProducts } from "@/modules/products/shopee-import/product-delete.functions";
+import { listPendingShopeeImages, enrichShopeeImageOne } from "@/modules/products/shopee-import/image-enrich.functions";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -2639,6 +2640,8 @@ function ShopeePanel() {
   const [bulkBusy, setBulkBusy] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const importBatchFn = useServerFn(importShopeeBatch);
+  const listPendingFn = useServerFn(listPendingShopeeImages);
+  const enrichOneFn = useServerFn(enrichShopeeImageOne);
   const deleteByItemsFn = useServerFn(deleteProductsByItemIds);
   const deleteAllFn = useServerFn(deleteAllProducts);
 
@@ -2743,6 +2746,45 @@ function ShopeePanel() {
     };
   };
 
+  const enrichImagesInBackground = async () => {
+    try {
+      const pending = await listPendingFn();
+      if (!pending || pending.length === 0) return;
+      const total = pending.length;
+      let done = 0;
+      let found = 0;
+      const toastId = toast.loading("Buscando imagens dos produtos...", {
+        description: `0 / ${total}`,
+      });
+      const CONC = 5;
+      let cursor = 0;
+      const worker = async (): Promise<void> => {
+        while (cursor < pending.length) {
+          const idx = cursor++;
+          const item = pending[idx]!;
+          try {
+            const res = await enrichOneFn({ data: item });
+            if (res.found) found += 1;
+          } catch {
+            /* ignore individual failures */
+          }
+          done += 1;
+          toast.loading("Buscando imagens dos produtos...", {
+            id: toastId,
+            description: `Imagens encontradas: ${found} / ${done} (de ${total})`,
+          });
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(CONC, total) }, () => worker()));
+      toast.success("Busca de imagens concluída", {
+        id: toastId,
+        description: `Imagens encontradas: ${found} / ${total}`,
+      });
+    } catch (err) {
+      console.error("Enrichment failed", err);
+    }
+  };
+
   const handleCsvFile = async (file: File | null | undefined) => {
     if (!file) return;
     setImporting(true);
@@ -2781,6 +2823,9 @@ function ShopeePanel() {
       toast.success(`${rows.length} produtos processados`, {
         description: `${inserted} novos · ${updated} atualizados`,
       });
+
+      // Background image enrichment (best-effort, never blocks import).
+      void enrichImagesInBackground();
     } catch (err) {
       console.error(err);
       toast.error("Falha ao importar CSV", {
