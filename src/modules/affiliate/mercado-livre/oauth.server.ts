@@ -82,6 +82,7 @@ async function tokenRequest(body: URLSearchParams): Promise<TokenResponse> {
     body: body.toString(),
   });
   const text = await res.text();
+  console.log("[ML][oauth] token endpoint response", { status: res.status, bodyLength: text.length });
   if (!res.ok) {
     let msg = text.slice(0, 300);
     try {
@@ -90,13 +91,37 @@ async function tokenRequest(body: URLSearchParams): Promise<TokenResponse> {
     } catch { /* keep raw */ }
     throw new Error(`Mercado Livre OAuth ${res.status}: ${msg}`);
   }
-  return JSON.parse(text) as TokenResponse;
+  let parsed: TokenResponse;
+  try {
+    parsed = JSON.parse(text) as TokenResponse;
+  } catch {
+    throw new Error("Token Mercado Livre não recebido (resposta inválida).");
+  }
+  console.log("[ML][oauth] token fields present", {
+    access_token: !!parsed.access_token,
+    refresh_token: !!parsed.refresh_token,
+    expires_in: parsed.expires_in,
+    user_id: parsed.user_id,
+  });
+  if (!parsed.access_token || !parsed.refresh_token || !parsed.expires_in || parsed.user_id == null) {
+    throw new Error("Token Mercado Livre não recebido (campos obrigatórios ausentes).");
+  }
+  return parsed;
 }
 
 export async function exchangeCode(code: string, redirectUri: string): Promise<TokenResponse> {
   const clientId = process.env.ML_CLIENT_ID;
   const clientSecret = process.env.ML_CLIENT_SECRET;
-  if (!clientId || !clientSecret) throw new Error("ML_CLIENT_ID/ML_CLIENT_SECRET ausentes.");
+  console.log("[ML][oauth] exchangeCode preconditions", {
+    hasClientId: !!clientId,
+    hasClientSecret: !!clientSecret,
+    hasEncKey: !!process.env.SHOPEE_CONFIG_ENC_KEY,
+    hasCode: !!code,
+    hasRedirectUri: !!redirectUri,
+  });
+  if (!clientId || !clientSecret) throw new Error("Configuração Mercado Livre incompleta (ML_CLIENT_ID/ML_CLIENT_SECRET ausentes).");
+  if (!process.env.SHOPEE_CONFIG_ENC_KEY) throw new Error("Configuração Mercado Livre incompleta (chave de criptografia ausente).");
+  if (!code) throw new Error("Configuração Mercado Livre incompleta (authorization code ausente).");
   return tokenRequest(
     new URLSearchParams({
       grant_type: "authorization_code",
