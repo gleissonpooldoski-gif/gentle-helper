@@ -1,7 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
-import { randomBytes } from "node:crypto";
+import { randomBytes, createHash } from "node:crypto";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { apiClient } from "@/lib/api-client";
+
+const TOKEN_TTL_MINUTES = 15;
 
 export type WASessionStatus = "pending" | "connected" | "disconnected";
 
@@ -17,7 +19,10 @@ export interface WASessionDTO {
 }
 
 export interface WASessionWithKeyDTO extends WASessionDTO {
+  /** Raw connection token — returned only at creation time. */
   sessionKey: string;
+  /** ISO date when the token expires. */
+  expiresAt: string;
 }
 
 const PLAN_LIMITS: Record<string, number> = {
@@ -29,8 +34,13 @@ function planLimit(plan: string | null | undefined): number {
   return PLAN_LIMITS[plan ?? "free"] ?? 1;
 }
 
-function makeSessionKey(): string {
-  return `wask_${randomBytes(20).toString("hex")}`;
+function makeToken(): string {
+  // Short, easy-to-copy token
+  return `wa_${randomBytes(12).toString("hex")}`;
+}
+
+function hashToken(t: string): string {
+  return createHash("sha256").update(t).digest("hex");
 }
 
 async function fetchLinkedCounts(supabase: any, sessionIds: string[]) {
@@ -99,16 +109,20 @@ export const createWhatsAppSession = createServerFn({ method: "POST" })
       throw new Error(`Você atingiu o limite de ${limit} sessões WhatsApp do seu plano.`);
     }
 
-    const sessionKey = makeSessionKey();
+    const token = makeToken();
+    const tokenHash = hashToken(token);
+    const expiresAt = new Date(Date.now() + TOKEN_TTL_MINUTES * 60_000).toISOString();
     const { data: row, error } = await (supabase as any)
       .from("whatsapp_sessions")
       .insert({
         user_id: userId,
         name: data.name,
-        session_key: sessionKey,
+        session_key: token, // legacy column kept in sync
+        token_hash: tokenHash,
+        expires_at: expiresAt,
         status: "pending",
       })
-      .select("id,name,phone_number,status,connected_at,last_seen_at,created_at,session_key")
+      .select("id,name,phone_number,status,connected_at,last_seen_at,created_at")
       .single();
     if (error) throw new Error(error.message);
     return {
@@ -119,7 +133,8 @@ export const createWhatsAppSession = createServerFn({ method: "POST" })
       connectedAt: row.connected_at,
       lastSeenAt: row.last_seen_at,
       createdAt: row.created_at,
-      sessionKey: row.session_key,
+      sessionKey: token,
+      expiresAt,
       linkedChannels: 0,
     };
   });

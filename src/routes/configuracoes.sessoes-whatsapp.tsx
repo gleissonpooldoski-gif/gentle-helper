@@ -1,10 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ConnectNewNumberModal } from "@/components/whatsapp/ConnectNewNumberModal";
+import { supabase } from "@/integrations/supabase/client";
+import { ConnectNewNumberModal, type CreatedSession } from "@/components/whatsapp/ConnectNewNumberModal";
 import {
   listWhatsAppSessions,
   createWhatsAppSession,
@@ -53,19 +54,44 @@ function SessionsPage() {
     reload();
   }, [reload]);
 
-  const handleCreate = async ({ name }: { name: string; mode: "qr" | "web" }) => {
-    try {
-      setBusy("create");
-      await createFn({ data: { name } });
-      toast.success("Sessão criada. Escaneie o QR Code na extensão.");
-      setModalOpen(false);
-      await reload();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Falha ao criar");
-    } finally {
-      setBusy(null);
-    }
+  // Realtime: refresh on any change to whatsapp_sessions for the current user
+  const reloadRef = useRef(reload);
+  reloadRef.current = reload;
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase.auth.getUser();
+      const uid = data.user?.id;
+      if (!uid || cancelled) return;
+      const channel = supabase
+        .channel(`wa-sessions-${uid}`)
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "whatsapp_sessions", filter: `user_id=eq.${uid}` },
+          () => reloadRef.current(),
+        )
+        .subscribe();
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleCreate = async ({ name }: { name: string; mode: "qr" | "web" }): Promise<CreatedSession> => {
+    const s = await createFn({ data: { name } });
+    // Refresh the list so the pending session appears immediately.
+    reload();
+    return {
+      id: s.id,
+      name: s.name,
+      sessionKey: s.sessionKey,
+      expiresAt: s.expiresAt,
+    };
   };
+
 
 
   const handleDelete = async (id: string) => {
@@ -174,8 +200,7 @@ function SessionsPage() {
       <ConnectNewNumberModal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        onSubmit={handleCreate}
-        busy={busy === "create"}
+        onCreate={handleCreate}
       />
     </div>
   );
