@@ -23,7 +23,13 @@ export type MLItem = {
   sold: number | null;
 };
 
-async function fetchJson<T>(url: string): Promise<T | null> {
+export class MLApiError extends Error {
+  constructor(message: string, public url: string, public status?: number) {
+    super(message);
+  }
+}
+
+async function fetchJson<T>(url: string): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
@@ -32,10 +38,20 @@ async function fetchJson<T>(url: string): Promise<T | null> {
       redirect: "follow",
       headers: { "user-agent": UA, accept: "application/json" },
     });
-    if (!res.ok) return null;
+    console.log("[ML][api]", { url, status: res.status });
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new MLApiError(
+        `ML API ${res.status}: ${body.slice(0, 200) || res.statusText}`,
+        url,
+        res.status,
+      );
+    }
     return (await res.json()) as T;
-  } catch {
-    return null;
+  } catch (err) {
+    if (err instanceof MLApiError) throw err;
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new MLApiError(`Falha de rede ao chamar ML: ${msg}`, url);
   } finally {
     clearTimeout(timer);
   }
@@ -51,9 +67,12 @@ export function parseMLBId(input: string): string | null {
   if (!input) return null;
   const s = input.trim();
 
-  // Direct match anywhere in the string, with optional dash.
+  // MLB-1234567890, MLB1234567890, /p/MLB1234567890, ...-i.MLB1234567890
   const m = s.match(/MLB-?\s*([0-9]{6,15})/i);
   if (m) return `MLB${m[1]}`;
+
+  // Pure numeric input assumed to be an MLB id.
+  if (/^[0-9]{8,15}$/.test(s)) return `MLB${s}`;
 
   return null;
 }
@@ -129,11 +148,17 @@ function normalize(raw: RawItem): MLItem | null {
 }
 
 export async function getItemById(mlbId: string): Promise<MLItem | null> {
-  const raw = await fetchJson<RawItem>(
-    `https://api.mercadolibre.com/items/${encodeURIComponent(mlbId)}`,
-  );
-  if (!raw) return null;
-  return normalize(raw);
+  const url = `https://api.mercadolibre.com/items/${encodeURIComponent(mlbId)}`;
+  console.log("[ML][getItemById]", { mlbId, url });
+  try {
+    const raw = await fetchJson<RawItem>(url);
+    const norm = normalize(raw);
+    console.log("[ML][getItemById] resposta", { id: raw.id, title: raw.title, ok: !!norm });
+    return norm;
+  } catch (err) {
+    if (err instanceof MLApiError && err.status === 404) return null;
+    throw err;
+  }
 }
 
 type SearchResult = {
@@ -164,11 +189,17 @@ export async function searchItems(opts: SearchOptions): Promise<{
   if (opts.sort === "price_desc") params.set("sort", "price_desc");
 
   const url = `https://api.mercadolibre.com/sites/MLB/search?${params.toString()}`;
+  console.log("[ML][search] chamada", {
+    termo: opts.query ?? "",
+    categoriaId: opts.categoryId ?? null,
+    url,
+  });
   const raw = await fetchJson<SearchResult>(url);
-  if (!raw) return { items: [], total: 0, offset: opts.offset ?? 0, limit: opts.limit ?? 24 };
-  const items = (raw.results ?? [])
-    .map(normalize)
-    .filter((i): i is MLItem => !!i);
+  const items = (raw.results ?? []).map(normalize).filter((i): i is MLItem => !!i);
+  console.log("[ML][search] resposta", {
+    total: raw.paging?.total ?? items.length,
+    retornados: items.length,
+  });
   return {
     items,
     total: raw.paging?.total ?? items.length,
@@ -195,13 +226,11 @@ export async function getHighlights(offset = 0, limit = 24): Promise<{
     // Bias to items showing discount.
     discount: "5-100",
   });
-  const raw = await fetchJson<SearchResult>(
-    `https://api.mercadolibre.com/sites/MLB/search?${params.toString()}`,
-  );
-  if (!raw) return { items: [], total: 0, offset, limit };
-  const items = (raw.results ?? [])
-    .map(normalize)
-    .filter((i): i is MLItem => !!i);
+  const url = `https://api.mercadolibre.com/sites/MLB/search?${params.toString()}`;
+  console.log("[ML][highlights]", { url });
+  const raw = await fetchJson<SearchResult>(url);
+  const items = (raw.results ?? []).map(normalize).filter((i): i is MLItem => !!i);
+  console.log("[ML][highlights] resposta", { total: raw.paging?.total, retornados: items.length });
   return {
     items,
     total: raw.paging?.total ?? items.length,
