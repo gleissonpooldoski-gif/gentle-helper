@@ -53,6 +53,16 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     });
     return true;
   }
+  if (msg?.action === 'SEND_MESSAGE') {
+    sendWhatsAppMessage({
+      groupJid: msg.groupJid,
+      messageText: msg.messageText,
+      delayMs: msg.delayMs || 3000,
+    })
+      .then((success) => sendResponse({ success }))
+      .catch((err) => sendResponse({ success: false, error: err.message }));
+    return true;
+  }
 });
 
 
