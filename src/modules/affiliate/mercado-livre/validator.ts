@@ -16,8 +16,13 @@ export function validateAffiliateInput(input: {
   const link = (input.affiliateLink ?? "").trim();
   if (!link) errors.push("Informe o link de afiliado do Mercado Livre.");
   if (link.length > 2000) errors.push("Link muito longo.");
-  if (link && !/mercadoli(vre|bre)|mercadolibre|mercadolivre|\/sec\//i.test(link)) {
-    errors.push("Link não parece ser do Mercado Livre.");
+  if (link) {
+    try {
+      // eslint-disable-next-line no-new
+      new URL(link);
+    } catch {
+      errors.push("Link inválido — cole a URL completa (com https://).");
+    }
   }
   if (input.cookie && input.cookie.length > 8000) errors.push("Cookie muito longo.");
   return { ok: errors.length === 0, errors };
@@ -65,12 +70,10 @@ export function computeStatus(input: {
   tag?: string | null;
 }): { status: ConnectionStatus; error: string | null } {
   if (!input.affiliateLink?.trim()) return { status: "pending", error: "Link de afiliado ausente." };
-  if (!input.tag) {
-    return {
-      status: "pending",
-      error: "Não foi possível identificar a tag de afiliado — configure manualmente.",
-    };
-  }
-  // Cookie is optional; a valid affiliate tag is enough to save and use the connection.
-  return { status: "connected", error: null };
+  if (input.tag) return { status: "connected", error: null };
+  if (input.cookie) return { status: "connected", error: null };
+  return {
+    status: "pending",
+    error: "Tag não identificada — adicione um cookie ou use um link com tag de afiliado.",
+  };
 }
