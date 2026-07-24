@@ -61,12 +61,17 @@ export const disconnectWhatsAppSession = createServerFn({ method: "POST" })
   })
   .handler(async ({ data, context }): Promise<{ ok: true }> => {
     const { supabase, userId } = context;
+    const channelUuid = toUuidOrNull(data.channelId);
+    if (!channelUuid) {
+      console.warn("[WA][session] disconnect ignorado, channelId não-UUID:", data.channelId);
+      return { ok: true };
+    }
     const nowIso = new Date().toISOString();
     const { error: sessErr } = await (supabase as any)
       .from("channel_whatsapp_session_status")
       .update({ status: "disconnected", updated_at: nowIso })
       .eq("user_id", userId)
-      .eq("channel_id", data.channelId);
+      .eq("channel_id", channelUuid);
     if (sessErr) throw new Error(sessErr.message);
     const { error: connErr } = await supabase
       .from("channel_whatsapp_connections")
@@ -76,3 +81,4 @@ export const disconnectWhatsAppSession = createServerFn({ method: "POST" })
     if (connErr) throw new Error(connErr.message);
     return { ok: true };
   });
+
