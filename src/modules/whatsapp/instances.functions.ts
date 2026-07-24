@@ -386,8 +386,43 @@ export const fetchWhatsAppGroups = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<WhatsAppGroupDTO[]> => {
     const { supabase, userId } = context;
     const row = await loadInstance(supabase, userId, data.id);
-    const { getWhatsAppProvider } = await import("./index.server");
-    const groups = await getWhatsAppProvider(row.provider).fetchGroups(row.instance_name);
+
+    // Somente grupos autorizados pelo usuário na etapa de configuração
+    // (monitored_groups para este canal). A Evolution é usada apenas para
+    // enriquecer nome/participantes/foto — nunca para definir destinos.
+    const { data: allowed } = await (supabase as any)
+      .from("monitored_groups")
+      .select("group_jid, group_name")
+      .eq("user_id", userId)
+      .eq("channel_id", data.channelId)
+      .eq("is_active", true);
+
+    const allowedList: Array<{ group_jid: string; group_name: string | null }> =
+      allowed ?? [];
+    if (allowedList.length === 0) return [];
+    const allowedJids = new Set(allowedList.map((a) => a.group_jid));
+
+    let evoMap = new Map<
+      string,
+      { name: string; participants: number | null; pictureUrl: string | null }
+    >();
+    try {
+      const { getWhatsAppProvider } = await import("./index.server");
+      const groups = await getWhatsAppProvider(row.provider).fetchGroups(
+        row.instance_name,
+      );
+      for (const g of groups) {
+        if (g?.jid && allowedJids.has(g.jid)) {
+          evoMap.set(g.jid, {
+            name: g.name,
+            participants: g.participants ?? null,
+            pictureUrl: g.pictureUrl ?? null,
+          });
+        }
+      }
+    } catch {
+      /* segue com dados salvos se Evolution falhar */
+    }
 
     const { data: sel } = await (supabase as any)
       .from("whatsapp_group_selections")
@@ -397,8 +432,18 @@ export const fetchWhatsAppGroups = createServerFn({ method: "POST" })
       .eq("channel_id", data.channelId);
     const selectedSet = new Set<string>((sel ?? []).map((s: any) => s.group_jid));
 
-    return groups.map((g) => ({ ...g, selected: selectedSet.has(g.jid) }));
+    return allowedList.map((a) => {
+      const evo = evoMap.get(a.group_jid);
+      return {
+        jid: a.group_jid,
+        name: evo?.name || a.group_name || "(grupo sem nome)",
+        participants: evo?.participants ?? null,
+        pictureUrl: evo?.pictureUrl ?? null,
+        selected: selectedSet.has(a.group_jid) || selectedSet.size === 0,
+      };
+    });
   });
+
 
 /** Salva a lista de grupos selecionados (substitui). */
 export const saveWhatsAppGroupSelection = createServerFn({ method: "POST" })
