@@ -2486,6 +2486,7 @@ const ML_HEADERS = [
 
 type MLProduct = {
   id: string;
+  itemId: string | null;
   title: string;
   emoji: string;
   color: string;
@@ -2494,6 +2495,8 @@ type MLProduct = {
   original: string;
   discount: number;
   when: string;
+  permalink: string;
+  thumbnail: string | null;
 };
 
 const ML_PRODUCTS: MLProduct[] = [
@@ -2536,6 +2539,28 @@ function formatBRL(v: number | null): string {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
+function channelProductToML(row: ChannelProductDTO): MLProduct {
+  const current = row.promoPrice ?? row.originalPrice;
+  const original = row.originalPrice;
+  const discount = current != null && original != null && original > current
+    ? Math.round((1 - current / original) * 100)
+    : 0;
+  return {
+    id: row.id,
+    itemId: row.itemId,
+    title: row.title,
+    emoji: "🛍️",
+    color: "oklch(0.92 0.06 80)",
+    format: "FEED",
+    price: formatBRL(current),
+    original: formatBRL(original),
+    discount,
+    when: new Date(row.createdAt).toLocaleDateString("pt-BR"),
+    permalink: row.affiliateLink || row.rawLink,
+    thumbnail: row.imageUrl,
+  };
+}
+
 function MercadoLivrePanel() {
   const { id: channelId } = Route.useParams();
 
@@ -2544,7 +2569,8 @@ function MercadoLivrePanel() {
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [sendProduct, setSendProduct] = useState<SendProduct | null>(null);
   const [editTarget, setEditTarget] = useState<EditProductTarget | null>(null);
-  const allChecked = ML_PRODUCTS.every((p) => selected[p.id]);
+  const [channelProducts, setChannelProducts] = useState<MLProduct[]>([]);
+  const allChecked = channelProducts.length > 0 && channelProducts.every((p) => selected[p.id]);
 
   // === Add by link ===
   const [linkInput, setLinkInput] = useState("");
@@ -2567,6 +2593,20 @@ function MercadoLivrePanel() {
   const addByLinkFn = useServerFn(addMLProductByLink);
   const searchFn = useServerFn(searchMLProducts);
   const addByIdsFn = useServerFn(addMLProductsByIds);
+  const listProductsFn = useServerFn(listChannelProducts);
+
+  const reloadProducts = useCallback(async () => {
+    const rows = await listProductsFn({ data: { channelId, platform: "mercadolivre" } });
+    setChannelProducts(rows.map(channelProductToML));
+  }, [channelId, listProductsFn]);
+
+  useEffect(() => {
+    void reloadProducts().catch((err) => {
+      toast.error("Falha ao carregar produtos", {
+        description: err instanceof Error ? err.message : undefined,
+      });
+    });
+  }, [reloadProducts]);
 
   const handleAddByLink = async () => {
     const link = linkInput.trim();
@@ -2585,6 +2625,7 @@ function MercadoLivrePanel() {
         toast.message("Configure sua conta Mercado Livre em Afiliados para gerar link comissionado.");
       }
       setLinkInput("");
+      await reloadProducts();
     } catch (err) {
       toast.error("Falha ao adicionar produto", {
         description: err instanceof Error ? err.message : "Erro desconhecido.",
@@ -2656,6 +2697,7 @@ function MercadoLivrePanel() {
       if (res.inserted + res.updated > 0) {
         setAddedIds((s) => new Set(s).add(id));
         toast.success(res.inserted > 0 ? "Produto adicionado" : "Produto atualizado");
+        await reloadProducts();
       } else {
         toast.error("Não foi possível adicionar este produto.");
       }
@@ -3011,7 +3053,7 @@ function MercadoLivrePanel() {
                   onChange={(e) => {
                     const v = e.target.checked;
                     const next: Record<string, boolean> = {};
-                    ML_PRODUCTS.forEach((p) => (next[p.id] = v));
+                    channelProducts.forEach((p) => (next[p.id] = v));
                     setSelected(next);
                   }}
                   className="h-3.5 w-3.5 accent-[oklch(0.62_0.19_256)]"
@@ -3035,7 +3077,7 @@ function MercadoLivrePanel() {
         </div>
 
         <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2 xl:grid-cols-4">
-          {ML_PRODUCTS.map((p) => (
+          {channelProducts.map((p) => (
             <div key={p.id} className="group flex flex-col overflow-hidden rounded-xl border border-border/60 bg-background shadow-sm transition hover:shadow-md">
               <div className="relative aspect-square w-full overflow-hidden" style={{ background: p.color }}>
                 <input
@@ -3076,10 +3118,10 @@ function MercadoLivrePanel() {
                     onClick={() =>
                       setSendProduct({
                         title: p.title,
-                        link: (p as any).permalink ?? "",
+                        link: p.permalink,
                         price: p.price,
                         price_original: p.original,
-                        image: (p as any).thumbnail ?? null,
+                        image: p.thumbnail,
                       })
                     }
                     className="h-8 gap-1 rounded-md bg-[oklch(0.62_0.19_150)] px-1.5 text-[11px] hover:bg-[oklch(0.55_0.19_150)]"
@@ -3090,7 +3132,7 @@ function MercadoLivrePanel() {
                     size="sm"
                     variant="outline"
                     onClick={() =>
-                      setEditTarget({ kind: "byItem", platform: "mercadolivre", itemId: p.id })
+                      setEditTarget({ kind: "byId", id: p.id })
                     }
                     className="h-8 gap-1 rounded-md px-1.5 text-[11px]"
                   >
@@ -3106,7 +3148,7 @@ function MercadoLivrePanel() {
         </div>
 
         <div className="flex items-center justify-between border-t border-border/60 bg-muted/20 px-5 py-3">
-          <p className="text-[12px] text-muted-foreground">Mostrando 1 – 8 de 272 produtos</p>
+          <p className="text-[12px] text-muted-foreground">{channelProducts.length} produtos neste grupo</p>
           <div className="flex items-center gap-1">
             <Button size="sm" variant="outline" className="h-8 rounded-md">Anterior</Button>
             <Button size="sm" className="h-8 min-w-[32px] rounded-md bg-primary px-2">1</Button>
@@ -3128,7 +3170,27 @@ function MercadoLivrePanel() {
         target={editTarget}
 
         onClose={() => setEditTarget(null)}
-        onSaved={() => setEditTarget(null)}
+        onSaved={(updated) => {
+          setChannelProducts((prev) => prev.map((p) => p.id === updated.id
+            ? channelProductToML({
+                id: updated.id,
+                channelId,
+                platform: updated.platform,
+                itemId: updated.item_id,
+                title: updated.title,
+                imageUrl: updated.image_url,
+                rawLink: updated.raw_link,
+                affiliateLink: updated.affiliate_link,
+                originalPrice: updated.original_price,
+                promoPrice: updated.promo_price,
+                commissionRate: null,
+                sales: null,
+                availability: updated.availability,
+                createdAt: updated.created_at,
+              })
+            : p));
+          setEditTarget(null);
+        }}
       />
     </div>
   );
@@ -3184,6 +3246,7 @@ const SHOPEE_TAGS: ShopeeTag[] = [
 
 type ShopeeProduct = {
   id: string;
+  itemId?: string | null;
   title: string;
   emoji: string;
   color: string;
@@ -3233,18 +3296,56 @@ function ShopeePanel() {
   const enrichOneFn = useServerFn(enrichShopeeImageOne);
   const deleteByItemsFn = useServerFn(deleteProductsByItemIds);
   const deleteAllFn = useServerFn(deleteAllProducts);
+  const listProductsFn = useServerFn(listChannelProducts);
 
-  const products = [
-    ...importedProducts,
-    ...(staticHidden ? [] : SHOPEE_PRODUCTS),
-  ].filter((p) => !deletedIds.has(p.id));
+  const products = importedProducts.filter((p) => !deletedIds.has(p.id));
   const allChecked = products.length > 0 && products.every((p) => selected[p.id]);
 
   // Extract Shopee item_id from a preview product id like `csv-<itemId>-<idx>`
   const extractItemId = (previewId: string): string | null => {
+    const product = importedProducts.find((p) => p.id === previewId);
+    if (product?.itemId) return product.itemId;
     const m = /^csv-(.+)-\d+$/.exec(previewId);
     return m ? m[1] : null;
   };
+
+  const rowToStoredProduct = (row: ChannelProductDTO): ShopeeProduct => {
+    const current = row.promoPrice ?? row.originalPrice;
+    const original = row.originalPrice;
+    const discount = current != null && original != null && original > current
+      ? Math.round((1 - current / original) * 100)
+      : Math.round(row.commissionRate ?? 0);
+    return {
+      id: row.id,
+      itemId: row.itemId,
+      title: row.title,
+      emoji: "🛍️",
+      color: "oklch(0.92 0.06 30)",
+      format: "FEED",
+      price: formatBRL(current),
+      original: formatBRL(original),
+      discount,
+      when: new Date(row.createdAt).toLocaleDateString("pt-BR"),
+      affiliateLink: row.affiliateLink,
+      rawLink: row.rawLink,
+      imageUrl: row.imageUrl ?? undefined,
+    };
+  };
+
+  const reloadProducts = useCallback(async () => {
+    const rows = await listProductsFn({ data: { channelId, platform: "shopee" } });
+    setImportedProducts(rows.map(rowToStoredProduct));
+    setStaticHidden(false);
+    setDeletedIds(new Set());
+  }, [channelId, listProductsFn]);
+
+  useEffect(() => {
+    void reloadProducts().catch((err) => {
+      toast.error("Falha ao carregar produtos", {
+        description: err instanceof Error ? err.message : undefined,
+      });
+    });
+  }, [reloadProducts]);
 
   const handleExecute = async () => {
     if (bulkBusy) return;
@@ -3352,7 +3453,7 @@ function ShopeePanel() {
           const idx = cursor++;
           const item = pending[idx]!;
           try {
-            const res = await enrichOneFn({ data: item });
+            const res = await enrichOneFn({ data: { ...item, channelId } });
             if (res.found) {
               found += 1;
               const newImg = res.image;
@@ -3415,10 +3516,7 @@ function ShopeePanel() {
         setProgress({ done: Math.min(i + chunk.length, rows.length), total: rows.length });
       }
 
-      setImportedProducts((prev) => [
-        ...rows.slice(0, 60).map((r, i) => rowToPreview(r, i)),
-        ...prev,
-      ]);
+      await reloadProducts();
 
       toast.success(`${rows.length} produtos processados`, {
         description: `${inserted} novos · ${updated} atualizados`,
@@ -3862,7 +3960,7 @@ function ShopeePanel() {
 
         {/* Pagination */}
         <div className="flex flex-col items-center justify-between gap-3 border-t border-border/60 bg-muted/20 px-5 py-3 sm:flex-row">
-          <p className="text-[12px] text-muted-foreground">Mostrando 1 – 12 de 799 produtos</p>
+          <p className="text-[12px] text-muted-foreground">{products.length} produtos neste grupo</p>
           <div className="flex flex-wrap items-center gap-1">
             <Button size="sm" variant="outline" className="h-8 rounded-md">Anterior</Button>
             {[1, 2, 3, 4, 5].map((n) => (
