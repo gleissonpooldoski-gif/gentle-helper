@@ -128,6 +128,45 @@ export type Database = {
         }
         Relationships: []
       }
+      automation_group_sends: {
+        Row: {
+          config_id: string
+          id: string
+          product_id: string
+          sent_at: string
+          user_id: string
+        }
+        Insert: {
+          config_id: string
+          id?: string
+          product_id: string
+          sent_at?: string
+          user_id: string
+        }
+        Update: {
+          config_id?: string
+          id?: string
+          product_id?: string
+          sent_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_group_sends_config_id_fkey"
+            columns: ["config_id"]
+            isOneToOne: false
+            referencedRelation: "automation_configs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "automation_group_sends_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       automation_queue: {
         Row: {
           config_id: string
