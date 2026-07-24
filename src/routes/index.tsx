@@ -23,7 +23,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { AppSidebar } from "@/components/app-sidebar";
-import { listChannelDashboards, type ChannelDashboardDTO } from "@/modules/channels/channels.functions";
+import { listChannelDashboards, deleteChannel, type ChannelDashboardDTO } from "@/modules/channels/channels.functions";
+import { CreateChannelModal } from "@/components/channels/CreateChannelModal";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -108,8 +110,17 @@ const LIMIT = 5;
 
 function ChannelsPage() {
   const listChannelsFn = useServerFn(listChannelDashboards);
+  const deleteChannelFn = useServerFn(deleteChannel);
   const [channels, setChannels] = useState<Channel[]>([]);
   const [query, setQuery] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
+
+  const reload = () => {
+    void listChannelsFn()
+      .then((rows) => setChannels(rows.map(toChannel)))
+      .catch(() => setChannels([]));
+  };
+
   useEffect(() => {
     let cancelled = false;
     void listChannelsFn()
@@ -123,10 +134,26 @@ function ChannelsPage() {
       cancelled = true;
     };
   }, [listChannelsFn]);
+
   const filtered = useMemo(
     () => channels.filter((c) => c.name.toLowerCase().includes(query.trim().toLowerCase())),
     [channels, query],
   );
+
+  const handleDelete = async (id: string, name: string) => {
+    if (!window.confirm(`Excluir o grupo "${name}"? Esta ação é permanente.`)) return;
+    try {
+      await deleteChannelFn({ data: { channelId: id } });
+      setChannels((prev) => prev.filter((c) => c.id !== id));
+      toast.success("Grupo excluído.");
+    } catch (err) {
+      toast.error("Falha ao excluir o grupo.", {
+        description: err instanceof Error ? err.message : undefined,
+      });
+    }
+  };
+
+  const atLimit = channels.length >= LIMIT;
 
   return (
     <div className="min-h-screen bg-background font-sans text-foreground antialiased lg:flex">
@@ -134,7 +161,17 @@ function ChannelsPage() {
 
       <div className="flex-1 lg:min-w-0">
         <main className="mx-auto w-full max-w-[1400px] px-4 pb-24 pt-10 sm:px-6 lg:px-10">
-          <PageHeader activeCount={channels.length} limit={LIMIT} />
+          <PageHeader
+            activeCount={channels.length}
+            limit={LIMIT}
+            onAdd={() => {
+              if (atLimit) {
+                toast.error(`Limite de ${LIMIT} grupos atingido.`);
+                return;
+              }
+              setCreateOpen(true);
+            }}
+          />
 
           <div className="mt-8 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 sm:flex sm:items-center sm:justify-between">
             <div className="relative w-full sm:w-80">
@@ -153,19 +190,36 @@ function ChannelsPage() {
 
           <section className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
             {filtered.map((c) => (
-              <ChannelCard key={c.id} channel={c} />
+              <ChannelCard key={c.id} channel={c} onDelete={() => handleDelete(c.id, c.name)} />
             ))}
-            <AddChannelTile />
+            <AddChannelTile
+              onClick={() => {
+                if (atLimit) {
+                  toast.error(`Limite de ${LIMIT} grupos atingido.`);
+                  return;
+                }
+                setCreateOpen(true);
+              }}
+            />
           </section>
         </main>
       </div>
+
+      <CreateChannelModal
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onCreated={() => {
+          setCreateOpen(false);
+          reload();
+        }}
+      />
     </div>
   );
 }
 
 /* ---------------- Header ---------------- */
 
-function PageHeader({ activeCount, limit }: { activeCount: number; limit: number }) {
+function PageHeader({ activeCount, limit, onAdd }: { activeCount: number; limit: number; onAdd: () => void }) {
   const pct = Math.min(100, (activeCount / limit) * 100);
   return (
     <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-6 sm:flex sm:items-end sm:justify-between">
@@ -199,6 +253,7 @@ function PageHeader({ activeCount, limit }: { activeCount: number; limit: number
 
       <Button
         size="lg"
+        onClick={onAdd}
         className="shrink-0 rounded-full bg-primary px-5 shadow-[0_10px_30px_-12px_oklch(0.62_0.19_256/0.6)] hover:bg-primary/90"
       >
         <Plus className="mr-1.5 h-4 w-4" />
@@ -210,7 +265,7 @@ function PageHeader({ activeCount, limit }: { activeCount: number; limit: number
 
 /* ---------------- Card ---------------- */
 
-function ChannelCard({ channel }: { channel: Channel }) {
+function ChannelCard({ channel, onDelete }: { channel: Channel; onDelete: () => void }) {
   return (
     <article
       className={cn(
@@ -310,6 +365,7 @@ function ChannelCard({ channel }: { channel: Channel }) {
         <Button
           size="sm"
           variant="outline"
+          onClick={onDelete}
           className="h-9 rounded-lg border-[color:var(--color-danger)]/25 bg-[color:var(--color-danger)]/5 text-[color:var(--color-danger)] hover:bg-[color:var(--color-danger)]/10 hover:text-[color:var(--color-danger)]"
         >
           <Trash2 className="h-3.5 w-3.5" />
@@ -474,10 +530,11 @@ function MiniBarChart({
   );
 }
 
-function AddChannelTile() {
+function AddChannelTile({ onClick }: { onClick: () => void }) {
   return (
     <button
       type="button"
+      onClick={onClick}
       className="group flex min-h-[420px] flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-border bg-transparent px-6 py-10 text-center transition-all hover:border-primary/40 hover:bg-primary/[0.03]"
     >
       <span className="grid h-12 w-12 place-items-center rounded-full bg-primary/10 text-primary transition-transform group-hover:scale-110">
