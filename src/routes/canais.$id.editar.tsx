@@ -2834,7 +2834,19 @@ function MercadoLivrePanel() {
                 </div>
 
                 <div className="mt-1 grid grid-cols-3 gap-1.5">
-                  <Button size="sm" className="h-8 gap-1 rounded-md bg-[oklch(0.62_0.19_150)] px-1.5 text-[11px] hover:bg-[oklch(0.55_0.19_150)]">
+                  <Button
+                    size="sm"
+                    onClick={() =>
+                      setSendProduct({
+                        title: p.title,
+                        link: (p as any).permalink ?? "",
+                        price: p.price,
+                        price_original: p.original,
+                        image: (p as any).thumbnail ?? null,
+                      })
+                    }
+                    className="h-8 gap-1 rounded-md bg-[oklch(0.62_0.19_150)] px-1.5 text-[11px] hover:bg-[oklch(0.55_0.19_150)]"
+                  >
                     <MessageCircle className="h-3 w-3" /> Grupos
                   </Button>
                   <Button size="sm" variant="outline" className="h-8 gap-1 rounded-md px-1.5 text-[11px]">
