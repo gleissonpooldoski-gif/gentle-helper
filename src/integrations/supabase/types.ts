@@ -494,33 +494,46 @@ export type Database = {
       }
       monitored_groups: {
         Row: {
+          channel_id: string | null
           created_at: string
           group_jid: string
           group_name: string
           id: string
           is_active: boolean
           platform: string
+          updated_at: string
           user_id: string
         }
         Insert: {
+          channel_id?: string | null
           created_at?: string
           group_jid: string
           group_name: string
           id?: string
           is_active?: boolean
           platform?: string
+          updated_at?: string
           user_id: string
         }
         Update: {
+          channel_id?: string | null
           created_at?: string
           group_jid?: string
           group_name?: string
           id?: string
           is_active?: boolean
           platform?: string
+          updated_at?: string
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "monitored_groups_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "monitored_groups_user_id_fkey"
             columns: ["user_id"]
@@ -613,6 +626,9 @@ export type Database = {
           promo_price: number | null
           raw_link: string
           sales: number | null
+          source: string | null
+          source_group_jid: string | null
+          source_group_name: string | null
           store_name: string | null
           title: string
           updated_at: string
@@ -636,6 +652,9 @@ export type Database = {
           promo_price?: number | null
           raw_link: string
           sales?: number | null
+          source?: string | null
+          source_group_jid?: string | null
+          source_group_name?: string | null
           store_name?: string | null
           title: string
           updated_at?: string
@@ -659,6 +678,9 @@ export type Database = {
           promo_price?: number | null
           raw_link?: string
           sales?: number | null
+          source?: string | null
+          source_group_jid?: string | null
+          source_group_name?: string | null
           store_name?: string | null
           title?: string
           updated_at?: string
