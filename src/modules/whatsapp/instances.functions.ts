@@ -170,23 +170,22 @@ export const refreshWhatsAppInstance = createServerFn({ method: "POST" })
 
     const { getWhatsAppProvider } = await import("./index.server");
     const provider = getWhatsAppProvider(row.provider);
+
+    // Regra: SEMPRE consultar /instance/connectionState primeiro. Se state=open,
+    // apenas marcar como conectado e NÃO chamar /instance/connect nem abrir QR.
     const st = await provider.getStatus(row.instance_name);
+    // eslint-disable-next-line no-console
+    console.log(`[WA] connectionState recebido: ${st.status} (instance=${row.instance_name})`);
 
     const patch: any = { status: st.status };
     if (st.phone) patch.phone = st.phone;
     if (st.status === "connected") {
       patch.qr_code = null;
       patch.last_seen_at = new Date().toISOString();
-    } else if (!row.qr_code) {
-      // Se ainda não temos QR, força reconexão para buscar um agora.
-      try {
-        const rc = await provider.reconnect(row.instance_name);
-        patch.status = rc.status;
-        patch.qr_code = rc.qr?.base64 ?? rc.qr?.code ?? null;
-      } catch {
-        /* ignore */
-      }
     }
+    // Nunca solicitar QR automaticamente aqui. QR só via reconnectWhatsAppInstance,
+    // acionado explicitamente pelo usuário quando state != open.
+
     const { data: updated, error: upErr } = await (supabase as any)
       .from("whatsapp_instances")
       .update(patch)
@@ -196,6 +195,7 @@ export const refreshWhatsAppInstance = createServerFn({ method: "POST" })
     if (upErr) throw new Error(upErr.message);
     return rowToDTO(updated);
   });
+
 
 /** Solicita novo QR / reconecta. */
 export const reconnectWhatsAppInstance = createServerFn({ method: "POST" })

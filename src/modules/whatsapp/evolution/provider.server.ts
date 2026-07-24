@@ -173,6 +173,9 @@ export const evolutionProvider: WhatsAppProvider = {
         { method: "GET" },
       );
       const state = res?.instance?.state ?? res?.state ?? res?.status;
+      // Log obrigatório: connectionState recebido
+      // eslint-disable-next-line no-console
+      console.log(`[Evolution] connectionState recebido: ${state ?? "null"} (instance=${instanceName})`);
       const status = mapState(state);
       const phone =
         res?.instance?.owner ??
@@ -184,10 +187,13 @@ export const evolutionProvider: WhatsAppProvider = {
         phone: typeof phone === "string" ? phone.split("@")[0] : null,
         qr: null,
       };
-    } catch {
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn(`[Evolution] connectionState falhou (instance=${instanceName}):`, err);
       return { status: "disconnected", phone: null, qr: null };
     }
   },
+
 
   async disconnect(instanceName): Promise<void> {
     await evolutionFetch(`/instance/logout/${encodeURIComponent(instanceName)}`, {
