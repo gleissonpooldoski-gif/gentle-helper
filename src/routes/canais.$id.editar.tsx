@@ -879,13 +879,15 @@ function LayoutPostPanel() {
 function LayoutField({
   label,
   hint,
-  defaultValue,
+  value,
+  onChange,
   rows = 1,
   disabled,
 }: {
   label: string;
   hint?: string;
-  defaultValue?: string;
+  value: string;
+  onChange: (v: string) => void;
   rows?: number;
   disabled?: boolean;
 }) {
@@ -896,7 +898,8 @@ function LayoutField({
       </label>
       {rows > 1 ? (
         <textarea
-          defaultValue={defaultValue}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
           rows={rows}
           disabled={disabled}
           className={cn(
@@ -906,7 +909,8 @@ function LayoutField({
         />
       ) : (
         <input
-          defaultValue={defaultValue}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
           disabled={disabled}
           className={cn(
             "h-10 w-full rounded-lg border border-border bg-background px-3 font-mono text-[13px] outline-none focus:border-primary",
@@ -920,6 +924,7 @@ function LayoutField({
     </div>
   );
 }
+
 
 
 /* -------- Instagram tab -------- */
