@@ -102,36 +102,18 @@ async function ensureConfig(
   groupId: string | null,
   groupName: string | null,
 ) {
-  let q = supabase
+  const { data: row, error } = await supabase
     .from("automation_configs")
-    .select("*")
-    .eq("user_id", userId)
-    .eq("channel_id", channelId);
-  q = groupId === null ? q.is("group_id", null) : q.eq("group_id", groupId);
-  const { data: row } = await q.maybeSingle();
-  if (row) {
-    // Atualiza o nome do grupo se veio novo/mudou.
-    if (groupId && groupName && row.group_name !== groupName) {
-      await supabase
-        .from("automation_configs")
-        .update({ group_name: groupName })
-        .eq("id", row.id);
-      row.group_name = groupName;
-    }
-    return row;
-  }
-  const { data: ins, error } = await supabase
-    .from("automation_configs")
-    .insert({
+    .upsert({
       user_id: userId,
       channel_id: channelId,
       group_id: groupId,
       group_name: groupName,
-    })
+    }, { onConflict: "user_id,channel_id,group_scope" })
     .select("*")
     .single();
   if (error) throw new Error(error.message);
-  return ins;
+  return row;
 }
 
 interface ScopeInput {
@@ -333,7 +315,7 @@ export const listAutomationGroups = createServerFn({ method: "POST" })
     if (!channelId) throw new Error("channelId obrigatório");
     return { channelId };
   })
-  .handler(async ({ context }): Promise<AutomationGroupDTO[]> => {
+  .handler(async ({ data, context }): Promise<AutomationGroupDTO[]> => {
     const { supabase, userId } = context;
     const { data: inst } = await supabase
       .from("whatsapp_instances")
@@ -347,6 +329,7 @@ export const listAutomationGroups = createServerFn({ method: "POST" })
       .select("group_jid, group_name")
       .eq("user_id", userId)
       .eq("instance_id", inst.id)
+      .eq("channel_id", data.channelId)
       .order("group_name", { ascending: true });
     if (error) throw new Error(error.message);
     return (sel ?? []).map((r: any) => ({

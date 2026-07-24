@@ -377,9 +377,11 @@ export interface WhatsAppGroupDTO {
 /** Busca grupos da instância e marca os já selecionados. */
 export const fetchWhatsAppGroups = createServerFn({ method: "POST" })
   .middleware([apiClient, requireSupabaseAuth])
-  .inputValidator((data: { id: string }) => {
+  .inputValidator((data: { id: string; channelId: string }) => {
     if (!data?.id) throw new Error("id obrigatório");
-    return { id: String(data.id) };
+    const channelId = toUuidOrNull(data?.channelId);
+    if (!channelId) throw new Error("channelId inválido");
+    return { id: String(data.id), channelId };
   })
   .handler(async ({ data, context }): Promise<WhatsAppGroupDTO[]> => {
     const { supabase, userId } = context;
@@ -391,7 +393,8 @@ export const fetchWhatsAppGroups = createServerFn({ method: "POST" })
       .from("whatsapp_group_selections")
       .select("group_jid")
       .eq("user_id", userId)
-      .eq("instance_id", row.id);
+      .eq("instance_id", row.id)
+      .eq("channel_id", data.channelId);
     const selectedSet = new Set<string>((sel ?? []).map((s: any) => s.group_jid));
 
     return groups.map((g) => ({ ...g, selected: selectedSet.has(g.jid) }));
@@ -402,12 +405,16 @@ export const saveWhatsAppGroupSelection = createServerFn({ method: "POST" })
   .middleware([apiClient, requireSupabaseAuth])
   .inputValidator((data: {
     id: string;
+    channelId: string;
     groups: Array<{ jid: string; name?: string }>;
   }) => {
     if (!data?.id) throw new Error("id obrigatório");
+    const channelId = toUuidOrNull(data?.channelId);
+    if (!channelId) throw new Error("channelId inválido");
     if (!Array.isArray(data.groups)) throw new Error("groups obrigatório");
     return {
       id: String(data.id),
+      channelId,
       groups: data.groups.map((g) => ({
         jid: String(g.jid),
         name: g.name ? String(g.name) : null,
@@ -422,20 +429,21 @@ export const saveWhatsAppGroupSelection = createServerFn({ method: "POST" })
       .from("whatsapp_group_selections")
       .delete()
       .eq("user_id", userId)
-      .eq("instance_id", row.id);
+      .eq("instance_id", row.id)
+      .eq("channel_id", data.channelId);
 
     if (data.groups.length > 0) {
       const rows = data.groups.map((g) => ({
         user_id: userId,
         instance_id: row.id,
-        channel_id: toUuidOrNull(row.channel_id),
+        channel_id: data.channelId,
         group_jid: g.jid,
         group_name: g.name,
       }));
       console.log("[WA][insert whatsapp_group_selections]", { count: rows.length, sample: rows[0] });
       const { error } = await (supabase as any)
         .from("whatsapp_group_selections")
-        .insert(rows);
+        .upsert(rows, { onConflict: "user_id,channel_id,group_jid" });
       if (error) throw new Error(error.message);
     }
 

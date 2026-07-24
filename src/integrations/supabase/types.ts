@@ -69,6 +69,7 @@ export type Database = {
           current_index: number
           group_id: string | null
           group_name: string | null
+          group_scope: string | null
           hora_fim: string
           hora_inicio: string
           id: string
@@ -89,6 +90,7 @@ export type Database = {
           current_index?: number
           group_id?: string | null
           group_name?: string | null
+          group_scope?: string | null
           hora_fim?: string
           hora_inicio?: string
           id?: string
@@ -109,6 +111,7 @@ export type Database = {
           current_index?: number
           group_id?: string | null
           group_name?: string | null
+          group_scope?: string | null
           hora_fim?: string
           hora_inicio?: string
           id?: string
@@ -285,6 +288,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      channels: {
+        Row: {
+          auto_post: boolean
+          created_at: string
+          external_id: string | null
+          id: string
+          interval_min: number
+          name: string
+          random_order: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          auto_post?: boolean
+          created_at?: string
+          external_id?: string | null
+          id?: string
+          interval_min?: number
+          name: string
+          random_order?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          auto_post?: boolean
+          created_at?: string
+          external_id?: string | null
+          id?: string
+          interval_min?: number
+          name?: string
+          random_order?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       mercadolivre_integrations: {
         Row: {

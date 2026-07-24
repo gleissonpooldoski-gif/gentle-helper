@@ -32,6 +32,7 @@ import { SendToGroupsModal, type SendProduct } from "@/components/whatsapp/SendT
 import { getPostLayout, savePostLayout } from "@/modules/posts/layout.functions";
 import { DEFAULT_POST_LAYOUT, type PostLayout } from "@/modules/posts/render";
 import { GroupAutomationList } from "@/components/automation/GroupAutomationList";
+import { getChannel, updateChannel, type ChannelDTO } from "@/modules/channels/channels.functions";
 
 
 import {
@@ -121,6 +122,10 @@ const STORES = [
 
 function EditChannelPage() {
   const { id } = Route.useParams();
+  const getChannelFn = useServerFn(getChannel);
+  const updateChannelFn = useServerFn(updateChannel);
+  const [channel, setChannel] = useState<ChannelDTO | null>(null);
+  const [channelError, setChannelError] = useState<string | null>(null);
   const [tab, setTab] = useState("geral");
   const [keepLink, setKeepLink] = useState(true);
   const [neverExpires, setNeverExpires] = useState(true);
@@ -132,6 +137,36 @@ function EditChannelPage() {
     "Amazon",
     "Mercado Livre",
   ]);
+
+  useEffect(() => {
+    console.info("Editando canal:", id);
+    let cancelled = false;
+    setChannel(null);
+    setChannelError(null);
+    void getChannelFn({ data: { channelId: id } })
+      .then((next) => {
+        if (!cancelled) {
+          setChannel(next);
+          setAutoPost(next.autoPost);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) setChannelError(error instanceof Error ? error.message : "Falha ao carregar canal");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [id, getChannelFn]);
+
+  const handleUpdateChannel = async () => {
+    try {
+      const next = await updateChannelFn({ data: { channelId: id, autoPost } });
+      setChannel(next);
+      toast.success("Canal atualizado");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Falha ao atualizar canal");
+    }
+  };
 
   const toggleStore = (s: string) =>
     setActiveStores((prev) =>
@@ -159,10 +194,10 @@ function EditChannelPage() {
               </div>
               <div className="min-w-0">
                 <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                  Editar canal · ID {id}
+                   Editar canal · ID {channel?.externalId ?? id}
                 </p>
                 <h1 className="truncate font-display text-2xl font-bold tracking-tight text-foreground">
-                  SEGREDO DAS PROMOÇÕES
+                   {channelError ?? channel?.name ?? "Carregando canal…"}
                 </h1>
               </div>
             </div>
@@ -170,6 +205,8 @@ function EditChannelPage() {
             <Button
               size="lg"
               className="rounded-full bg-primary px-6 shadow-[0_10px_30px_-12px_oklch(0.62_0.19_256/0.6)] hover:bg-primary/90"
+              onClick={handleUpdateChannel}
+              disabled={!channel}
             >
               <Save className="mr-1.5 h-4 w-4" />
               Atualizar
@@ -2818,6 +2855,7 @@ function MercadoLivrePanel() {
         open={sendProduct !== null}
         onClose={() => setSendProduct(null)}
         product={sendProduct}
+        channelId={Route.useParams().id}
       />
     </div>
   );
@@ -3553,6 +3591,7 @@ function ShopeePanel() {
         open={sendProduct !== null}
         onClose={() => setSendProduct(null)}
         product={sendProduct}
+        channelId={Route.useParams().id}
       />
     </div>
   );
