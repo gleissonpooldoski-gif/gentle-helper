@@ -130,6 +130,7 @@ function EditChannelPage() {
   const getFlowSummaryFn = useServerFn(getChannelFlowSummary);
   const getManualPostFn = useServerFn(getManualPost);
   const saveManualPostFn = useServerFn(saveManualPost);
+  const buildMLAffiliateUrlFn = useServerFn(buildMLAffiliateUrl);
   const [channel, setChannel] = useState<ChannelDTO | null>(null);
   const [channelError, setChannelError] = useState<string | null>(null);
   const [flowSummary, setFlowSummary] = useState<ChannelFlowSummaryDTO | null>(null);
