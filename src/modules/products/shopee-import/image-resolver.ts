@@ -51,8 +51,9 @@ const PLACEHOLDER_PATTERNS: RegExp[] = [
 ];
 
 /** Only accept URLs served by known Shopee product-image CDNs. */
+// Accept any number of subdomains (e.g. down-br.img.susercontent.com).
 const VALID_CDN_HOST_RE =
-  /^https?:\/\/(?:[a-z0-9-]+\.)?(?:susercontent\.com|cf\.shopee\.[a-z.]+|shopeemobile\.com)\//i;
+  /^https?:\/\/(?:[a-z0-9-]+\.)*(?:susercontent\.com|cf\.shopee\.[a-z.]+|shopeemobile\.com)\//i;
 
 export type ImageLookup = { itemId: string; productUrl: string; offerUrl?: string | null };
 
