@@ -111,9 +111,18 @@ export const createWhatsAppInstance = createServerFn({ method: "POST" })
       .slice(0, 24);
     const instanceName = `u${userId.slice(0, 8)}-${slug}-${Date.now().toString(36).slice(-4)}`;
 
+    const insertPayload = {
+      user_id: userId,
+      channel_id: data.channelId,
+      provider: provider.name,
+      instance_name: instanceName,
+      status: "creating" as const,
+    };
+    console.log("[WA][insert whatsapp_instances]", insertPayload);
     const { data: inserted, error: insErr } = await (supabase as any)
       .from("whatsapp_instances")
-      .insert({
+      .insert(insertPayload)
+
         user_id: userId,
         channel_id: data.channelId,
         provider: provider.name,
