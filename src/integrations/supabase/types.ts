@@ -240,6 +240,57 @@ export type Database = {
           },
         ]
       }
+      post_layouts: {
+        Row: {
+          description_template: string
+          footer: string
+          header: string
+          hide_original: boolean
+          hide_sales: boolean
+          installment_template: string
+          link_template: string
+          original_price_template: string
+          price_template: string
+          sales_template: string
+          title_template: string
+          updated_at: string
+          upper_title: boolean
+          user_id: string
+        }
+        Insert: {
+          description_template?: string
+          footer?: string
+          header?: string
+          hide_original?: boolean
+          hide_sales?: boolean
+          installment_template?: string
+          link_template?: string
+          original_price_template?: string
+          price_template?: string
+          sales_template?: string
+          title_template?: string
+          updated_at?: string
+          upper_title?: boolean
+          user_id: string
+        }
+        Update: {
+          description_template?: string
+          footer?: string
+          header?: string
+          hide_original?: boolean
+          hide_sales?: boolean
+          installment_template?: string
+          link_template?: string
+          original_price_template?: string
+          price_template?: string
+          sales_template?: string
+          title_template?: string
+          updated_at?: string
+          upper_title?: boolean
+          user_id?: string
+        }
+        Relationships: []
+      }
       products: {
         Row: {
           affiliate_link: string
@@ -485,6 +536,63 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      whatsapp_send_history: {
+        Row: {
+          caption: string | null
+          error: string | null
+          id: string
+          instance_id: string | null
+          jid: string
+          media_url: string | null
+          message_id: string | null
+          product_id: string | null
+          sent_at: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          caption?: string | null
+          error?: string | null
+          id?: string
+          instance_id?: string | null
+          jid: string
+          media_url?: string | null
+          message_id?: string | null
+          product_id?: string | null
+          sent_at?: string
+          status: string
+          user_id: string
+        }
+        Update: {
+          caption?: string | null
+          error?: string | null
+          id?: string
+          instance_id?: string | null
+          jid?: string
+          media_url?: string | null
+          message_id?: string | null
+          product_id?: string | null
+          sent_at?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_send_history_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_send_history_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       whatsapp_sessions: {
         Row: {
