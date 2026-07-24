@@ -273,7 +273,7 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
   // Renderiza legenda
   const { loadLayoutFor } = await import("@/modules/posts/layout.functions");
   const { renderPost } = await import("@/modules/posts/render");
-  const layout = await loadLayoutFor(admin, cfg.user_id);
+  const layout = await loadLayoutFor(admin, cfg.user_id, cfg.channel_id);
   const productDetail = {
     title: product.title,
     description: null,
