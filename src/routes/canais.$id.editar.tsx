@@ -28,6 +28,7 @@ import {
   type WASessionDTO,
 } from "@/modules/channels/whatsapp/sessions.functions";
 import { WhatsAppInstancePanel } from "@/components/whatsapp/WhatsAppInstancePanel";
+import { SendToGroupsModal, type SendProduct } from "@/components/whatsapp/SendToGroupsModal";
 import { getPostLayout, savePostLayout } from "@/modules/posts/layout.functions";
 import { DEFAULT_POST_LAYOUT, type PostLayout } from "@/modules/posts/render";
 
@@ -2305,6 +2306,7 @@ function MercadoLivrePanel() {
   const [autoAffiliate, setAutoAffiliate] = useState(true);
   const [bestSellers, setBestSellers] = useState(false);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const [sendProduct, setSendProduct] = useState<SendProduct | null>(null);
   const allChecked = ML_PRODUCTS.every((p) => selected[p.id]);
 
   // === Add by link ===
@@ -2832,7 +2834,19 @@ function MercadoLivrePanel() {
                 </div>
 
                 <div className="mt-1 grid grid-cols-3 gap-1.5">
-                  <Button size="sm" className="h-8 gap-1 rounded-md bg-[oklch(0.62_0.19_150)] px-1.5 text-[11px] hover:bg-[oklch(0.55_0.19_150)]">
+                  <Button
+                    size="sm"
+                    onClick={() =>
+                      setSendProduct({
+                        title: p.title,
+                        link: (p as any).permalink ?? "",
+                        price: p.price,
+                        price_original: p.original,
+                        image: (p as any).thumbnail ?? null,
+                      })
+                    }
+                    className="h-8 gap-1 rounded-md bg-[oklch(0.62_0.19_150)] px-1.5 text-[11px] hover:bg-[oklch(0.55_0.19_150)]"
+                  >
                     <MessageCircle className="h-3 w-3" /> Grupos
                   </Button>
                   <Button size="sm" variant="outline" className="h-8 gap-1 rounded-md px-1.5 text-[11px]">
@@ -2858,6 +2872,11 @@ function MercadoLivrePanel() {
           </div>
         </div>
       </div>
+      <SendToGroupsModal
+        open={sendProduct !== null}
+        onClose={() => setSendProduct(null)}
+        product={sendProduct}
+      />
     </div>
   );
 }
@@ -2951,6 +2970,7 @@ function ShopeePanel() {
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
   const [staticHidden, setStaticHidden] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [sendProduct, setSendProduct] = useState<SendProduct | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const importBatchFn = useServerFn(importShopeeBatch);
   const listPendingFn = useServerFn(listPendingShopeeImages);
@@ -3536,7 +3556,19 @@ function ShopeePanel() {
                 ) : null}
 
                 <div className="mt-1 grid grid-cols-3 gap-1.5">
-                  <Button size="sm" className="h-8 gap-1 rounded-md bg-[oklch(0.62_0.19_150)] px-1.5 text-[11px] hover:bg-[oklch(0.55_0.19_150)]">
+                  <Button
+                    size="sm"
+                    onClick={() =>
+                      setSendProduct({
+                        title: p.title,
+                        link: p.affiliateLink ?? p.rawLink ?? "",
+                        price: p.price,
+                        price_original: p.original,
+                        image: p.imageUrl ?? null,
+                      })
+                    }
+                    className="h-8 gap-1 rounded-md bg-[oklch(0.62_0.19_150)] px-1.5 text-[11px] hover:bg-[oklch(0.55_0.19_150)]"
+                  >
                     <MessageCircle className="h-3 w-3" /> Grupos
                   </Button>
                   <Button size="sm" variant="outline" className="h-8 gap-1 rounded-md px-1.5 text-[11px]">
@@ -3575,6 +3607,11 @@ function ShopeePanel() {
           </div>
         </div>
       </div>
+      <SendToGroupsModal
+        open={sendProduct !== null}
+        onClose={() => setSendProduct(null)}
+        product={sendProduct}
+      />
     </div>
   );
 }
