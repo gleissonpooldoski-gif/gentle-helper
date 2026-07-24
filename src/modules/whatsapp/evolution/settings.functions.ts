@@ -107,7 +107,7 @@ export const testEvolutionConnection = createServerFn({ method: "POST" })
         return {
           ok: false,
           status: res.status,
-          message: "Tunnel offline. Atualize a URL da Evolution API.",
+          message: "Tunnel Cloudflare offline. Atualize a URL da Evolution API.",
           baseUrl,
         };
       }
@@ -123,7 +123,7 @@ export const testEvolutionConnection = createServerFn({ method: "POST" })
         return {
           ok: false,
           status: res.status,
-          message: "Tunnel offline. Atualize a URL da Evolution API.",
+          message: "Tunnel Cloudflare offline. Atualize a URL da Evolution API.",
           baseUrl,
         };
       }
@@ -142,10 +142,11 @@ export const testEvolutionConnection = createServerFn({ method: "POST" })
         return {
           ok: false,
           status: null,
-          message: "Tunnel offline. Atualize a URL da Evolution API.",
+          message: "Tunnel Cloudflare offline. Atualize a URL da Evolution API.",
           baseUrl,
         };
       }
+
       return {
         ok: false,
         status: null,
