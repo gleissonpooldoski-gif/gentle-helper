@@ -112,18 +112,21 @@ export const createWhatsAppSession = createServerFn({ method: "POST" })
     const token = makeToken();
     const tokenHash = hashToken(token);
     const expiresAt = new Date(Date.now() + TOKEN_TTL_MINUTES * 60_000).toISOString();
+    const insertPayload = {
+      user_id: userId,
+      name: data.name,
+      session_key: token, // legacy column kept in sync
+      token_hash: tokenHash,
+      expires_at: expiresAt,
+      status: "pending" as const,
+    };
+    console.log("[WA][insert whatsapp_sessions]", { ...insertPayload, session_key: "***", token_hash: "***" });
     const { data: row, error } = await (supabase as any)
       .from("whatsapp_sessions")
-      .insert({
-        user_id: userId,
-        name: data.name,
-        session_key: token, // legacy column kept in sync
-        token_hash: tokenHash,
-        expires_at: expiresAt,
-        status: "pending",
-      })
+      .insert(insertPayload)
       .select("id,name,phone_number,status,connected_at,last_seen_at,created_at")
       .single();
+
     if (error) throw new Error(error.message);
     return {
       id: row.id,
