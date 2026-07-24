@@ -62,6 +62,120 @@ export type Database = {
         }
         Relationships: []
       }
+      automation_configs: {
+        Row: {
+          channel_id: string
+          created_at: string
+          current_index: number
+          hora_fim: string
+          hora_inicio: string
+          id: string
+          intervalo_min: number
+          last_error: string | null
+          last_product_name: string | null
+          last_sent_at: string | null
+          lojas_ativas: string[]
+          next_run_at: string | null
+          post_loop: boolean
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          channel_id: string
+          created_at?: string
+          current_index?: number
+          hora_fim?: string
+          hora_inicio?: string
+          id?: string
+          intervalo_min?: number
+          last_error?: string | null
+          last_product_name?: string | null
+          last_sent_at?: string | null
+          lojas_ativas?: string[]
+          next_run_at?: string | null
+          post_loop?: boolean
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          channel_id?: string
+          created_at?: string
+          current_index?: number
+          hora_fim?: string
+          hora_inicio?: string
+          id?: string
+          intervalo_min?: number
+          last_error?: string | null
+          last_product_name?: string | null
+          last_sent_at?: string | null
+          lojas_ativas?: string[]
+          next_run_at?: string | null
+          post_loop?: boolean
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      automation_queue: {
+        Row: {
+          config_id: string
+          created_at: string
+          id: string
+          link: string
+          media_url: string | null
+          order_index: number
+          product_id: string | null
+          sent_count: number
+          store: string
+          title: string
+          user_id: string
+        }
+        Insert: {
+          config_id: string
+          created_at?: string
+          id?: string
+          link: string
+          media_url?: string | null
+          order_index: number
+          product_id?: string | null
+          sent_count?: number
+          store: string
+          title: string
+          user_id: string
+        }
+        Update: {
+          config_id?: string
+          created_at?: string
+          id?: string
+          link?: string
+          media_url?: string | null
+          order_index?: number
+          product_id?: string | null
+          sent_count?: number
+          store?: string
+          title?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_queue_config_id_fkey"
+            columns: ["config_id"]
+            isOneToOne: false
+            referencedRelation: "automation_configs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "automation_queue_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       channel_whatsapp_connections: {
         Row: {
           channel_id: string
@@ -453,6 +567,72 @@ export type Database = {
           plan?: string
         }
         Relationships: []
+      }
+      whatsapp_campaign_history: {
+        Row: {
+          caption: string | null
+          config_id: string | null
+          error_message: string | null
+          group_id: string | null
+          group_name: string | null
+          id: string
+          instance_name: string | null
+          media_url: string | null
+          product_id: string | null
+          product_name: string | null
+          sent_at: string
+          status: string
+          store: string | null
+          user_id: string
+        }
+        Insert: {
+          caption?: string | null
+          config_id?: string | null
+          error_message?: string | null
+          group_id?: string | null
+          group_name?: string | null
+          id?: string
+          instance_name?: string | null
+          media_url?: string | null
+          product_id?: string | null
+          product_name?: string | null
+          sent_at?: string
+          status: string
+          store?: string | null
+          user_id: string
+        }
+        Update: {
+          caption?: string | null
+          config_id?: string | null
+          error_message?: string | null
+          group_id?: string | null
+          group_name?: string | null
+          id?: string
+          instance_name?: string | null
+          media_url?: string | null
+          product_id?: string | null
+          product_name?: string | null
+          sent_at?: string
+          status?: string
+          store?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_campaign_history_config_id_fkey"
+            columns: ["config_id"]
+            isOneToOne: false
+            referencedRelation: "automation_configs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_campaign_history_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       whatsapp_group_selections: {
         Row: {
