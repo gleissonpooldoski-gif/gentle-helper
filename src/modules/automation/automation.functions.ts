@@ -314,3 +314,44 @@ export const listCampaignHistory = createServerFn({ method: "POST" })
       errorMessage: r.error_message,
     }));
   });
+
+const DEFAULT_INSTANCE = "DIVULGA LINKS";
+
+export interface AutomationGroupDTO {
+  groupId: string;
+  groupName: string | null;
+}
+
+/**
+ * Lista os grupos disponíveis para automação no canal (grupos selecionados
+ * na instância padrão DIVULGA LINKS). Cada grupo é editado independentemente.
+ */
+export const listAutomationGroups = createServerFn({ method: "POST" })
+  .middleware([apiClient, requireSupabaseAuth])
+  .inputValidator((data: { channelId: string }) => {
+    const channelId = String(data?.channelId ?? "").trim();
+    if (!channelId) throw new Error("channelId obrigatório");
+    return { channelId };
+  })
+  .handler(async ({ context }): Promise<AutomationGroupDTO[]> => {
+    const { supabase, userId } = context;
+    const { data: inst } = await supabase
+      .from("whatsapp_instances")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("instance_name", DEFAULT_INSTANCE)
+      .maybeSingle();
+    if (!inst) return [];
+    const { data: sel, error } = await supabase
+      .from("whatsapp_group_selections")
+      .select("group_jid, group_name")
+      .eq("user_id", userId)
+      .eq("instance_id", inst.id)
+      .order("group_name", { ascending: true });
+    if (error) throw new Error(error.message);
+    return (sel ?? []).map((r: any) => ({
+      groupId: r.group_jid,
+      groupName: r.group_name ?? null,
+    }));
+  });
+
