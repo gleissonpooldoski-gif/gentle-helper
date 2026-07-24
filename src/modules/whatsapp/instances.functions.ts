@@ -122,13 +122,6 @@ export const createWhatsAppInstance = createServerFn({ method: "POST" })
     const { data: inserted, error: insErr } = await (supabase as any)
       .from("whatsapp_instances")
       .insert(insertPayload)
-
-        user_id: userId,
-        channel_id: data.channelId,
-        provider: provider.name,
-        instance_name: instanceName,
-        status: "creating",
-      })
       .select("*")
       .single();
     if (insErr) throw new Error(insErr.message);
