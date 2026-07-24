@@ -111,15 +111,17 @@ export const createWhatsAppInstance = createServerFn({ method: "POST" })
       .slice(0, 24);
     const instanceName = `u${userId.slice(0, 8)}-${slug}-${Date.now().toString(36).slice(-4)}`;
 
+    const insertPayload = {
+      user_id: userId,
+      channel_id: data.channelId,
+      provider: provider.name,
+      instance_name: instanceName,
+      status: "creating" as const,
+    };
+    console.log("[WA][insert whatsapp_instances]", insertPayload);
     const { data: inserted, error: insErr } = await (supabase as any)
       .from("whatsapp_instances")
-      .insert({
-        user_id: userId,
-        channel_id: data.channelId,
-        provider: provider.name,
-        instance_name: instanceName,
-        status: "creating",
-      })
+      .insert(insertPayload)
       .select("*")
       .single();
     if (insErr) throw new Error(insErr.message);
@@ -330,6 +332,8 @@ export const adoptEvolutionInstance = createServerFn({ method: "POST" })
       qr_code: null,
       last_seen_at: st.status === "connected" ? new Date().toISOString() : null,
     };
+    console.log("[WA][adopt whatsapp_instances]", payload);
+
 
     if (existing) {
       const { data: upd, error } = await (supabase as any)
@@ -424,15 +428,17 @@ export const saveWhatsAppGroupSelection = createServerFn({ method: "POST" })
       const rows = data.groups.map((g) => ({
         user_id: userId,
         instance_id: row.id,
-        channel_id: row.channel_id,
+        channel_id: toUuidOrNull(row.channel_id),
         group_jid: g.jid,
         group_name: g.name,
       }));
+      console.log("[WA][insert whatsapp_group_selections]", { count: rows.length, sample: rows[0] });
       const { error } = await (supabase as any)
         .from("whatsapp_group_selections")
         .insert(rows);
       if (error) throw new Error(error.message);
     }
+
     return { ok: true, count: data.groups.length };
   });
 
