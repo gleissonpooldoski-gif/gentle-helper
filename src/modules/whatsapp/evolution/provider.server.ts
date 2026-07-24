@@ -2,6 +2,7 @@ import type {
   WhatsAppProvider,
   WhatsAppProviderStatus,
   WhatsAppInstanceStatus,
+  WhatsAppGroup,
 } from "../provider";
 import { evolutionFetch, evolutionJson } from "./client.server";
 
