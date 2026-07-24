@@ -118,8 +118,8 @@ const TABS = [
   { id: "wa-grupos", label: "WhatsApp - GRUPOS/CANAIS", tone: "success" as const },
   { id: "wa-monitor", label: "WA - Monitorar Grupos" },
   { id: "amazon", label: "Amazon" },
-  { id: "ml", label: "Mercado Livre", count: 272 },
-  { id: "shopee", label: "Shopee", count: 799 },
+  { id: "ml", label: "Mercado Livre" },
+  { id: "shopee", label: "Shopee" },
 ];
 
 const STORES = [
