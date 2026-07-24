@@ -3256,7 +3256,7 @@ function ShopeePanel() {
       if (!window.confirm("Tem certeza que deseja excluir todos os produtos?")) return;
       setBulkBusy(true);
       try {
-        await deleteAllFn({ data: { platform: "shopee" } });
+        await deleteAllFn({ data: { channelId, platform: "shopee" } });
         setImportedProducts([]);
         setStaticHidden(true);
         setDeletedIds(new Set());
