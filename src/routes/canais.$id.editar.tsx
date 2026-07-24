@@ -33,6 +33,7 @@ import { getPostLayout, savePostLayout } from "@/modules/posts/layout.functions"
 import { DEFAULT_POST_LAYOUT, type PostLayout } from "@/modules/posts/render";
 import { GroupAutomationList } from "@/components/automation/GroupAutomationList";
 import { getChannel, updateChannel, type ChannelDTO } from "@/modules/channels/channels.functions";
+import { getChannelFlowSummary, type ChannelFlowSummaryDTO } from "@/modules/automation/automation.functions";
 
 
 import {
@@ -124,8 +125,10 @@ function EditChannelPage() {
   const { id } = Route.useParams();
   const getChannelFn = useServerFn(getChannel);
   const updateChannelFn = useServerFn(updateChannel);
+  const getFlowSummaryFn = useServerFn(getChannelFlowSummary);
   const [channel, setChannel] = useState<ChannelDTO | null>(null);
   const [channelError, setChannelError] = useState<string | null>(null);
+  const [flowSummary, setFlowSummary] = useState<ChannelFlowSummaryDTO | null>(null);
   const [tab, setTab] = useState("geral");
   const [keepLink, setKeepLink] = useState(true);
   const [neverExpires, setNeverExpires] = useState(true);
@@ -138,11 +141,20 @@ function EditChannelPage() {
     "Mercado Livre",
   ]);
 
+  const refreshFlowSummary = useCallback(() => {
+    void getFlowSummaryFn({ data: { channelId: id } })
+      .then(setFlowSummary)
+      .catch(() => {
+        /* mantém último snapshot */
+      });
+  }, [getFlowSummaryFn, id]);
+
   useEffect(() => {
     console.info("Editando canal:", id);
     let cancelled = false;
     setChannel(null);
     setChannelError(null);
+    setFlowSummary(null);
     void getChannelFn({ data: { channelId: id } })
       .then((next) => {
         if (!cancelled) {
@@ -153,10 +165,14 @@ function EditChannelPage() {
       .catch((error) => {
         if (!cancelled) setChannelError(error instanceof Error ? error.message : "Falha ao carregar canal");
       });
+    refreshFlowSummary();
+    // Refresh periódico leve — captura validações do worker e novas importações.
+    const t = setInterval(refreshFlowSummary, 30_000);
     return () => {
       cancelled = true;
+      clearInterval(t);
     };
-  }, [id, getChannelFn]);
+  }, [id, getChannelFn, refreshFlowSummary]);
 
   const handleUpdateChannel = async () => {
     try {
@@ -426,22 +442,35 @@ function EditChannelPage() {
                 <div className="mt-4">
                   <div className="flex items-baseline justify-between">
                     <span className="font-display text-2xl font-bold text-foreground">
-                      1071
+                      {flowSummary?.activeProducts ?? "—"}
                     </span>
                     <span className="text-xs text-muted-foreground">
-                      ideal ~300
+                      ideal ~{flowSummary?.idealApprox ?? 300}
                     </span>
                   </div>
                   <p className="text-[11px] text-muted-foreground">produtos ativos</p>
                   <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/60">
-                    <div className="h-full w-full rounded-full bg-gradient-to-r from-[oklch(0.75_0.16_150)] to-[oklch(0.68_0.17_160)]" />
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-[oklch(0.75_0.16_150)] to-[oklch(0.68_0.17_160)]"
+                      style={{
+                        width: `${Math.min(
+                          100,
+                          Math.round(
+                            ((flowSummary?.activeProducts ?? 0) /
+                              Math.max(1, flowSummary?.idealApprox ?? 300)) *
+                              100,
+                          ),
+                        )}%`,
+                      }}
+                    />
                   </div>
                 </div>
 
                 <p className="mt-4 text-[11.5px] leading-relaxed text-foreground/75">
-                  Intervalo de <strong>15 min</strong> → <strong>4 posts/hora</strong>.
+                  Intervalo de <strong>{flowSummary?.intervalMin ?? 15} min</strong> →{" "}
+                  <strong>{flowSummary?.postsPerHour ?? 4} posts/hora</strong>.
                   Envio em ordem aleatória com proteção anti-repetição de{" "}
-                  <strong>24h</strong>.
+                  <strong>{flowSummary?.antiRepetitionHours ?? 24}h</strong>.
                 </p>
               </div>
 

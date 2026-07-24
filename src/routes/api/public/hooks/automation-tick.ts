@@ -127,6 +127,8 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
     "@/modules/products/validation/validate.server"
   );
 
+  const ANTI_REPEAT_HOURS = 24;
+
   async function pickNext(): Promise<any | null> {
     const { data: sent } = await admin
       .from("automation_group_sends")
@@ -134,7 +136,20 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
       .eq("config_id", cfg.id);
     const excluded = new Set((sent ?? []).map((r: any) => r.product_id).filter(Boolean));
 
-    // Busca um lote de candidatos e valida em ordem até achar um válido.
+    // Proteção anti-repetição real (24h): exclui qualquer produto já enviado
+    // com sucesso para este mesmo config nas últimas 24h.
+    const since = new Date(Date.now() - ANTI_REPEAT_HOURS * 3600_000).toISOString();
+    const { data: recent } = await admin
+      .from("whatsapp_campaign_history")
+      .select("product_id")
+      .eq("config_id", cfg.id)
+      .eq("status", "sent")
+      .gte("sent_at", since);
+    for (const r of recent ?? []) {
+      if (r?.product_id) excluded.add(r.product_id);
+    }
+
+    // Busca um lote de candidatos aleatorizados e valida em ordem.
     let q = admin
       .from("products")
       .select("*")
@@ -143,19 +158,20 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
       .eq("availability", "active")
       .not("affiliate_link", "is", null)
       .order("last_validated_at", { ascending: true, nullsFirst: true })
-      .limit(20);
+      .limit(30);
     if (excluded.size > 0) {
       q = q.not("id", "in", `(${Array.from(excluded).join(",")})`);
     }
     const { data, error } = await q;
     if (error) throw new Error(error.message);
-    for (const cand of data ?? []) {
+    // Ordem aleatória: embaralha o lote antes de validar.
+    const shuffled = [...(data ?? [])].sort(() => Math.random() - 0.5);
+    for (const cand of shuffled) {
       const result = await validateProduct(cand);
       if (result.availability === "active") {
         await persistValidation(admin, cand.id, result);
         return cand;
       }
-      // Marca no banco e (se não for erro temporário) impede re-seleção neste ciclo.
       await persistValidation(admin, cand.id, result);
       if (result.availability !== "error") {
         await admin.from("automation_group_sends").upsert({

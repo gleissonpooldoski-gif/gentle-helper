@@ -318,3 +318,59 @@ export const listAutomationGroups = createServerFn({ method: "POST" })
     }));
   });
 
+export interface ChannelFlowSummaryDTO {
+  activeProducts: number;
+  intervalMin: number;
+  postsPerHour: number;
+  antiRepetitionHours: number;
+  healthy: boolean;
+  idealApprox: number;
+}
+
+/**
+ * Dados reais para a seção "Fluxo saudável de publicações":
+ * - `activeProducts`: total de produtos do usuário com availability='active'
+ *   (todas as plataformas; atualiza sozinho quando validação marca inativo).
+ * - `intervalMin`: menor intervalo configurado entre os grupos do canal
+ *   (fallback 15 min quando não há config).
+ * - `postsPerHour`: 60 ÷ intervalMin.
+ * - `antiRepetitionHours`: janela real usada pelo motor de publicação.
+ */
+export const getChannelFlowSummary = createServerFn({ method: "POST" })
+  .middleware([apiClient, requireSupabaseAuth])
+  .inputValidator((data: { channelId: string }) => {
+    const channelId = String(data?.channelId ?? "").trim();
+    if (!channelId) throw new Error("channelId obrigatório");
+    return { channelId };
+  })
+  .handler(async ({ data, context }): Promise<ChannelFlowSummaryDTO> => {
+    const { supabase, userId } = context;
+    const { count: active } = await supabase
+      .from("products")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("availability", "active")
+      .not("affiliate_link", "is", null);
+
+    const { data: cfgs } = await supabase
+      .from("automation_configs")
+      .select("intervalo_min")
+      .eq("user_id", userId)
+      .eq("channel_id", data.channelId);
+    const intervals = (cfgs ?? [])
+      .map((c: any) => Number(c.intervalo_min))
+      .filter((n: number) => Number.isFinite(n) && n > 0);
+    const intervalMin = intervals.length > 0 ? Math.min(...intervals) : 15;
+    const postsPerHour = Math.max(1, Math.round(60 / intervalMin));
+    const activeProducts = active ?? 0;
+
+    return {
+      activeProducts,
+      intervalMin,
+      postsPerHour,
+      antiRepetitionHours: 24,
+      healthy: activeProducts > 0,
+      idealApprox: 300,
+    };
+  });
+
