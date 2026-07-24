@@ -78,6 +78,19 @@ export const Route = createFileRoute("/api/public/whatsapp/webhook")({
           }
         }
 
+        // Captura de produtos a partir de grupos monitorados.
+        if (event.includes("MESSAGES_UPSERT") || event.includes("MESSAGE")) {
+          try {
+            const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+            const { handleEvolutionMessage } = await import("@/modules/monitor/capture.server");
+            const stats = await handleEvolutionMessage(supabaseAdmin as any, instanceName, payload);
+            return json({ ok: true, event, stats });
+          } catch (err) {
+            console.error("[WA][WEBHOOK] monitor capture error", (err as Error).message);
+            return json({ ok: false, error: "capture_error" }, 500);
+          }
+        }
+
         if (Object.keys(patch).length === 0) return json({ ok: true, ignored: event });
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -90,6 +103,7 @@ export const Route = createFileRoute("/api/public/whatsapp/webhook")({
           return json({ ok: false, error: "db_error" }, 500);
         }
         return json({ ok: true, event });
+
       },
     },
   },
