@@ -542,6 +542,221 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
           </div>
         </div>
       )}
+
+      {/* Modal Importar existente */}
+      {adoptOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => !busy && setAdoptOpen(false)}
+        >
+          <div
+            className="w-full max-w-sm overflow-hidden rounded-2xl bg-card shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between bg-emerald-700 px-5 py-4 text-white">
+              <h4 className="font-semibold">Importar instância existente</h4>
+              <button onClick={() => !busy && setAdoptOpen(false)} aria-label="Fechar">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="space-y-4 px-5 py-6">
+              <p className="text-xs text-muted-foreground">
+                Informe o nome exato da instância já criada na Evolution API (ex:{" "}
+                <b>DIVULGA LINKS</b>).
+              </p>
+              <input
+                autoFocus
+                value={adoptName}
+                onChange={(e) => setAdoptName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleAdopt()}
+                placeholder="Nome da instância"
+                className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20"
+              />
+            </div>
+            <div className="border-t border-border bg-muted/30 px-5 py-4">
+              <Button
+                onClick={handleAdopt}
+                disabled={busy === "adopt" || !adoptName.trim()}
+                className="h-11 w-full bg-emerald-600 hover:bg-emerald-700"
+              >
+                {busy === "adopt" ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="mr-2 h-4 w-4" />
+                )}
+                Importar
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Grupos */}
+      {groupsModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => !busy && setGroupsModal(null)}
+        >
+          <div
+            className="flex w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-card shadow-2xl"
+            style={{ maxHeight: "85vh" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between bg-emerald-700 px-5 py-4 text-white">
+              <h4 className="font-semibold">Grupos — {groupsModal.inst.instanceName}</h4>
+              <button onClick={() => setGroupsModal(null)} aria-label="Fechar">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="border-b border-border px-5 py-3">
+              <input
+                value={groupsModal.filter}
+                onChange={(e) =>
+                  setGroupsModal((m) => (m ? { ...m, filter: e.target.value } : m))
+                }
+                placeholder="Filtrar grupos…"
+                className="h-9 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20"
+              />
+            </div>
+            <div className="flex-1 overflow-y-auto px-5 py-3">
+              {groupsModal.loading ? (
+                <div className="flex items-center justify-center py-8 text-muted-foreground">
+                  <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Carregando grupos…
+                </div>
+              ) : groupsModal.groups.length === 0 ? (
+                <p className="py-8 text-center text-sm text-muted-foreground">
+                  Nenhum grupo encontrado.
+                </p>
+              ) : (
+                <ul className="space-y-1">
+                  {groupsModal.groups
+                    .filter((g) =>
+                      g.name.toLowerCase().includes(groupsModal.filter.toLowerCase()),
+                    )
+                    .map((g) => (
+                      <li key={g.jid}>
+                        <label className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 hover:bg-muted/50">
+                          <input
+                            type="checkbox"
+                            checked={g.selected}
+                            onChange={() => toggleGroup(g.jid)}
+                            className="h-4 w-4 accent-emerald-600"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium">{g.name}</p>
+                            <p className="truncate text-[11px] text-muted-foreground">
+                              {g.participants ? `${g.participants} membros` : g.jid}
+                            </p>
+                          </div>
+                        </label>
+                      </li>
+                    ))}
+                </ul>
+              )}
+            </div>
+            <div className="flex items-center justify-between gap-2 border-t border-border bg-muted/30 px-5 py-4">
+              <span className="text-xs text-muted-foreground">
+                {groupsModal.groups.filter((g) => g.selected).length} selecionado(s)
+              </span>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setGroupsModal(null)}>
+                  Cancelar
+                </Button>
+                <Button
+                  className="bg-emerald-600 hover:bg-emerald-700"
+                  onClick={saveGroups}
+                  disabled={busy === "groups:save"}
+                >
+                  {busy === "groups:save" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Salvar seleção
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Enviar */}
+      {sendModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => !busy && setSendModal(null)}
+        >
+          <div
+            className="w-full max-w-md overflow-hidden rounded-2xl bg-card shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between bg-emerald-700 px-5 py-4 text-white">
+              <h4 className="font-semibold">Enviar mensagem</h4>
+              <button onClick={() => setSendModal(null)} aria-label="Fechar">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="space-y-4 px-5 py-6">
+              <div className="flex gap-2 rounded-lg bg-muted p-1 text-xs font-semibold">
+                <button
+                  onClick={() => setSendModal((m) => (m ? { ...m, mode: "test" } : m))}
+                  className={`flex-1 rounded-md px-3 py-1.5 ${sendModal.mode === "test" ? "bg-background shadow" : "text-muted-foreground"}`}
+                >
+                  Teste (1 destino)
+                </button>
+                <button
+                  onClick={() => setSendModal((m) => (m ? { ...m, mode: "campaign" } : m))}
+                  className={`flex-1 rounded-md px-3 py-1.5 ${sendModal.mode === "campaign" ? "bg-background shadow" : "text-muted-foreground"}`}
+                >
+                  Campanha (grupos salvos)
+                </button>
+              </div>
+              {sendModal.mode === "test" && (
+                <div>
+                  <label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Número (5511...) ou JID
+                  </label>
+                  <input
+                    value={sendModal.jid}
+                    onChange={(e) =>
+                      setSendModal((m) => (m ? { ...m, jid: e.target.value } : m))
+                    }
+                    placeholder="55119XXXXXXXX ou 5511...@g.us"
+                    className="mt-1 h-10 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20"
+                  />
+                </div>
+              )}
+              <div>
+                <label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Mensagem
+                </label>
+                <textarea
+                  value={sendModal.text}
+                  onChange={(e) =>
+                    setSendModal((m) => (m ? { ...m, text: e.target.value } : m))
+                  }
+                  rows={5}
+                  placeholder="Digite sua mensagem…"
+                  className="mt-1 w-full rounded-lg border border-border bg-background p-3 text-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 border-t border-border bg-muted/30 px-5 py-4">
+              <Button variant="outline" className="flex-1" onClick={() => setSendModal(null)}>
+                Cancelar
+              </Button>
+              <Button
+                className="flex-1 bg-emerald-600 hover:bg-emerald-700"
+                onClick={handleSend}
+                disabled={busy === "send" || !sendModal.text.trim()}
+              >
+                {busy === "send" ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="mr-2 h-4 w-4" />
+                )}
+                Enviar
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
