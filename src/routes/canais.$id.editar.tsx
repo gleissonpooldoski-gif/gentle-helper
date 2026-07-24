@@ -3123,7 +3123,9 @@ function MercadoLivrePanel() {
       />
       <EditProductModal
         open={editTarget !== null}
+        channelId={channelId}
         target={editTarget}
+
         onClose={() => setEditTarget(null)}
         onSaved={() => setEditTarget(null)}
       />
