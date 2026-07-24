@@ -84,16 +84,36 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
     try {
       const rows = await listFn({ data: channelId ? { channelId } : {} });
       setItems(rows);
+      return rows;
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Falha ao carregar");
+      return [] as WhatsAppInstanceDTO[];
     } finally {
       setLoading(false);
     }
   }, [listFn, channelId]);
 
+  // Auto-adota "DIVULGA LINKS" se ainda não estiver registrada localmente.
+  // Evita chamar POST /instance/create (que retorna 403 code 1003 se já existir na Evolution).
+  const autoAdoptedRef = useRef(false);
   useEffect(() => {
-    reload();
-  }, [reload]);
+    if (autoAdoptedRef.current) return;
+    autoAdoptedRef.current = true;
+    (async () => {
+      const rows = await reload();
+      const has = rows.some(
+        (r) => r.instanceName.trim().toLowerCase() === "divulga links",
+      );
+      if (!has) {
+        try {
+          await adoptFn({ data: { instanceName: "DIVULGA LINKS", channelId } });
+          await reload();
+        } catch {
+          /* silencioso: se não existir na Evolution, usuário cria manualmente */
+        }
+      }
+    })();
+  }, [reload, adoptFn, channelId]);
 
   // Realtime: refresh automático via postgres_changes
   const reloadRef = useRef(reload);
