@@ -524,6 +524,32 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
                     >
                       {s.label}
                     </span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={async () => {
+                        try {
+                          setBusy(`ref:${i.id}`);
+                          const upd = await refreshFn({ data: { id: i.id } });
+                          await reload();
+                          if (upd.status === "connected") toast.success("🟢 WhatsApp conectado");
+                          else if (upd.status === "connecting") toast.message("Conectando…");
+                          else if (upd.status === "disconnected") toast.message("Desconectado");
+                        } catch (err) {
+                          toast.error(err instanceof Error ? err.message : "Falha ao atualizar");
+                        } finally {
+                          setBusy(null);
+                        }
+                      }}
+                      disabled={busy === `ref:${i.id}`}
+                      title="Atualizar status"
+                    >
+                      {busy === `ref:${i.id}` ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-4 w-4" />
+                      )}
+                    </Button>
                     {i.status === "awaiting_qr" && (
                       <Button size="sm" variant="outline" onClick={() => openQrModal(i)}>
                         <QrCode className="mr-1 h-4 w-4" /> Ver QR
