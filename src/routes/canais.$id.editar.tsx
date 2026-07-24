@@ -3286,7 +3286,7 @@ function ShopeePanel() {
     setBulkBusy(true);
     try {
       if (itemIds.length > 0) {
-        await deleteByItemsFn({ data: { platform: "shopee", itemIds } });
+        await deleteByItemsFn({ data: { channelId, platform: "shopee", itemIds } });
       }
       setDeletedIds((prev) => {
         const next = new Set(prev);
