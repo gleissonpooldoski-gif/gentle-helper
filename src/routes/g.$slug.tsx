@@ -169,7 +169,7 @@ function PublicSitePage() {
           <p className="text-center text-gray-500">Nenhum produto disponível no momento.</p>
         ) : (
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-            {site.products.map((p) => (
+            {site.products.map((p: PublicProduct) => (
               <a
                 key={p.id}
                 href={p.link}

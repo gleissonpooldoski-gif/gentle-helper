@@ -13,6 +13,7 @@ import { Route as RelatoriosRouteImport } from './routes/relatorios'
 import { Route as ConfigAfiliadosRouteImport } from './routes/config-afiliados'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as GSlugRouteImport } from './routes/g.$slug'
 import { Route as ConfiguracoesSessoesWhatsappRouteImport } from './routes/configuracoes.sessoes-whatsapp'
 import { Route as CanaisIdEditarRouteImport } from './routes/canais.$id.editar'
 import { Route as ApiMlProbeRouteImport } from './routes/api/ml/probe'
@@ -43,6 +44,11 @@ const AuthRoute = AuthRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GSlugRoute = GSlugRouteImport.update({
+  id: '/g/$slug',
+  path: '/g/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ConfiguracoesSessoesWhatsappRoute =
@@ -115,6 +121,7 @@ export interface FileRoutesByFullPath {
   '/config-afiliados': typeof ConfigAfiliadosRoute
   '/relatorios': typeof RelatoriosRoute
   '/configuracoes/sessoes-whatsapp': typeof ConfiguracoesSessoesWhatsappRoute
+  '/g/$slug': typeof GSlugRoute
   '/api/ml/callback': typeof ApiMlCallbackRoute
   '/api/ml/probe': typeof ApiMlProbeRoute
   '/canais/$id/editar': typeof CanaisIdEditarRoute
@@ -132,6 +139,7 @@ export interface FileRoutesByTo {
   '/config-afiliados': typeof ConfigAfiliadosRoute
   '/relatorios': typeof RelatoriosRoute
   '/configuracoes/sessoes-whatsapp': typeof ConfiguracoesSessoesWhatsappRoute
+  '/g/$slug': typeof GSlugRoute
   '/api/ml/callback': typeof ApiMlCallbackRoute
   '/api/ml/probe': typeof ApiMlProbeRoute
   '/canais/$id/editar': typeof CanaisIdEditarRoute
@@ -150,6 +158,7 @@ export interface FileRoutesById {
   '/config-afiliados': typeof ConfigAfiliadosRoute
   '/relatorios': typeof RelatoriosRoute
   '/configuracoes/sessoes-whatsapp': typeof ConfiguracoesSessoesWhatsappRoute
+  '/g/$slug': typeof GSlugRoute
   '/api/ml/callback': typeof ApiMlCallbackRoute
   '/api/ml/probe': typeof ApiMlProbeRoute
   '/canais/$id/editar': typeof CanaisIdEditarRoute
@@ -169,6 +178,7 @@ export interface FileRouteTypes {
     | '/config-afiliados'
     | '/relatorios'
     | '/configuracoes/sessoes-whatsapp'
+    | '/g/$slug'
     | '/api/ml/callback'
     | '/api/ml/probe'
     | '/canais/$id/editar'
@@ -186,6 +196,7 @@ export interface FileRouteTypes {
     | '/config-afiliados'
     | '/relatorios'
     | '/configuracoes/sessoes-whatsapp'
+    | '/g/$slug'
     | '/api/ml/callback'
     | '/api/ml/probe'
     | '/canais/$id/editar'
@@ -203,6 +214,7 @@ export interface FileRouteTypes {
     | '/config-afiliados'
     | '/relatorios'
     | '/configuracoes/sessoes-whatsapp'
+    | '/g/$slug'
     | '/api/ml/callback'
     | '/api/ml/probe'
     | '/canais/$id/editar'
@@ -221,6 +233,7 @@ export interface RootRouteChildren {
   ConfigAfiliadosRoute: typeof ConfigAfiliadosRoute
   RelatoriosRoute: typeof RelatoriosRoute
   ConfiguracoesSessoesWhatsappRoute: typeof ConfiguracoesSessoesWhatsappRoute
+  GSlugRoute: typeof GSlugRoute
   ApiMlCallbackRoute: typeof ApiMlCallbackRoute
   ApiMlProbeRoute: typeof ApiMlProbeRoute
   CanaisIdEditarRoute: typeof CanaisIdEditarRoute
@@ -261,6 +274,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/g/$slug': {
+      id: '/g/$slug'
+      path: '/g/$slug'
+      fullPath: '/g/$slug'
+      preLoaderRoute: typeof GSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/configuracoes/sessoes-whatsapp': {
@@ -349,6 +369,7 @@ const rootRouteChildren: RootRouteChildren = {
   ConfigAfiliadosRoute: ConfigAfiliadosRoute,
   RelatoriosRoute: RelatoriosRoute,
   ConfiguracoesSessoesWhatsappRoute: ConfiguracoesSessoesWhatsappRoute,
+  GSlugRoute: GSlugRoute,
   ApiMlCallbackRoute: ApiMlCallbackRoute,
   ApiMlProbeRoute: ApiMlProbeRoute,
   CanaisIdEditarRoute: CanaisIdEditarRoute,
