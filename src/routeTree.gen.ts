@@ -9,7 +9,6 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as SiteRouteImport } from './routes/site'
 import { Route as RelatoriosRouteImport } from './routes/relatorios'
 import { Route as ConfigAfiliadosRouteImport } from './routes/config-afiliados'
 import { Route as AuthRouteImport } from './routes/auth'
@@ -27,11 +26,6 @@ import { Route as ApiPublicHooksAutomationTickRouteImport } from './routes/api/p
 import { Route as ApiPublicChannelsWhatsappSessionStatusRouteImport } from './routes/api/public/channels/whatsapp/session-status'
 import { Route as ApiPublicChannelsWhatsappConnectRouteImport } from './routes/api/public/channels/whatsapp/connect'
 
-const SiteRoute = SiteRouteImport.update({
-  id: '/site',
-  path: '/site',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const RelatoriosRoute = RelatoriosRouteImport.update({
   id: '/relatorios',
   path: '/relatorios',
@@ -126,7 +120,6 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/config-afiliados': typeof ConfigAfiliadosRoute
   '/relatorios': typeof RelatoriosRoute
-  '/site': typeof SiteRoute
   '/configuracoes/sessoes-whatsapp': typeof ConfiguracoesSessoesWhatsappRoute
   '/s/$slug': typeof SSlugRoute
   '/api/ml/callback': typeof ApiMlCallbackRoute
@@ -145,7 +138,6 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/config-afiliados': typeof ConfigAfiliadosRoute
   '/relatorios': typeof RelatoriosRoute
-  '/site': typeof SiteRoute
   '/configuracoes/sessoes-whatsapp': typeof ConfiguracoesSessoesWhatsappRoute
   '/s/$slug': typeof SSlugRoute
   '/api/ml/callback': typeof ApiMlCallbackRoute
@@ -165,7 +157,6 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/config-afiliados': typeof ConfigAfiliadosRoute
   '/relatorios': typeof RelatoriosRoute
-  '/site': typeof SiteRoute
   '/configuracoes/sessoes-whatsapp': typeof ConfiguracoesSessoesWhatsappRoute
   '/s/$slug': typeof SSlugRoute
   '/api/ml/callback': typeof ApiMlCallbackRoute
@@ -186,7 +177,6 @@ export interface FileRouteTypes {
     | '/auth'
     | '/config-afiliados'
     | '/relatorios'
-    | '/site'
     | '/configuracoes/sessoes-whatsapp'
     | '/s/$slug'
     | '/api/ml/callback'
@@ -205,7 +195,6 @@ export interface FileRouteTypes {
     | '/auth'
     | '/config-afiliados'
     | '/relatorios'
-    | '/site'
     | '/configuracoes/sessoes-whatsapp'
     | '/s/$slug'
     | '/api/ml/callback'
@@ -224,7 +213,6 @@ export interface FileRouteTypes {
     | '/auth'
     | '/config-afiliados'
     | '/relatorios'
-    | '/site'
     | '/configuracoes/sessoes-whatsapp'
     | '/s/$slug'
     | '/api/ml/callback'
@@ -244,7 +232,6 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   ConfigAfiliadosRoute: typeof ConfigAfiliadosRoute
   RelatoriosRoute: typeof RelatoriosRoute
-  SiteRoute: typeof SiteRoute
   ConfiguracoesSessoesWhatsappRoute: typeof ConfiguracoesSessoesWhatsappRoute
   SSlugRoute: typeof SSlugRoute
   ApiMlCallbackRoute: typeof ApiMlCallbackRoute
@@ -261,13 +248,6 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/site': {
-      id: '/site'
-      path: '/site'
-      fullPath: '/site'
-      preLoaderRoute: typeof SiteRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/relatorios': {
       id: '/relatorios'
       path: '/relatorios'
@@ -388,7 +368,6 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   ConfigAfiliadosRoute: ConfigAfiliadosRoute,
   RelatoriosRoute: RelatoriosRoute,
-  SiteRoute: SiteRoute,
   ConfiguracoesSessoesWhatsappRoute: ConfiguracoesSessoesWhatsappRoute,
   SSlugRoute: SSlugRoute,
   ApiMlCallbackRoute: ApiMlCallbackRoute,
