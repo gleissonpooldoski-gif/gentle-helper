@@ -171,6 +171,7 @@ function EditChannelPage() {
     setChannel(null);
     setChannelError(null);
     setFlowSummary(null);
+    setManualPost(null);
     void getChannelFn({ data: { channelId: id } })
       .then((next) => {
         if (!cancelled) {
@@ -181,6 +182,13 @@ function EditChannelPage() {
       .catch((error) => {
         if (!cancelled) setChannelError(error instanceof Error ? error.message : "Falha ao carregar canal");
       });
+    void getManualPostFn({ data: { channelId: id } })
+      .then((mp) => {
+        if (!cancelled) setManualPost(mp);
+      })
+      .catch(() => {
+        /* rascunho inexistente — mantém formulário utilizável */
+      });
     refreshFlowSummary();
     // Refresh periódico leve — captura validações do worker e novas importações.
     const t = setInterval(refreshFlowSummary, 30_000);
@@ -188,13 +196,45 @@ function EditChannelPage() {
       cancelled = true;
       clearInterval(t);
     };
-  }, [id, getChannelFn, refreshFlowSummary]);
+  }, [id, getChannelFn, getManualPostFn, refreshFlowSummary]);
 
   const handleUpdateChannel = async () => {
     try {
-      const next = await updateChannelFn({ data: { channelId: id, autoPost } });
-      setChannel(next);
-      toast.success("Canal atualizado");
+      const nextChannel = await updateChannelFn({ data: { channelId: id, autoPost } });
+      setChannel(nextChannel);
+      let scheduledNow = false;
+      if (manualPost) {
+        setManualSaving(true);
+        try {
+          const saved = await saveManualPostFn({
+            data: {
+              channelId: id,
+              productLink: manualPost.productLink,
+              keepLink,
+              headerMode: manualPost.headerMode,
+              customHeader: manualPost.customHeader,
+              shopeeVideoLink: manualPost.shopeeVideoLink,
+              priceOriginal: manualPost.priceOriginal,
+              priceCurrent: manualPost.priceCurrent,
+              priceSuffix: manualPost.priceSuffix,
+              priceInstallment: manualPost.priceInstallment,
+              description: manualPost.description,
+              neverExpires,
+              scheduledDate: manualPost.scheduledDate,
+              scheduledTime: manualPost.scheduledTime,
+              couponType: manualPost.couponType,
+              couponValue: manualPost.couponValue,
+              couponMinValue: manualPost.couponMinValue,
+              couponCode: manualPost.couponCode,
+            },
+          });
+          setManualPost(saved);
+          scheduledNow = saved.status === "scheduled";
+        } finally {
+          setManualSaving(false);
+        }
+      }
+      toast.success(scheduledNow ? "Canal atualizado. Post agendado." : "Canal atualizado.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Falha ao atualizar canal");
     }
