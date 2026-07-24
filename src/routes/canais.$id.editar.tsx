@@ -242,6 +242,61 @@ function EditChannelPage() {
     }
   };
 
+  const handleSaveManualPost = async () => {
+    if (!manualPost) return;
+    if (!neverExpires && (!manualPost.scheduledDate || !manualPost.scheduledTime)) {
+      toast.error("Informe data e horário do agendamento ou marque NÃO EXPIRA.");
+      return;
+    }
+    setManualSaving(true);
+    try {
+      let finalLink = manualPost.productLink?.trim() ?? "";
+      if (finalLink) {
+        const result = await ensureAffiliateLink(finalLink, (input) =>
+          buildMLAffiliateUrlFn({ data: input }),
+        );
+        if (result.missing) {
+          toast.error(result.missing);
+          setManualSaving(false);
+          return;
+        }
+        finalLink = result.url;
+        if (result.tagged) {
+          setManualPost((prev) => (prev ? { ...prev, productLink: finalLink } : prev));
+          toast.info("Link de afiliado aplicado automaticamente.");
+        }
+      }
+      const saved = await saveManualPostFn({
+        data: {
+          channelId: id,
+          productLink: finalLink,
+          keepLink,
+          headerMode: manualPost.headerMode,
+          customHeader: manualPost.customHeader,
+          shopeeVideoLink: manualPost.shopeeVideoLink,
+          priceOriginal: manualPost.priceOriginal,
+          priceCurrent: manualPost.priceCurrent,
+          priceSuffix: manualPost.priceSuffix,
+          priceInstallment: manualPost.priceInstallment,
+          description: manualPost.description,
+          neverExpires,
+          scheduledDate: manualPost.scheduledDate,
+          scheduledTime: manualPost.scheduledTime,
+          couponType: manualPost.couponType,
+          couponValue: manualPost.couponValue,
+          couponMinValue: manualPost.couponMinValue,
+          couponCode: manualPost.couponCode,
+        },
+      });
+      setManualPost(saved);
+      toast.success(saved.status === "scheduled" ? "Post salvo e agendado." : "Post salvo com sucesso.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Falha ao salvar post.");
+    } finally {
+      setManualSaving(false);
+    }
+  };
+
   const toggleStore = (s: string) =>
     setActiveStores((prev) =>
       prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s],
