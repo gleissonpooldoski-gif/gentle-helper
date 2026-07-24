@@ -1,8 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { apiClient } from "@/lib/api-client";
+import { z } from "zod";
 
 export interface SiteConfigDTO {
+  channelId: string;
   slug: string;
   title: string;
   subtitle: string;
@@ -13,21 +15,10 @@ export interface SiteConfigDTO {
   useForAll: boolean;
 }
 
-const DEFAULT_CONFIG = (slug: string): SiteConfigDTO => ({
-  slug,
-  title: "Meu Site DvLinks",
-  subtitle: "",
-  logoUrl: null,
-  gaTag: null,
-  themeColor: "#3B82F6",
-  useForAmazonMl: false,
-  useForAll: false,
-});
-
-function slugFromUser(userId: string, email?: string | null): string {
-  const base = (email ?? "").split("@")[0]?.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-  if (base && base.length >= 3) return base;
-  return `u${userId.replace(/-/g, "").slice(0, 10)}`;
+function slugFromChannel(channelName: string, channelId: string): string {
+  const base = sanitizeSlug(channelName);
+  if (base.length >= 3) return base;
+  return `g${channelId.replace(/-/g, "").slice(0, 10)}`;
 }
 
 function sanitizeSlug(input: string): string {
@@ -40,56 +31,92 @@ function sanitizeSlug(input: string): string {
     .slice(0, 40);
 }
 
+const channelIdInput = z.object({ channelId: z.string().uuid() });
+
 export const getSiteConfig = createServerFn({ method: "GET" })
   .middleware([apiClient, requireSupabaseAuth])
-  .handler(async ({ context }): Promise<SiteConfigDTO> => {
-    const { supabase, userId, claims } = context;
-    const { data } = await supabase
-      .from("site_configs")
-      .select("*")
+  .inputValidator((input: { channelId: string }) => channelIdInput.parse(input))
+  .handler(async ({ data, context }): Promise<SiteConfigDTO> => {
+    const { supabase, userId } = context;
+    // Ensure channel belongs to user
+    const { data: ch, error: chErr } = await supabase
+      .from("channels")
+      .select("id, name")
+      .eq("id", data.channelId)
       .eq("user_id", userId)
       .maybeSingle();
-    if (data) {
+    if (chErr || !ch) throw new Error("Canal não encontrado.");
+
+    const { data: row } = await supabase
+      .from("site_configs")
+      .select("*")
+      .eq("channel_id", data.channelId)
+      .maybeSingle();
+    if (row) {
       return {
-        slug: data.slug,
-        title: data.title,
-        subtitle: (data as { subtitle?: string }).subtitle ?? "",
-        logoUrl: data.logo_url,
-        gaTag: data.ga_tag,
-        themeColor: data.theme_color,
-        useForAmazonMl: data.use_for_amazon_ml,
-        useForAll: data.use_for_all,
+        channelId: data.channelId,
+        slug: row.slug,
+        title: row.title,
+        subtitle: (row as { subtitle?: string }).subtitle ?? "",
+        logoUrl: row.logo_url,
+        gaTag: row.ga_tag,
+        themeColor: row.theme_color,
+        useForAmazonMl: row.use_for_amazon_ml,
+        useForAll: row.use_for_all,
       };
     }
-    return DEFAULT_CONFIG(slugFromUser(userId, (claims as { email?: string })?.email));
+    return {
+      channelId: data.channelId,
+      slug: slugFromChannel(ch.name ?? "", data.channelId),
+      title: ch.name ?? "Meu Site DvLinks",
+      subtitle: "",
+      logoUrl: null,
+      gaTag: null,
+      themeColor: "#3B82F6",
+      useForAmazonMl: false,
+      useForAll: false,
+    };
   });
 
 export const saveSiteConfig = createServerFn({ method: "POST" })
   .middleware([apiClient, requireSupabaseAuth])
-  .inputValidator((input: Partial<SiteConfigDTO>) => input)
+  .inputValidator((input: Partial<SiteConfigDTO> & { channelId: string }) =>
+    input,
+  )
   .handler(async ({ data, context }): Promise<SiteConfigDTO> => {
-    const { supabase, userId, claims } = context;
+    const { supabase, userId } = context;
+    if (!data.channelId) throw new Error("channelId obrigatório.");
+
+    const { data: ch, error: chErr } = await supabase
+      .from("channels")
+      .select("id, name")
+      .eq("id", data.channelId)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (chErr || !ch) throw new Error("Canal não encontrado.");
+
     const rawSlug = (data.slug ?? "").trim();
-    const slug = sanitizeSlug(rawSlug) || slugFromUser(userId, (claims as { email?: string })?.email);
+    const slug = sanitizeSlug(rawSlug) || slugFromChannel(ch.name ?? "", data.channelId);
     if (slug.length < 3) throw new Error("Slug deve ter ao menos 3 caracteres.");
 
-    // Verifica conflito de slug
+    // Conflict check: slug used by a different channel
     const { data: conflict } = await supabase
       .from("site_configs")
-      .select("user_id")
+      .select("channel_id")
       .eq("slug", slug)
-      .neq("user_id", userId)
+      .neq("channel_id", data.channelId)
       .maybeSingle();
-    if (conflict) throw new Error("Este link personalizado já está em uso.");
+    if (conflict) throw new Error("Este link personalizado já está em uso por outro grupo.");
 
     const themeColor = /^#[0-9a-fA-F]{6}$/.test(data.themeColor ?? "") ? data.themeColor! : "#3B82F6";
-    const title = (data.title ?? "").trim().slice(0, 120) || "Meu Site DvLinks";
+    const title = (data.title ?? "").trim().slice(0, 120) || (ch.name ?? "Meu Site DvLinks");
     const subtitle = (data.subtitle ?? "").trim().slice(0, 160);
     const gaTag = (data.gaTag ?? "").trim().slice(0, 40) || null;
     const logoUrl = (data.logoUrl ?? "").trim() || null;
 
     const payload = {
       user_id: userId,
+      channel_id: data.channelId,
       slug,
       title,
       subtitle,
@@ -102,10 +129,11 @@ export const saveSiteConfig = createServerFn({ method: "POST" })
 
     const { error } = await supabase
       .from("site_configs")
-      .upsert(payload as never, { onConflict: "user_id" });
+      .upsert(payload as never, { onConflict: "channel_id" });
     if (error) throw new Error(error.message);
 
     return {
+      channelId: data.channelId,
       slug,
       title,
       subtitle,

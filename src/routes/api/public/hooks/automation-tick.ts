@@ -275,9 +275,11 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
   // Renderiza legenda
   const { loadLayoutFor } = await import("@/modules/posts/layout.functions");
   const { renderPost } = await import("@/modules/posts/render");
-  const { loadSiteConfig, wrapLinkWithSite } = await import("@/modules/site/site-link");
+  const { loadSiteConfigByChannel, wrapLinkWithSite } = await import("@/modules/site/site-link");
   const layout = await loadLayoutFor(admin, cfg.user_id, cfg.channel_id);
-  const siteCfg = await loadSiteConfig(admin as never, cfg.user_id);
+  const siteCfg = cfg.channel_id
+    ? await loadSiteConfigByChannel(admin as never, cfg.channel_id)
+    : null;
   const wrappedLink = wrapLinkWithSite(product.affiliate_link ?? product.raw_link, siteCfg);
   const productDetail = {
     title: product.title,

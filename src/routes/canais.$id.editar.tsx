@@ -389,7 +389,7 @@ function EditChannelPage() {
           {tab === "layout" ? (
             <LayoutPostPanel channelId={id} />
           ) : tab === "site" ? (
-            <SiteConfigPanel />
+            <SiteConfigPanel channelId={id} />
           ) : tab === "instagram" ? (
             <InstagramPanel />
           ) : tab === "instasched" ? (
