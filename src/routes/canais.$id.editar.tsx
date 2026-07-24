@@ -136,9 +136,11 @@ function EditChannelPage() {
   const getManualPostFn = useServerFn(getManualPost);
   const saveManualPostFn = useServerFn(saveManualPost);
   const buildMLAffiliateUrlFn = useServerFn(buildMLAffiliateUrl);
+  const getProductCountsFn = useServerFn(getChannelProductCounts);
   const [channel, setChannel] = useState<ChannelDTO | null>(null);
   const [channelError, setChannelError] = useState<string | null>(null);
   const [flowSummary, setFlowSummary] = useState<ChannelFlowSummaryDTO | null>(null);
+  const [productCounts, setProductCounts] = useState<ChannelProductCountsDTO>({ shopee: 0, mercadolivre: 0 });
   const [tab, setTab] = useState("geral");
   const [keepLink, setKeepLink] = useState(true);
   const [neverExpires, setNeverExpires] = useState(true);
