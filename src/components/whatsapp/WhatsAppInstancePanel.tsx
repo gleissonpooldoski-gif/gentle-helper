@@ -11,6 +11,9 @@ import {
   CheckCircle2,
   X,
   Smartphone,
+  Users,
+  Send,
+  Download,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -21,7 +24,13 @@ import {
   reconnectWhatsAppInstance,
   disconnectWhatsAppInstance,
   deleteWhatsAppInstance,
+  adoptEvolutionInstance,
+  fetchWhatsAppGroups,
+  saveWhatsAppGroupSelection,
+  sendWhatsAppText,
+  sendWhatsAppCampaign,
   type WhatsAppInstanceDTO,
+  type WhatsAppGroupDTO,
 } from "@/modules/whatsapp/instances.functions";
 
 interface Props {
