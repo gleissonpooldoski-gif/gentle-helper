@@ -53,6 +53,7 @@ export const getSiteConfig = createServerFn({ method: "GET" })
       return {
         slug: data.slug,
         title: data.title,
+        subtitle: (data as { subtitle?: string }).subtitle ?? "",
         logoUrl: data.logo_url,
         gaTag: data.ga_tag,
         themeColor: data.theme_color,
