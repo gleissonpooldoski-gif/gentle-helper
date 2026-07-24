@@ -387,62 +387,63 @@ export const fetchWhatsAppGroups = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const row = await loadInstance(supabase, userId, data.id);
 
-    // Somente grupos autorizados para ESTA instância (isolamento por instância).
-    // A Evolution é usada apenas para enriquecer nome/participantes/foto —
-    // nunca para definir destinos.
-    const { data: allowed } = await (supabase as any)
-      .from("monitored_groups")
-      .select("group_jid, group_name")
-      .eq("user_id", userId)
-      .eq("instance_id", row.id)
-      .eq("is_active", true);
-
-    const allowedList: Array<{ group_jid: string; group_name: string | null }> =
-      allowed ?? [];
-    if (allowedList.length === 0) return [];
-    const allowedJids = new Set(allowedList.map((a) => a.group_jid));
-
-
-    let evoMap = new Map<
-      string,
-      { name: string; participants: number | null; pictureUrl: string | null }
-    >();
+    // 1) Todos os grupos disponíveis na Evolution para esta instância.
+    let evoList: Array<{
+      jid: string;
+      name: string;
+      participants: number | null;
+      pictureUrl: string | null;
+    }> = [];
     try {
       const { getWhatsAppProvider } = await import("./index.server");
       const groups = await getWhatsAppProvider(row.provider).fetchGroups(
         row.instance_name,
       );
-      for (const g of groups) {
-        if (g?.jid && allowedJids.has(g.jid)) {
-          evoMap.set(g.jid, {
-            name: g.name,
-            participants: g.participants ?? null,
-            pictureUrl: g.pictureUrl ?? null,
-          });
-        }
-      }
+      evoList = groups
+        .filter((g) => g?.jid)
+        .map((g) => ({
+          jid: g.jid,
+          name: g.name || "(grupo sem nome)",
+          participants: g.participants ?? null,
+          pictureUrl: g.pictureUrl ?? null,
+        }));
     } catch {
-      /* segue com dados salvos se Evolution falhar */
+      /* segue com o que houver salvo */
     }
 
+    // 2) Seleção salva SOMENTE deste channel/grupo-config + instância.
     const { data: sel } = await (supabase as any)
       .from("whatsapp_group_selections")
-      .select("group_jid")
+      .select("group_jid, group_name")
       .eq("user_id", userId)
       .eq("instance_id", row.id)
       .eq("channel_id", data.channelId);
-    const selectedSet = new Set<string>((sel ?? []).map((s: any) => s.group_jid));
+    const selRows: Array<{ group_jid: string; group_name: string | null }> = sel ?? [];
+    const selectedSet = new Set(selRows.map((s) => s.group_jid));
 
-    return allowedList.map((a) => {
-      const evo = evoMap.get(a.group_jid);
-      return {
-        jid: a.group_jid,
-        name: evo?.name || a.group_name || "(grupo sem nome)",
-        participants: evo?.participants ?? null,
-        pictureUrl: evo?.pictureUrl ?? null,
-        selected: selectedSet.has(a.group_jid) || selectedSet.size === 0,
-      };
-    });
+    // Grupos salvos que não voltaram da Evolution continuam visíveis
+    // para permitir desmarcar.
+    const evoJids = new Set(evoList.map((e) => e.jid));
+    for (const s of selRows) {
+      if (!evoJids.has(s.group_jid)) {
+        evoList.push({
+          jid: s.group_jid,
+          name: s.group_name || "(grupo sem nome)",
+          participants: null,
+          pictureUrl: null,
+        });
+      }
+    }
+
+    evoList.sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+
+    return evoList.map((g) => ({
+      jid: g.jid,
+      name: g.name,
+      participants: g.participants,
+      pictureUrl: g.pictureUrl,
+      selected: selectedSet.has(g.jid),
+    }));
   });
 
 
