@@ -781,6 +781,7 @@ export type Database = {
           ga_tag: string | null
           logo_url: string | null
           slug: string
+          subtitle: string
           theme_color: string
           title: string
           updated_at: string
@@ -793,6 +794,7 @@ export type Database = {
           ga_tag?: string | null
           logo_url?: string | null
           slug: string
+          subtitle?: string
           theme_color?: string
           title?: string
           updated_at?: string
@@ -805,6 +807,7 @@ export type Database = {
           ga_tag?: string | null
           logo_url?: string | null
           slug?: string
+          subtitle?: string
           theme_color?: string
           title?: string
           updated_at?: string

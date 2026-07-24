@@ -1,0 +1,1 @@
+ALTER TABLE public.site_configs ADD COLUMN IF NOT EXISTS subtitle text NOT NULL DEFAULT '';
