@@ -2322,45 +2322,59 @@ function WhatsAppGroupsPanel() {
         </div>
 
         <ul className="mt-2 divide-y divide-border/60 overflow-hidden rounded-xl border border-border/60 bg-background/40">
-          {list.map((g) => (
-            <li key={g.id}>
-              <label
-                className={cn(
-                  "flex cursor-pointer items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/50",
-                  g.selected && "bg-[oklch(0.98_0.03_150)]",
-                )}
-              >
-                <span
+          {loading ? (
+            <li className="px-4 py-6 text-center text-[12.5px] text-muted-foreground">Carregando grupos…</li>
+          ) : list.length === 0 ? (
+            <li className="px-4 py-6 text-center text-[12.5px] text-muted-foreground">
+              Nenhum grupo encontrado. Conecte o WhatsApp neste canal e clique em <b>Atualizar</b>.
+            </li>
+          ) : (
+            list.map((g) => (
+              <li key={g.id}>
+                <label
                   className={cn(
-                    "grid h-5 w-5 shrink-0 place-items-center rounded-md border-2 transition-all",
-                    g.selected
-                      ? "border-[oklch(0.55_0.2_155)] bg-[oklch(0.55_0.2_155)] text-white"
-                      : "border-border bg-white",
+                    "flex cursor-pointer items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/50",
+                    g.selected && "bg-[oklch(0.98_0.03_150)]",
                   )}
                 >
-                  {g.selected && <Check className="h-3 w-3" strokeWidth={3.5} />}
-                </span>
-                <input
-                  type="checkbox"
-                  className="sr-only"
-                  checked={g.selected}
-                  onChange={() => toggle(g.id)}
-                />
-                <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[oklch(0.9_0.05_155)] to-[oklch(0.82_0.09_150)] font-display text-[13px] font-bold text-[oklch(0.35_0.15_155)]">
-                  {g.name.replace(/[^A-Za-zÀ-ÿ]/g, "").slice(0, 2).toUpperCase()}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-[13.5px] font-semibold text-foreground">{g.name}</p>
-                  <p className="text-[11.5px] text-muted-foreground">{g.members} membros</p>
-                </div>
-                {g.selected && (
-                  <span className="rounded-full bg-[oklch(0.94_0.08_150)] px-2 py-0.5 text-[10px] font-bold uppercase text-[oklch(0.42_0.15_155)]">
-                    Ativo
+                  <span
+                    className={cn(
+                      "grid h-5 w-5 shrink-0 place-items-center rounded-md border-2 transition-all",
+                      g.selected
+                        ? "border-[oklch(0.55_0.2_155)] bg-[oklch(0.55_0.2_155)] text-white"
+                        : "border-border bg-white",
+                    )}
+                  >
+                    {g.selected && <Check className="h-3 w-3" strokeWidth={3.5} />}
                   </span>
-                )}
-              </label>
-            </li>
-          ))}
+                  <input
+                    type="checkbox"
+                    className="sr-only"
+                    checked={g.selected}
+                    onChange={() => toggle(g.id)}
+                  />
+                  {g.pictureUrl ? (
+                    <img src={g.pictureUrl} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover" />
+                  ) : (
+                    <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[oklch(0.9_0.05_155)] to-[oklch(0.82_0.09_150)] font-display text-[13px] font-bold text-[oklch(0.35_0.15_155)]">
+                      {g.name.replace(/[^A-Za-zÀ-ÿ]/g, "").slice(0, 2).toUpperCase() || "?"}
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[13.5px] font-semibold text-foreground">{g.name}</p>
+                    <p className="text-[11.5px] text-muted-foreground">
+                      {g.members != null ? `${g.members} membros` : "—"}
+                    </p>
+                  </div>
+                  {g.selected && (
+                    <span className="rounded-full bg-[oklch(0.94_0.08_150)] px-2 py-0.5 text-[10px] font-bold uppercase text-[oklch(0.42_0.15_155)]">
+                      Ativo
+                    </span>
+                  )}
+                </label>
+              </li>
+            ))
+          )}
         </ul>
 
         {/* Data saver + save */}
