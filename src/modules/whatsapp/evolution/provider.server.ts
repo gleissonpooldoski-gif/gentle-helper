@@ -42,32 +42,61 @@ function normalizeQr(raw: any): { base64: string | null; code: string | null } {
     null;
   let b64: string | null = null;
   if (typeof base64 === "string" && base64.length > 0) {
-    // Não duplicar prefixo "data:image/png;base64," se já veio no retorno.
     b64 = base64.startsWith("data:") ? base64 : `data:image/png;base64,${base64}`;
   }
   return { base64: b64, code: typeof code === "string" ? code : null };
 }
 
-async function fetchQr(instanceName: string): Promise<{ base64: string | null; code: string | null }> {
+async function tryConnect(
+  instanceName: string,
+  method: "GET" | "POST",
+): Promise<any | null> {
   try {
     const res = await evolutionFetch(
       `/instance/connect/${encodeURIComponent(instanceName)}`,
-      { method: "GET" },
+      { method },
     );
-    if (!res.ok) return { base64: null, code: null };
-    const text = await res.text();
-    if (!text) return { base64: null, code: null };
-    try {
-      const json = JSON.parse(text);
+    if (!res.ok) {
       // eslint-disable-next-line no-console
-      console.log("[Evolution] /instance/connect raw response:", JSON.stringify(json).slice(0, 500));
-      return normalizeQr(json);
+      console.log(`[Evolution] /instance/connect ${method} status`, res.status);
+      return null;
+    }
+    const text = await res.text();
+    if (!text) return null;
+    try {
+      return JSON.parse(text);
     } catch {
-      return { base64: null, code: null };
+      return null;
     }
   } catch {
-    return { base64: null, code: null };
+    return null;
   }
+}
+
+async function fetchQr(instanceName: string): Promise<{ base64: string | null; code: string | null }> {
+  // Alguns builds da Evolution só devolvem QR em GET, outros em POST.
+  let json = await tryConnect(instanceName, "GET");
+  const firstQr = json ? normalizeQr(json?.qrcode ?? json) : { base64: null, code: null };
+  if (!firstQr.base64 && !firstQr.code) {
+    const alt = await tryConnect(instanceName, "POST");
+    if (alt) json = alt;
+  }
+  // eslint-disable-next-line no-console
+  console.log(
+    "Evolution connect response:",
+    typeof json === "object" ? JSON.stringify(json).slice(0, 800) : String(json),
+  );
+  const q = normalizeQr(json?.qrcode ?? json);
+  // eslint-disable-next-line no-console
+  console.log("Evolution QR fields:", {
+    base64: !!json?.base64,
+    qrcode: !!json?.qrcode,
+    qrcodeBase64: !!json?.qrcode?.base64,
+    qr: !!json?.qr,
+    qrBase64: !!json?.qr?.base64,
+    resolved: !!q.base64,
+  });
+  return q;
 }
 
 export const evolutionProvider: WhatsAppProvider = {
