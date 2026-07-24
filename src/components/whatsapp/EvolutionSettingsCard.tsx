@@ -173,11 +173,17 @@ export function EvolutionSettingsCard() {
                   {test.message}
                 </p>
               )}
-              {updatedAt && (
+              {lastCheckedAt && (
                 <p className="text-[11px] text-muted-foreground">
-                  Última atualização: {new Date(updatedAt).toLocaleString()}
+                  Última verificação: {lastCheckedAt.toLocaleTimeString()}
                 </p>
               )}
+              {updatedAt && (
+                <p className="text-[11px] text-muted-foreground">
+                  URL atualizada em: {new Date(updatedAt).toLocaleString()}
+                </p>
+              )}
+
             </>
           )}
         </div>
