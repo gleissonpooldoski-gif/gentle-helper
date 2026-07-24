@@ -3634,7 +3634,7 @@ function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {})
         </div>
         <div>
           <h3 className="text-[15px] font-semibold">Shopee — Produtos & Configurações</h3>
-          <p className="text-[12.5px] text-white/85">799 produtos vinculados · gerencie categorias, textos padrão e importe em massa.</p>
+          <p className="text-[12.5px] text-white/85">{importedProducts.length} produtos vinculados · gerencie categorias, textos padrão e importe em massa.</p>
         </div>
       </div>
 
