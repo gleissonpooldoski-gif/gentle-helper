@@ -191,6 +191,55 @@ export function SiteConfigPanel({ channelId }: { channelId: string }) {
           <p className="mt-2 text-xs text-muted-foreground">Exemplo: G-XXXXXXXXXX</p>
         </Block>
 
+        <Block title="Produtos exibidos">
+          <div className="space-y-3">
+            {[
+              { id: "shopee", label: "Shopee" },
+              { id: "mercadolivre", label: "Mercado Livre" },
+              { id: "amazon", label: "Amazon" },
+              { id: "aliexpress", label: "AliExpress" },
+              { id: "magalu", label: "Magalu" },
+            ].map((p) => (
+              <Checkbox
+                key={p.id}
+                label={p.label}
+                checked={cfg.platforms.includes(p.id)}
+                onChange={(v) =>
+                  patch({
+                    platforms: v
+                      ? Array.from(new Set([...cfg.platforms, p.id]))
+                      : cfg.platforms.filter((x) => x !== p.id),
+                  })
+                }
+              />
+            ))}
+          </div>
+        </Block>
+
+        <Block title="Ordenação">
+          <select
+            value={cfg.sortOrder}
+            onChange={(e) => patch({ sortOrder: e.target.value as "recent" | "best" | "random" })}
+            className="w-full rounded-lg border border-border/70 bg-card px-3 py-2 text-sm outline-none focus:border-primary"
+          >
+            <option value="recent">Mais recentes</option>
+            <option value="best">Mais vendidos</option>
+            <option value="random">Aleatório</option>
+          </select>
+        </Block>
+
+        <Block title="Quantidade de produtos">
+          <input
+            type="number"
+            min={1}
+            max={200}
+            value={cfg.productLimit}
+            onChange={(e) => patch({ productLimit: Number(e.target.value) || 60 })}
+            className="w-full rounded-lg border border-border/70 bg-card px-3 py-2 text-sm outline-none focus:border-primary"
+          />
+          <p className="mt-2 text-xs text-muted-foreground">Entre 1 e 200 produtos.</p>
+        </Block>
+
         <Block title="Cores">
           <p className="mb-3 text-sm font-medium text-foreground">Cor do Tema do SITE</p>
           <div className="flex items-center gap-4">
