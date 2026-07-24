@@ -352,6 +352,8 @@ function EditChannelPage() {
             <div className="flex min-w-max items-center gap-1">
               {TABS.map((t) => {
                 const active = tab === t.id;
+                const count =
+                  t.id === "shopee" ? productCounts.shopee : t.id === "ml" ? productCounts.mercadolivre : undefined;
                 return (
                   <button
                     key={t.id}
@@ -370,14 +372,14 @@ function EditChannelPage() {
                       <Check className="h-3 w-3 text-[color:var(--color-success)]" strokeWidth={3} />
                     )}
                     <span>{t.label}</span>
-                    {typeof t.count === "number" && (
+                    {typeof count === "number" && (
                       <span
                         className={cn(
                           "rounded-md px-1.5 py-0.5 text-[10px] font-bold",
                           active ? "bg-white/20" : "bg-muted text-muted-foreground",
                         )}
                       >
-                        {t.count}
+                        {count}
                       </span>
                     )}
                   </button>
