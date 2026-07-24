@@ -492,6 +492,7 @@ export type Database = {
       products: {
         Row: {
           affiliate_link: string
+          availability: string
           category: string | null
           commission_rate: number | null
           commission_value: number | null
@@ -499,6 +500,7 @@ export type Database = {
           id: string
           image_url: string | null
           item_id: string | null
+          last_validated_at: string | null
           original_price: number | null
           platform: string
           promo_price: number | null
@@ -508,9 +510,11 @@ export type Database = {
           title: string
           updated_at: string
           user_id: string
+          validation_error: string | null
         }
         Insert: {
           affiliate_link: string
+          availability?: string
           category?: string | null
           commission_rate?: number | null
           commission_value?: number | null
@@ -518,6 +522,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           item_id?: string | null
+          last_validated_at?: string | null
           original_price?: number | null
           platform?: string
           promo_price?: number | null
@@ -527,9 +532,11 @@ export type Database = {
           title: string
           updated_at?: string
           user_id: string
+          validation_error?: string | null
         }
         Update: {
           affiliate_link?: string
+          availability?: string
           category?: string | null
           commission_rate?: number | null
           commission_value?: number | null
@@ -537,6 +544,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           item_id?: string | null
+          last_validated_at?: string | null
           original_price?: number | null
           platform?: string
           promo_price?: number | null
@@ -546,6 +554,7 @@ export type Database = {
           title?: string
           updated_at?: string
           user_id?: string
+          validation_error?: string | null
         }
         Relationships: [
           {
