@@ -775,6 +775,45 @@ export type Database = {
         }
         Relationships: []
       }
+      site_configs: {
+        Row: {
+          created_at: string
+          ga_tag: string | null
+          logo_url: string | null
+          slug: string
+          theme_color: string
+          title: string
+          updated_at: string
+          use_for_all: boolean
+          use_for_amazon_ml: boolean
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          ga_tag?: string | null
+          logo_url?: string | null
+          slug: string
+          theme_color?: string
+          title?: string
+          updated_at?: string
+          use_for_all?: boolean
+          use_for_amazon_ml?: boolean
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          ga_tag?: string | null
+          logo_url?: string | null
+          slug?: string
+          theme_color?: string
+          title?: string
+          updated_at?: string
+          use_for_all?: boolean
+          use_for_amazon_ml?: boolean
+          user_id?: string
+        }
+        Relationships: []
+      }
       users: {
         Row: {
           created_at: string
