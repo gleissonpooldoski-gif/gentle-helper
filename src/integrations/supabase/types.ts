@@ -523,7 +523,7 @@ export type Database = {
           group_jid: string
           group_name: string
           id: string
-          instance_id: string | null
+          instance_id: string
           is_active: boolean
           platform: string
           updated_at: string
@@ -535,7 +535,7 @@ export type Database = {
           group_jid: string
           group_name: string
           id?: string
-          instance_id?: string | null
+          instance_id: string
           is_active?: boolean
           platform?: string
           updated_at?: string
@@ -547,7 +547,7 @@ export type Database = {
           group_jid?: string
           group_name?: string
           id?: string
-          instance_id?: string | null
+          instance_id?: string
           is_active?: boolean
           platform?: string
           updated_at?: string
