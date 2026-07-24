@@ -214,8 +214,15 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
   };
 
   const handleReconnect = async (i: WhatsAppInstanceDTO) => {
+    // Se já está conectado, não pede QR novo.
+    if (i.status === "connected") {
+      toast.success("WhatsApp já conectado");
+      return;
+    }
     try {
       setBusy(`rec:${i.id}`);
+      setQrTimedOut(false);
+      qrOpenedAtRef.current = Date.now();
       const upd = await reconnectFn({ data: { id: i.id } });
       setQrModal(upd);
     } catch (err) {
