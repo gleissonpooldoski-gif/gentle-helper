@@ -2708,7 +2708,8 @@ function MercadoLivrePanel({ onCountsChanged }: { onCountsChanged?: () => void }
   const reloadProducts = useCallback(async () => {
     const rows = await listProductsFn({ data: { channelId, platform: "mercadolivre" } });
     setChannelProducts(rows.map(channelProductToML));
-  }, [channelId, listProductsFn]);
+    onCountsChanged?.();
+  }, [channelId, listProductsFn, onCountsChanged]);
 
   useEffect(() => {
     void reloadProducts().catch((err) => {
