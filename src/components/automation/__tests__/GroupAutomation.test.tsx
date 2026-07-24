@@ -172,13 +172,15 @@ describe("Isolamento por grupo — GroupAutomationList + AutomationPanel", () =>
     const g1Before = { ...db.get(key("c1", "g1"))! };
     await userEvent.keyboard("{Escape}");
 
-    // 2) Edita G2: muda intervalo e desmarca loop, salva
+    // 2) Edita G2: muda intervalo e salva
     await openEditor(/Grupo Dois/);
     await waitForPanel("Grupo Dois");
-    const intervalInput = screen.getByLabelText(/intervalo/i) as HTMLInputElement;
+    // input de intervalo: type=number, valor default 15
+    const intervalInput = screen.getByDisplayValue("15") as HTMLInputElement;
     await userEvent.clear(intervalInput);
     await userEvent.type(intervalInput, "42");
     await userEvent.click(screen.getByRole("button", { name: /salvar/i }));
+
 
     await waitFor(() => {
       expect(db.get(key("c1", "g2"))?.intervaloMin).toBe(42);
