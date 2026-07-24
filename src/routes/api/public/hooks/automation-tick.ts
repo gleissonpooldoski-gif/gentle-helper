@@ -139,7 +139,10 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
     .maybeSingle();
 
   let groups: Array<{ group_jid: string; group_name: string | null }> = [];
-  if (inst) {
+  if (cfg.group_id) {
+    // Config específica de um grupo: envia SÓ para esse grupo.
+    groups = [{ group_jid: cfg.group_id, group_name: cfg.group_name ?? null }];
+  } else if (inst) {
     const { data: gsel } = await admin
       .from("whatsapp_group_selections")
       .select("group_jid, group_name")

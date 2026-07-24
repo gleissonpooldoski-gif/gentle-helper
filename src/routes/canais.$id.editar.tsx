@@ -31,7 +31,7 @@ import { WhatsAppInstancePanel } from "@/components/whatsapp/WhatsAppInstancePan
 import { SendToGroupsModal, type SendProduct } from "@/components/whatsapp/SendToGroupsModal";
 import { getPostLayout, savePostLayout } from "@/modules/posts/layout.functions";
 import { DEFAULT_POST_LAYOUT, type PostLayout } from "@/modules/posts/render";
-import { AutomationPanel } from "@/components/automation/AutomationPanel";
+import { GroupAutomationList } from "@/components/automation/GroupAutomationList";
 
 
 import {
@@ -408,8 +408,8 @@ function EditChannelPage() {
                 </p>
               </div>
 
-              {/* Frequência e Loop — motor de automação real */}
-              <AutomationPanel channelId={id} />
+              {/* Frequência e Loop — uma configuração independente por grupo */}
+              <GroupAutomationList channelId={id} />
             </aside>
           </div>
           )}

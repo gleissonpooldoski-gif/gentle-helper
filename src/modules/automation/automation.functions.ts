@@ -3,8 +3,8 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { apiClient } from "@/lib/api-client";
 
 /**
- * Motor de automação: agenda envios respeitando janela de horário, intervalo,
- * lojas ativas, ordem dos produtos e modo loop.
+ * Motor de automação por GRUPO: cada grupo de um canal possui sua própria
+ * configuração independente (janela, intervalo, lojas, loop, status, fila).
  */
 
 const VALID_STORES = new Set(["shopee", "mercadolivre", "magalu", "amazon"]);
@@ -12,6 +12,8 @@ const VALID_STORES = new Set(["shopee", "mercadolivre", "magalu", "amazon"]);
 export interface AutomationConfigDTO {
   id: string;
   channelId: string;
+  groupId: string | null;
+  groupName: string | null;
   horaInicio: string;
   horaFim: string;
   intervaloMin: number;
@@ -46,6 +48,11 @@ function normalizeStores(v: unknown): string[] {
   return Array.from(out);
 }
 
+function normalizeGroupId(v: unknown): string | null {
+  const s = String(v ?? "").trim();
+  return s.length > 0 ? s : null;
+}
+
 async function buildStatus(supabase: any, row: any): Promise<AutomationConfigDTO> {
   const { count } = await supabase
     .from("automation_queue")
@@ -65,6 +72,8 @@ async function buildStatus(supabase: any, row: any): Promise<AutomationConfigDTO
   return {
     id: row.id,
     channelId: row.channel_id,
+    groupId: row.group_id ?? null,
+    groupName: row.group_name ?? null,
     horaInicio: String(row.hora_inicio).slice(0, 5),
     horaFim: String(row.hora_fim).slice(0, 5),
     intervaloMin: row.intervalo_min,
@@ -81,51 +90,88 @@ async function buildStatus(supabase: any, row: any): Promise<AutomationConfigDTO
   };
 }
 
-async function ensureConfig(supabase: any, userId: string, channelId: string) {
-  const { data: row } = await supabase
+/**
+ * Busca a config EXATA para (user_id, channel_id, group_id). Se groupId for
+ * null, busca a config "channel-wide" (sem grupo). Nunca reaproveita a config
+ * de outro grupo.
+ */
+async function ensureConfig(
+  supabase: any,
+  userId: string,
+  channelId: string,
+  groupId: string | null,
+  groupName: string | null,
+) {
+  let q = supabase
     .from("automation_configs")
     .select("*")
     .eq("user_id", userId)
-    .eq("channel_id", channelId)
-    .maybeSingle();
-  if (row) return row;
+    .eq("channel_id", channelId);
+  q = groupId === null ? q.is("group_id", null) : q.eq("group_id", groupId);
+  const { data: row } = await q.maybeSingle();
+  if (row) {
+    // Atualiza o nome do grupo se veio novo/mudou.
+    if (groupId && groupName && row.group_name !== groupName) {
+      await supabase
+        .from("automation_configs")
+        .update({ group_name: groupName })
+        .eq("id", row.id);
+      row.group_name = groupName;
+    }
+    return row;
+  }
   const { data: ins, error } = await supabase
     .from("automation_configs")
-    .insert({ user_id: userId, channel_id: channelId })
+    .insert({
+      user_id: userId,
+      channel_id: channelId,
+      group_id: groupId,
+      group_name: groupName,
+    })
     .select("*")
     .single();
   if (error) throw new Error(error.message);
   return ins;
 }
 
+interface ScopeInput {
+  channelId: string;
+  groupId?: string | null;
+  groupName?: string | null;
+}
+
+function parseScope(data: ScopeInput) {
+  const channelId = String(data?.channelId ?? "").trim();
+  if (!channelId) throw new Error("channelId obrigatório");
+  return {
+    channelId,
+    groupId: normalizeGroupId(data?.groupId),
+    groupName: (data?.groupName ?? null) as string | null,
+  };
+}
+
 export const getAutomationConfig = createServerFn({ method: "POST" })
   .middleware([apiClient, requireSupabaseAuth])
-  .inputValidator((data: { channelId: string }) => {
-    const channelId = String(data?.channelId ?? "").trim();
-    if (!channelId) throw new Error("channelId obrigatório");
-    return { channelId };
-  })
+  .inputValidator((data: ScopeInput) => parseScope(data))
   .handler(async ({ data, context }): Promise<AutomationConfigDTO> => {
     const { supabase, userId } = context;
-    const row = await ensureConfig(supabase, userId, data.channelId);
+    const row = await ensureConfig(supabase, userId, data.channelId, data.groupId, data.groupName);
     return buildStatus(supabase, row);
   });
 
 export const saveAutomationConfig = createServerFn({ method: "POST" })
   .middleware([apiClient, requireSupabaseAuth])
-  .inputValidator((data: {
-    channelId: string;
+  .inputValidator((data: ScopeInput & {
     horaInicio: string;
     horaFim: string;
     intervaloMin: number;
     lojasAtivas: string[];
     postLoop: boolean;
   }) => {
-    const channelId = String(data?.channelId ?? "").trim();
-    if (!channelId) throw new Error("channelId obrigatório");
+    const scope = parseScope(data);
     const intervalo = Math.max(1, Math.min(1440, Number(data?.intervaloMin ?? 15) || 15));
     return {
-      channelId,
+      ...scope,
       horaInicio: normalizeTime(data?.horaInicio, "07:00:00"),
       horaFim: normalizeTime(data?.horaFim, "22:00:00"),
       intervaloMin: intervalo,
@@ -135,7 +181,7 @@ export const saveAutomationConfig = createServerFn({ method: "POST" })
   })
   .handler(async ({ data, context }): Promise<AutomationConfigDTO> => {
     const { supabase, userId } = context;
-    await ensureConfig(supabase, userId, data.channelId);
+    const cfg = await ensureConfig(supabase, userId, data.channelId, data.groupId, data.groupName);
     const { data: upd, error } = await supabase
       .from("automation_configs")
       .update({
@@ -145,8 +191,7 @@ export const saveAutomationConfig = createServerFn({ method: "POST" })
         lojas_ativas: data.lojasAtivas,
         post_loop: data.postLoop,
       })
-      .eq("user_id", userId)
-      .eq("channel_id", data.channelId)
+      .eq("id", cfg.id)
       .select("*")
       .single();
     if (error) throw new Error(error.message);
@@ -155,19 +200,14 @@ export const saveAutomationConfig = createServerFn({ method: "POST" })
 
 export const startAutomation = createServerFn({ method: "POST" })
   .middleware([apiClient, requireSupabaseAuth])
-  .inputValidator((data: { channelId: string }) => {
-    const channelId = String(data?.channelId ?? "").trim();
-    if (!channelId) throw new Error("channelId obrigatório");
-    return { channelId };
-  })
+  .inputValidator((data: ScopeInput) => parseScope(data))
   .handler(async ({ data, context }): Promise<AutomationConfigDTO> => {
     const { supabase, userId } = context;
-    const cfg = await ensureConfig(supabase, userId, data.channelId);
+    const cfg = await ensureConfig(supabase, userId, data.channelId, data.groupId, data.groupName);
 
     const lojas: string[] = cfg.lojas_ativas ?? [];
     if (lojas.length === 0) throw new Error("Selecione ao menos uma loja ativa");
 
-    // Snapshot dos produtos das lojas ativas
     const { data: prods, error: pErr } = await supabase
       .from("products")
       .select("id, title, platform, image_url, affiliate_link, created_at")
@@ -190,7 +230,6 @@ export const startAutomation = createServerFn({ method: "POST" })
       media_url: p.image_url,
       link: p.affiliate_link,
     }));
-    // Insere em batches para evitar payload muito grande
     for (let i = 0; i < rows.length; i += 500) {
       const chunk = rows.slice(i, i + 500);
       const { error } = await supabase.from("automation_queue").insert(chunk);
@@ -214,14 +253,10 @@ export const startAutomation = createServerFn({ method: "POST" })
 
 export const stopAutomation = createServerFn({ method: "POST" })
   .middleware([apiClient, requireSupabaseAuth])
-  .inputValidator((data: { channelId: string }) => {
-    const channelId = String(data?.channelId ?? "").trim();
-    if (!channelId) throw new Error("channelId obrigatório");
-    return { channelId };
-  })
+  .inputValidator((data: ScopeInput) => parseScope(data))
   .handler(async ({ data, context }): Promise<AutomationConfigDTO> => {
     const { supabase, userId } = context;
-    const cfg = await ensureConfig(supabase, userId, data.channelId);
+    const cfg = await ensureConfig(supabase, userId, data.channelId, data.groupId, data.groupName);
     const { data: upd, error } = await supabase
       .from("automation_configs")
       .update({ status: "idle", next_run_at: null })
@@ -244,8 +279,8 @@ export interface CampaignHistoryDTO {
 
 export const listCampaignHistory = createServerFn({ method: "POST" })
   .middleware([apiClient, requireSupabaseAuth])
-  .inputValidator((data: { channelId: string; limit?: number }) => ({
-    channelId: String(data?.channelId ?? "").trim(),
+  .inputValidator((data: ScopeInput & { limit?: number }) => ({
+    ...parseScope(data),
     limit: Math.min(50, Math.max(1, Number(data?.limit ?? 10) || 10)),
   }))
   .handler(async ({ data, context }): Promise<CampaignHistoryDTO[]> => {
@@ -257,13 +292,15 @@ export const listCampaignHistory = createServerFn({ method: "POST" })
       .order("sent_at", { ascending: false })
       .limit(data.limit);
     if (data.channelId) {
-      const { data: cfg } = await supabase
+      let cfgQ = supabase
         .from("automation_configs")
         .select("id")
         .eq("user_id", userId)
-        .eq("channel_id", data.channelId)
-        .maybeSingle();
+        .eq("channel_id", data.channelId);
+      cfgQ = data.groupId === null ? cfgQ.is("group_id", null) : cfgQ.eq("group_id", data.groupId);
+      const { data: cfg } = await cfgQ.maybeSingle();
       if (cfg) q = q.eq("config_id", cfg.id);
+      else return [];
     }
     const { data: rows, error } = await q;
     if (error) throw new Error(error.message);
@@ -277,3 +314,44 @@ export const listCampaignHistory = createServerFn({ method: "POST" })
       errorMessage: r.error_message,
     }));
   });
+
+const DEFAULT_INSTANCE = "DIVULGA LINKS";
+
+export interface AutomationGroupDTO {
+  groupId: string;
+  groupName: string | null;
+}
+
+/**
+ * Lista os grupos disponíveis para automação no canal (grupos selecionados
+ * na instância padrão DIVULGA LINKS). Cada grupo é editado independentemente.
+ */
+export const listAutomationGroups = createServerFn({ method: "POST" })
+  .middleware([apiClient, requireSupabaseAuth])
+  .inputValidator((data: { channelId: string }) => {
+    const channelId = String(data?.channelId ?? "").trim();
+    if (!channelId) throw new Error("channelId obrigatório");
+    return { channelId };
+  })
+  .handler(async ({ context }): Promise<AutomationGroupDTO[]> => {
+    const { supabase, userId } = context;
+    const { data: inst } = await supabase
+      .from("whatsapp_instances")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("instance_name", DEFAULT_INSTANCE)
+      .maybeSingle();
+    if (!inst) return [];
+    const { data: sel, error } = await supabase
+      .from("whatsapp_group_selections")
+      .select("group_jid, group_name")
+      .eq("user_id", userId)
+      .eq("instance_id", inst.id)
+      .order("group_name", { ascending: true });
+    if (error) throw new Error(error.message);
+    return (sel ?? []).map((r: any) => ({
+      groupId: r.group_jid,
+      groupName: r.group_name ?? null,
+    }));
+  });
+
