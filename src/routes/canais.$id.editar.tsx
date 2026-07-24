@@ -409,8 +409,9 @@ function EditChannelPage() {
                 </p>
               </div>
 
-              {/* Frequência e Loop — motor de automação real */}
-              <AutomationPanel channelId={id} />
+              {/* Frequência e Loop — uma configuração independente por grupo */}
+              <GroupAutomationList channelId={id} />
+              <AutomationPanel channelId={id} title="Automação do canal (sem grupo)" />
             </aside>
           </div>
           )}
