@@ -244,4 +244,24 @@ export const evolutionProvider: WhatsAppProvider = {
     const id = res?.key?.id ?? res?.messageId ?? res?.id;
     return { id: typeof id === "string" ? id : undefined };
   },
+
+  async sendMedia(instanceName, jid, { mediaUrl, caption, fileName }): Promise<{ id?: string }> {
+    const number = jid.includes("@") ? jid.split("@")[0] : jid;
+    const body = {
+      number,
+      mediatype: "image",
+      mimetype: "image/jpeg",
+      caption,
+      media: mediaUrl,
+      fileName: fileName ?? "produto.jpg",
+      // compat com diferentes builds da Evolution
+      mediaMessage: { mediatype: "image", media: mediaUrl, caption, fileName: fileName ?? "produto.jpg" },
+    };
+    const res = await evolutionJson<any>(
+      `/message/sendMedia/${encodeURIComponent(instanceName)}`,
+      { method: "POST", body: JSON.stringify(body) },
+    );
+    const id = res?.key?.id ?? res?.messageId ?? res?.id;
+    return { id: typeof id === "string" ? id : undefined };
+  },
 };
