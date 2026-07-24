@@ -43,6 +43,13 @@ function computeWebhookUrl(): string | undefined {
   }
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function toUuidOrNull(v: unknown): string | null {
+  if (!v) return null;
+  const s = String(v).trim();
+  return UUID_RE.test(s) ? s : null;
+}
+
 /** Lista instâncias do usuário (opcionalmente do canal). */
 export const listWhatsAppInstances = createServerFn({ method: "POST" })
   .middleware([apiClient, requireSupabaseAuth])
