@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Save, Play, Square, Loader2, Clock, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Save, Play, Square, Loader2, Clock, AlertTriangle, CheckCircle2, Plus, Trash2, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import {
   getAutomationConfig,
@@ -11,9 +12,17 @@ import {
   startAutomation,
   stopAutomation,
   listCampaignHistory,
+  listAutomationProducts,
+  listAvailableProducts,
+  addAutomationProducts,
+  removeAutomationProduct,
+  clearAutomationQueue,
   type AutomationConfigDTO,
+  type AutomationQueueItemDTO,
+  type AvailableProductDTO,
   type CampaignHistoryDTO,
 } from "@/modules/automation/automation.functions";
+
 
 const STORE_OPTIONS: Array<{ slug: string; label: string }> = [
   { slug: "shopee", label: "Shopee" },
@@ -67,6 +76,11 @@ export function AutomationPanel({ channelId, groupId = null, groupName = null, t
   const startFn = useServerFn(startAutomation);
   const stopFn = useServerFn(stopAutomation);
   const histFn = useServerFn(listCampaignHistory);
+  const listQueueFn = useServerFn(listAutomationProducts);
+  const listAvailFn = useServerFn(listAvailableProducts);
+  const addProdFn = useServerFn(addAutomationProducts);
+  const removeProdFn = useServerFn(removeAutomationProduct);
+  const clearQueueFn = useServerFn(clearAutomationQueue);
 
   const scope = { channelId, groupId, groupName };
 
@@ -80,6 +94,13 @@ export function AutomationPanel({ channelId, groupId = null, groupName = null, t
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState(false);
   const [history, setHistory] = useState<CampaignHistoryDTO[]>([]);
+  const [queue, setQueue] = useState<AutomationQueueItemDTO[]>([]);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [available, setAvailable] = useState<AvailableProductDTO[]>([]);
+  const [availLoading, setAvailLoading] = useState(false);
+  const [availSearch, setAvailSearch] = useState("");
+  const [picked, setPicked] = useState<Record<string, boolean>>({});
+  const [addingProducts, setAddingProducts] = useState(false);
 
   const applyCfg = (c: AutomationConfigDTO) => {
     setCfg(c);
@@ -92,12 +113,14 @@ export function AutomationPanel({ channelId, groupId = null, groupName = null, t
 
   const refresh = async () => {
     try {
-      const [c, h] = await Promise.all([
+      const [c, h, q] = await Promise.all([
         getFn({ data: scope }),
         histFn({ data: { ...scope, limit: 5 } }),
+        listQueueFn({ data: scope }),
       ]);
       setCfg(c);
       setHistory(h);
+      setQueue(q);
     } catch (err) {
       console.error(err);
     }
@@ -107,6 +130,7 @@ export function AutomationPanel({ channelId, groupId = null, groupName = null, t
     let cancelled = false;
     setCfg(null);
     setHistory([]);
+    setQueue([]);
     setHoraInicio("07:00");
     setHoraFim("22:00");
     setIntervalo(15);
@@ -118,9 +142,13 @@ export function AutomationPanel({ channelId, groupId = null, groupName = null, t
         const c = await getFn({ data: scope });
         if (cancelled) return;
         applyCfg(c);
-        const h = await histFn({ data: { ...scope, limit: 5 } });
+        const [h, q] = await Promise.all([
+          histFn({ data: { ...scope, limit: 5 } }),
+          listQueueFn({ data: scope }),
+        ]);
         if (cancelled) return;
         setHistory(h);
+        setQueue(q);
       } catch (err) {
         if (!cancelled) toast.error(err instanceof Error ? err.message : "Falha ao carregar automação");
       } finally {
@@ -134,6 +162,74 @@ export function AutomationPanel({ channelId, groupId = null, groupName = null, t
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channelId, groupId]);
+
+  const openPicker = async () => {
+    setPickerOpen(true);
+    setPicked({});
+    setAvailSearch("");
+    setAvailLoading(true);
+    try {
+      const list = await listAvailFn({ data: { ...scope, platforms: lojas } });
+      setAvailable(list);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao carregar produtos");
+    } finally {
+      setAvailLoading(false);
+    }
+  };
+
+  const runSearch = async (term: string) => {
+    setAvailSearch(term);
+    setAvailLoading(true);
+    try {
+      const list = await listAvailFn({
+        data: { ...scope, platforms: lojas, search: term },
+      });
+      setAvailable(list);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao buscar");
+    } finally {
+      setAvailLoading(false);
+    }
+  };
+
+  const handleAddSelected = async () => {
+    const ids = Object.entries(picked).filter(([, v]) => v).map(([k]) => k);
+    if (ids.length === 0) return;
+    setAddingProducts(true);
+    try {
+      const q = await addProdFn({ data: { ...scope, productIds: ids } });
+      setQueue(q);
+      toast.success(`${ids.length} produto(s) adicionado(s)`);
+      setPickerOpen(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao adicionar");
+    } finally {
+      setAddingProducts(false);
+    }
+  };
+
+  const handleRemove = async (queueItemId: string) => {
+    try {
+      await removeProdFn({ data: { ...scope, queueItemId } });
+      setQueue((prev) => prev.filter((x) => x.id !== queueItemId));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao remover");
+    }
+  };
+
+  const handleClearQueue = async () => {
+    if (!confirm("Remover todos os produtos da fila deste grupo?")) return;
+    try {
+      await clearQueueFn({ data: scope });
+      setQueue([]);
+      toast.success("Fila esvaziada");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao limpar");
+    }
+  };
+
+
 
 
   const toggleLoja = (slug: string) => {
@@ -255,7 +351,7 @@ export function AutomationPanel({ channelId, groupId = null, groupName = null, t
           </label>
 
           <p className="mt-5 mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Lojas ativas
+            Filtro de lojas <span className="normal-case text-muted-foreground/70">(usado só para listar produtos ao adicionar)</span>
           </p>
           <div className="grid grid-cols-2 gap-1.5">
             {STORE_OPTIONS.map((s) => (
@@ -270,6 +366,56 @@ export function AutomationPanel({ channelId, groupId = null, groupName = null, t
               </label>
             ))}
           </div>
+
+          <div className="mt-5">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Produtos deste grupo <span className="ml-1 text-foreground/80">({queue.length})</span>
+              </p>
+              <div className="flex gap-1.5">
+                {queue.length > 0 && (
+                  <Button type="button" size="sm" variant="ghost" onClick={handleClearQueue} className="h-7 px-2 text-[11px] text-red-600 hover:text-red-700">
+                    Limpar
+                  </Button>
+                )}
+                <Button type="button" size="sm" variant="outline" onClick={openPicker} className="h-7 gap-1 px-2 text-[11px]">
+                  <Plus className="h-3 w-3" /> Adicionar
+                </Button>
+              </div>
+            </div>
+            {queue.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-border/60 bg-muted/20 p-4 text-center text-[12px] text-muted-foreground">
+                <Package className="mx-auto mb-1 h-4 w-4 opacity-60" />
+                Nenhum produto na fila. Clique em <b>Adicionar</b> para escolher os produtos deste grupo.
+              </div>
+            ) : (
+              <ul className="max-h-48 space-y-1 overflow-y-auto rounded-lg border border-border/60 bg-background p-2">
+                {queue.map((q, i) => (
+                  <li key={q.id} className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-muted/50">
+                    <span className="w-5 text-[10px] font-semibold text-muted-foreground">{i + 1}</span>
+                    {q.mediaUrl ? (
+                      <img src={q.mediaUrl} alt="" className="h-8 w-8 shrink-0 rounded object-cover" />
+                    ) : (
+                      <div className="h-8 w-8 shrink-0 rounded bg-muted" />
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[12px] font-medium">{q.title}</p>
+                      <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{q.store}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRemove(q.id)}
+                      className="rounded p-1 text-muted-foreground hover:bg-red-500/10 hover:text-red-600"
+                      title="Remover"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
 
           <div className="mt-5 flex gap-2">
             <Button onClick={handleSave} disabled={saving} className="flex-1 h-10">
@@ -348,6 +494,69 @@ export function AutomationPanel({ channelId, groupId = null, groupName = null, t
           )}
         </>
       )}
+
+      <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-base">Adicionar produtos a este grupo</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Input
+              placeholder="Buscar por título…"
+              value={availSearch}
+              onChange={(e) => runSearch(e.target.value)}
+              className="h-9"
+            />
+            <div className="max-h-72 overflow-y-auto rounded-lg border border-border/60">
+              {availLoading ? (
+                <div className="flex items-center justify-center gap-2 p-6 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Carregando…
+                </div>
+              ) : available.length === 0 ? (
+                <div className="p-6 text-center text-[12px] text-muted-foreground">
+                  Nenhum produto disponível. Importe produtos ou ajuste o filtro de lojas.
+                </div>
+              ) : (
+                <ul className="divide-y divide-border/60">
+                  {available.map((p) => (
+                    <li key={p.id} className="flex items-center gap-2 p-2">
+                      <input
+                        type="checkbox"
+                        checked={!!picked[p.id]}
+                        onChange={(e) => setPicked((prev) => ({ ...prev, [p.id]: e.target.checked }))}
+                        className="h-4 w-4 rounded border-border"
+                      />
+                      {p.imageUrl ? (
+                        <img src={p.imageUrl} alt="" className="h-9 w-9 shrink-0 rounded object-cover" />
+                      ) : (
+                        <div className="h-9 w-9 shrink-0 rounded bg-muted" />
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[12px] font-medium">{p.title}</p>
+                        <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{p.platform}</p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => setPickerOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              onClick={handleAddSelected}
+              disabled={addingProducts || Object.values(picked).every((v) => !v)}
+            >
+              {addingProducts ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Plus className="mr-1.5 h-4 w-4" />}
+              Adicionar selecionados
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
+
