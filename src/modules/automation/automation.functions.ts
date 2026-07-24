@@ -307,23 +307,13 @@ export const listAutomationGroups = createServerFn({ method: "POST" })
       .from("whatsapp_group_selections")
       .select("group_jid, group_name")
       .eq("user_id", userId)
-      .eq("instance_id", data.channelId ? data.channelId : "")
+      .eq("instance_id", inst.id)
       .eq("channel_id", data.channelId)
       .order("group_name", { ascending: true });
-    // fallback: se a query acima não retornar por conta do instance_id, buscamos por canal apenas
-    if (error) {
-      const { data: sel2, error: e2 } = await supabase
-        .from("whatsapp_group_selections")
-        .select("group_jid, group_name")
-        .eq("user_id", userId)
-        .eq("instance_id", inst.id)
-        .eq("channel_id", data.channelId)
-        .order("group_name", { ascending: true });
-      if (e2) throw new Error(e2.message);
-      return (sel2 ?? []).map((r: any) => ({ groupId: r.group_jid, groupName: r.group_name ?? null }));
-    }
+    if (error) throw new Error(error.message);
     return (sel ?? []).map((r: any) => ({
       groupId: r.group_jid,
       groupName: r.group_name ?? null,
     }));
   });
+
