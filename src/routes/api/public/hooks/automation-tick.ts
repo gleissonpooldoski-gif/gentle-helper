@@ -57,24 +57,8 @@ function nextWindowOpen(start: string): Date {
 }
 
 async function evolutionFetch(path: string, init?: RequestInit) {
-  const base = (process.env.EVOLUTION_API_URL || "").replace(/\/$/, "");
-  const key = process.env.EVOLUTION_API_KEY || "";
-  if (!base || !key) throw new Error("Evolution API não configurada");
-  const res = await fetch(`${base}${path}`, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      apikey: key,
-      ...(init?.headers || {}),
-    },
-  });
-  const text = await res.text();
-  let json: any = null;
-  try { json = text ? JSON.parse(text) : null; } catch { /* raw */ }
-  if (!res.ok) {
-    throw new Error(`Evolution ${res.status}: ${text.slice(0, 200)}`);
-  }
-  return json;
+  const { evolutionJson } = await import("@/modules/whatsapp/evolution/client.server");
+  return evolutionJson<any>(path, init);
 }
 
 async function connectionState(instance: string): Promise<string> {
