@@ -110,11 +110,14 @@ export const listChannelDashboards = createServerFn({ method: "GET" })
         .select("id, name, external_id, auto_post, interval_min, random_order")
         .eq("user_id", userId)
         .order("created_at", { ascending: true }),
-      supabase.from("products").select("platform").eq("user_id", userId),
+      supabase
+        .from("products")
+        .select("platform, availability, affiliate_link")
+        .eq("user_id", userId),
       supabase.from("whatsapp_instances").select("channel_id, status").eq("user_id", userId),
       supabase
         .from("automation_configs")
-        .select("channel_id, status")
+        .select("id, channel_id, status, lojas_ativas")
         .eq("user_id", userId),
       supabase
         .from("whatsapp_campaign_history")
@@ -125,19 +128,16 @@ export const listChannelDashboards = createServerFn({ method: "GET" })
 
     if (channelsRes.error) throw new Error(channelsRes.error.message);
 
-    // Total per-platform product counts are shared per user (products table is not scoped by channel).
-    const productsByPlatformMap = new Map<string, number>();
-    for (const row of (productsRes.data ?? []) as { platform: string | null }[]) {
+    // Index products by platform (only active + affiliate-linked count as "available for a channel").
+    const productsByPlatformAll = new Map<string, number>();
+    for (const row of (productsRes.data ?? []) as { platform: string | null; availability: string | null; affiliate_link: string | null }[]) {
+      if ((row.availability ?? "").toLowerCase() !== "active") continue;
+      if (!row.affiliate_link) continue;
       const p = (row.platform ?? "outros").toLowerCase();
-      productsByPlatformMap.set(p, (productsByPlatformMap.get(p) ?? 0) + 1);
+      productsByPlatformAll.set(p, (productsByPlatformAll.get(p) ?? 0) + 1);
     }
-    const productsByPlatform = Array.from(productsByPlatformMap.entries()).map(([platform, count]) => ({
-      platform: labelPlatform(platform),
-      count,
-    }));
-    const productsTotal = (productsRes.data ?? []).length;
 
-    // WhatsApp per channel: connected when any instance for that channel is in 'open' state.
+    // WhatsApp per channel
     const waByChannel = new Map<string, boolean>();
     for (const inst of (instancesRes.data ?? []) as { channel_id: string | null; status: string | null }[]) {
       if (!inst.channel_id) continue;
@@ -145,28 +145,26 @@ export const listChannelDashboards = createServerFn({ method: "GET" })
       waByChannel.set(inst.channel_id, connected || (waByChannel.get(inst.channel_id) ?? false));
     }
 
-    // Automation active: any config for channel with status='active'.
+    // Automation per channel: active flag + union of lojas_ativas + config_id map.
     const automationByChannel = new Map<string, boolean>();
-    const configIdsByChannel = new Map<string, string[]>();
-    for (const cfg of (configsRes.data ?? []) as any[]) {
+    const lojasByChannel = new Map<string, Set<string>>();
+    const channelByConfigId = new Map<string, string>();
+    for (const cfg of (configsRes.data ?? []) as {
+      id: string;
+      channel_id: string | null;
+      status: string | null;
+      lojas_ativas: string[] | null;
+    }[]) {
       if (!cfg.channel_id) continue;
+      channelByConfigId.set(cfg.id, cfg.channel_id);
       const active = String(cfg.status ?? "").toLowerCase() === "active";
       automationByChannel.set(cfg.channel_id, active || (automationByChannel.get(cfg.channel_id) ?? false));
-      const arr = configIdsByChannel.get(cfg.channel_id) ?? [];
-      if (cfg.id) arr.push(cfg.id);
-      configIdsByChannel.set(cfg.channel_id, arr);
-    }
-    // Re-fetch config ids (previous select omitted id) — cheaper: request again with id included.
-    const configsWithIds = await supabase
-      .from("automation_configs")
-      .select("id, channel_id")
-      .eq("user_id", userId);
-    const channelByConfigId = new Map<string, string>();
-    for (const c of (configsWithIds.data ?? []) as { id: string; channel_id: string | null }[]) {
-      if (c.channel_id) channelByConfigId.set(c.id, c.channel_id);
+      const set = lojasByChannel.get(cfg.channel_id) ?? new Set<string>();
+      for (const l of cfg.lojas_ativas ?? []) set.add(String(l).toLowerCase());
+      lojasByChannel.set(cfg.channel_id, set);
     }
 
-    // 30d sends grouped by channel and by platform (using campaign history's `store` field).
+    // 30d sends grouped by channel and by platform (via config_id → channel_id).
     const sentByChannel = new Map<string, number>();
     const sentByChannelPlatform = new Map<string, Map<string, number>>();
     for (const h of (historyRes.data ?? []) as { config_id: string | null; store: string | null }[]) {
@@ -182,6 +180,17 @@ export const listChannelDashboards = createServerFn({ method: "GET" })
 
     return (channelsRes.data ?? []).map((row: any) => {
       const base = mapChannel(row);
+      const lojas = lojasByChannel.get(base.id) ?? new Set<string>();
+
+      // Per-channel product counts: only platforms in this channel's lojas_ativas.
+      const productsByPlatform: { platform: string; count: number }[] = [];
+      let productsTotal = 0;
+      for (const platform of lojas) {
+        const count = productsByPlatformAll.get(platform) ?? 0;
+        productsTotal += count;
+        productsByPlatform.push({ platform: labelPlatform(platform), count });
+      }
+
       const inner = sentByChannelPlatform.get(base.id);
       const sentByPlatformLast30d = inner
         ? Array.from(inner.entries()).map(([platform, count]) => ({
@@ -189,6 +198,7 @@ export const listChannelDashboards = createServerFn({ method: "GET" })
             count,
           }))
         : [];
+
       return {
         ...base,
         productsTotal,
