@@ -403,6 +403,47 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_group_selections: {
+        Row: {
+          channel_id: string | null
+          created_at: string
+          group_jid: string
+          group_name: string | null
+          id: string
+          instance_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          channel_id?: string | null
+          created_at?: string
+          group_jid: string
+          group_name?: string | null
+          id?: string
+          instance_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          channel_id?: string | null
+          created_at?: string
+          group_jid?: string
+          group_name?: string | null
+          id?: string
+          instance_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_group_selections_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_instances: {
         Row: {
           channel_id: string | null

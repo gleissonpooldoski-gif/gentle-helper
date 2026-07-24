@@ -11,6 +11,9 @@ import {
   CheckCircle2,
   X,
   Smartphone,
+  Users,
+  Send,
+  Download,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -21,7 +24,13 @@ import {
   reconnectWhatsAppInstance,
   disconnectWhatsAppInstance,
   deleteWhatsAppInstance,
+  adoptEvolutionInstance,
+  fetchWhatsAppGroups,
+  saveWhatsAppGroupSelection,
+  sendWhatsAppText,
+  sendWhatsAppCampaign,
   type WhatsAppInstanceDTO,
+  type WhatsAppGroupDTO,
 } from "@/modules/whatsapp/instances.functions";
 
 interface Props {
@@ -44,12 +53,32 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
   const disconnectFn = useServerFn(disconnectWhatsAppInstance);
   const deleteFn = useServerFn(deleteWhatsAppInstance);
 
+  const adoptFn = useServerFn(adoptEvolutionInstance);
+  const groupsFn = useServerFn(fetchWhatsAppGroups);
+  const saveGroupsFn = useServerFn(saveWhatsAppGroupSelection);
+  const sendTextFn = useServerFn(sendWhatsAppText);
+  const sendCampaignFn = useServerFn(sendWhatsAppCampaign);
+
   const [items, setItems] = useState<WhatsAppInstanceDTO[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const [qrModal, setQrModal] = useState<WhatsAppInstanceDTO | null>(null);
+  const [adoptOpen, setAdoptOpen] = useState(false);
+  const [adoptName, setAdoptName] = useState("");
+  const [groupsModal, setGroupsModal] = useState<{
+    inst: WhatsAppInstanceDTO;
+    groups: WhatsAppGroupDTO[];
+    loading: boolean;
+    filter: string;
+  } | null>(null);
+  const [sendModal, setSendModal] = useState<{
+    inst: WhatsAppInstanceDTO;
+    text: string;
+    jid: string;
+    mode: "test" | "campaign";
+  } | null>(null);
 
   const reload = useCallback(async () => {
     try {
@@ -182,6 +211,89 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
     }
   };
 
+  const handleAdopt = async () => {
+    const name = adoptName.trim();
+    if (!name) return;
+    try {
+      setBusy("adopt");
+      await adoptFn({ data: { instanceName: name, channelId } });
+      toast.success("Instância importada");
+      setAdoptOpen(false);
+      setAdoptName("");
+      await reload();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao importar");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const openGroups = async (i: WhatsAppInstanceDTO) => {
+    setGroupsModal({ inst: i, groups: [], loading: true, filter: "" });
+    try {
+      const gs = await groupsFn({ data: { id: i.id } });
+      setGroupsModal((m) => (m ? { ...m, groups: gs, loading: false } : m));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao buscar grupos");
+      setGroupsModal(null);
+    }
+  };
+
+  const toggleGroup = (jid: string) => {
+    setGroupsModal((m) =>
+      m
+        ? {
+            ...m,
+            groups: m.groups.map((g) => (g.jid === jid ? { ...g, selected: !g.selected } : g)),
+          }
+        : m,
+    );
+  };
+
+  const saveGroups = async () => {
+    if (!groupsModal) return;
+    try {
+      setBusy("groups:save");
+      const chosen = groupsModal.groups
+        .filter((g) => g.selected)
+        .map((g) => ({ jid: g.jid, name: g.name }));
+      await saveGroupsFn({ data: { id: groupsModal.inst.id, groups: chosen } });
+      toast.success(`${chosen.length} grupo(s) salvo(s)`);
+      setGroupsModal(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao salvar");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleSend = async () => {
+    if (!sendModal) return;
+    try {
+      setBusy("send");
+      if (sendModal.mode === "test") {
+        if (!sendModal.jid.trim()) {
+          toast.error("Informe número ou JID de destino");
+          return;
+        }
+        await sendTextFn({
+          data: { id: sendModal.inst.id, jid: sendModal.jid.trim(), text: sendModal.text },
+        });
+        toast.success("Mensagem enviada");
+      } else {
+        const res = await sendCampaignFn({
+          data: { id: sendModal.inst.id, text: sendModal.text },
+        });
+        toast.success(`Campanha: ${res.sent} enviada(s), ${res.failed} falha(s)`);
+      }
+      setSendModal(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao enviar");
+    } finally {
+      setBusy(null);
+    }
+  };
+
   return (
     <div className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm">
       <div className="flex items-center justify-between border-b border-border/70 bg-gradient-to-r from-emerald-600 to-emerald-700 px-5 py-4 text-white">
@@ -189,14 +301,24 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
           <Smartphone className="h-5 w-5" />
           <h3 className="text-base font-semibold">WhatsApp — Instâncias</h3>
         </div>
-        <Button
-          size="sm"
-          variant="secondary"
-          onClick={() => setModalOpen(true)}
-          className="bg-white text-emerald-700 hover:bg-white/90"
-        >
-          <Plus className="mr-1 h-4 w-4" /> Conectar novo número
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => setAdoptOpen(true)}
+            className="bg-white/10 text-white ring-1 ring-white/30 hover:bg-white/20"
+          >
+            <Download className="mr-1 h-4 w-4" /> Importar existente
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => setModalOpen(true)}
+            className="bg-white text-emerald-700 hover:bg-white/90"
+          >
+            <Plus className="mr-1 h-4 w-4" /> Conectar novo número
+          </Button>
+        </div>
       </div>
 
       <div className="p-5">
@@ -249,14 +371,28 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
                       </Button>
                     )}
                     {i.status === "connected" && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleDisconnect(i)}
-                        disabled={busy === `dis:${i.id}`}
-                      >
-                        <Power className="mr-1 h-4 w-4" /> Desconectar
-                      </Button>
+                      <>
+                        <Button size="sm" variant="outline" onClick={() => openGroups(i)}>
+                          <Users className="mr-1 h-4 w-4" /> Grupos
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            setSendModal({ inst: i, text: "", jid: "", mode: "test" })
+                          }
+                        >
+                          <Send className="mr-1 h-4 w-4" /> Enviar
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleDisconnect(i)}
+                          disabled={busy === `dis:${i.id}`}
+                        >
+                          <Power className="mr-1 h-4 w-4" /> Desconectar
+                        </Button>
+                      </>
                     )}
                     <Button
                       size="sm"
@@ -401,6 +537,221 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
                 onClick={() => setQrModal(null)}
               >
                 {qrModal.status === "connected" ? "Concluir" : "Fechar"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Importar existente */}
+      {adoptOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => !busy && setAdoptOpen(false)}
+        >
+          <div
+            className="w-full max-w-sm overflow-hidden rounded-2xl bg-card shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between bg-emerald-700 px-5 py-4 text-white">
+              <h4 className="font-semibold">Importar instância existente</h4>
+              <button onClick={() => !busy && setAdoptOpen(false)} aria-label="Fechar">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="space-y-4 px-5 py-6">
+              <p className="text-xs text-muted-foreground">
+                Informe o nome exato da instância já criada na Evolution API (ex:{" "}
+                <b>DIVULGA LINKS</b>).
+              </p>
+              <input
+                autoFocus
+                value={adoptName}
+                onChange={(e) => setAdoptName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleAdopt()}
+                placeholder="Nome da instância"
+                className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20"
+              />
+            </div>
+            <div className="border-t border-border bg-muted/30 px-5 py-4">
+              <Button
+                onClick={handleAdopt}
+                disabled={busy === "adopt" || !adoptName.trim()}
+                className="h-11 w-full bg-emerald-600 hover:bg-emerald-700"
+              >
+                {busy === "adopt" ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="mr-2 h-4 w-4" />
+                )}
+                Importar
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Grupos */}
+      {groupsModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => !busy && setGroupsModal(null)}
+        >
+          <div
+            className="flex w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-card shadow-2xl"
+            style={{ maxHeight: "85vh" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between bg-emerald-700 px-5 py-4 text-white">
+              <h4 className="font-semibold">Grupos — {groupsModal.inst.instanceName}</h4>
+              <button onClick={() => setGroupsModal(null)} aria-label="Fechar">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="border-b border-border px-5 py-3">
+              <input
+                value={groupsModal.filter}
+                onChange={(e) =>
+                  setGroupsModal((m) => (m ? { ...m, filter: e.target.value } : m))
+                }
+                placeholder="Filtrar grupos…"
+                className="h-9 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20"
+              />
+            </div>
+            <div className="flex-1 overflow-y-auto px-5 py-3">
+              {groupsModal.loading ? (
+                <div className="flex items-center justify-center py-8 text-muted-foreground">
+                  <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Carregando grupos…
+                </div>
+              ) : groupsModal.groups.length === 0 ? (
+                <p className="py-8 text-center text-sm text-muted-foreground">
+                  Nenhum grupo encontrado.
+                </p>
+              ) : (
+                <ul className="space-y-1">
+                  {groupsModal.groups
+                    .filter((g) =>
+                      g.name.toLowerCase().includes(groupsModal.filter.toLowerCase()),
+                    )
+                    .map((g) => (
+                      <li key={g.jid}>
+                        <label className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 hover:bg-muted/50">
+                          <input
+                            type="checkbox"
+                            checked={g.selected}
+                            onChange={() => toggleGroup(g.jid)}
+                            className="h-4 w-4 accent-emerald-600"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium">{g.name}</p>
+                            <p className="truncate text-[11px] text-muted-foreground">
+                              {g.participants ? `${g.participants} membros` : g.jid}
+                            </p>
+                          </div>
+                        </label>
+                      </li>
+                    ))}
+                </ul>
+              )}
+            </div>
+            <div className="flex items-center justify-between gap-2 border-t border-border bg-muted/30 px-5 py-4">
+              <span className="text-xs text-muted-foreground">
+                {groupsModal.groups.filter((g) => g.selected).length} selecionado(s)
+              </span>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setGroupsModal(null)}>
+                  Cancelar
+                </Button>
+                <Button
+                  className="bg-emerald-600 hover:bg-emerald-700"
+                  onClick={saveGroups}
+                  disabled={busy === "groups:save"}
+                >
+                  {busy === "groups:save" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Salvar seleção
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Enviar */}
+      {sendModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => !busy && setSendModal(null)}
+        >
+          <div
+            className="w-full max-w-md overflow-hidden rounded-2xl bg-card shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between bg-emerald-700 px-5 py-4 text-white">
+              <h4 className="font-semibold">Enviar mensagem</h4>
+              <button onClick={() => setSendModal(null)} aria-label="Fechar">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="space-y-4 px-5 py-6">
+              <div className="flex gap-2 rounded-lg bg-muted p-1 text-xs font-semibold">
+                <button
+                  onClick={() => setSendModal((m) => (m ? { ...m, mode: "test" } : m))}
+                  className={`flex-1 rounded-md px-3 py-1.5 ${sendModal.mode === "test" ? "bg-background shadow" : "text-muted-foreground"}`}
+                >
+                  Teste (1 destino)
+                </button>
+                <button
+                  onClick={() => setSendModal((m) => (m ? { ...m, mode: "campaign" } : m))}
+                  className={`flex-1 rounded-md px-3 py-1.5 ${sendModal.mode === "campaign" ? "bg-background shadow" : "text-muted-foreground"}`}
+                >
+                  Campanha (grupos salvos)
+                </button>
+              </div>
+              {sendModal.mode === "test" && (
+                <div>
+                  <label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Número (5511...) ou JID
+                  </label>
+                  <input
+                    value={sendModal.jid}
+                    onChange={(e) =>
+                      setSendModal((m) => (m ? { ...m, jid: e.target.value } : m))
+                    }
+                    placeholder="55119XXXXXXXX ou 5511...@g.us"
+                    className="mt-1 h-10 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20"
+                  />
+                </div>
+              )}
+              <div>
+                <label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Mensagem
+                </label>
+                <textarea
+                  value={sendModal.text}
+                  onChange={(e) =>
+                    setSendModal((m) => (m ? { ...m, text: e.target.value } : m))
+                  }
+                  rows={5}
+                  placeholder="Digite sua mensagem…"
+                  className="mt-1 w-full rounded-lg border border-border bg-background p-3 text-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 border-t border-border bg-muted/30 px-5 py-4">
+              <Button variant="outline" className="flex-1" onClick={() => setSendModal(null)}>
+                Cancelar
+              </Button>
+              <Button
+                className="flex-1 bg-emerald-600 hover:bg-emerald-700"
+                onClick={handleSend}
+                disabled={busy === "send" || !sendModal.text.trim()}
+              >
+                {busy === "send" ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="mr-2 h-4 w-4" />
+                )}
+                Enviar
               </Button>
             </div>
           </div>

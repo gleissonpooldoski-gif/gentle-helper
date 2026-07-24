@@ -23,19 +23,23 @@ export interface WhatsAppProviderStatus {
   qr: WhatsAppQRCode | null;
 }
 
+export interface WhatsAppGroup {
+  jid: string;
+  name: string;
+  participants: number | null;
+  pictureUrl: string | null;
+}
+
 export interface WhatsAppProvider {
   readonly name: string;
-  /** Cria (ou reutiliza) uma instância remota. Retorna já o QR inicial se possível. */
   createInstance(input: {
     instanceName: string;
     webhookUrl?: string;
   }): Promise<WhatsAppProviderStatus>;
-  /** Solicita novo QR ou reconecta. */
   reconnect(instanceName: string): Promise<WhatsAppProviderStatus>;
-  /** Consulta status atual. */
   getStatus(instanceName: string): Promise<WhatsAppProviderStatus>;
-  /** Desconecta a sessão (mantém instância). */
   disconnect(instanceName: string): Promise<void>;
-  /** Remove a instância completamente. */
   deleteInstance(instanceName: string): Promise<void>;
+  fetchGroups(instanceName: string): Promise<WhatsAppGroup[]>;
+  sendText(instanceName: string, jid: string, text: string): Promise<{ id?: string }>;
 }

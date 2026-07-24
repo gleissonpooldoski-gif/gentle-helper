@@ -2,6 +2,7 @@ import type {
   WhatsAppProvider,
   WhatsAppProviderStatus,
   WhatsAppInstanceStatus,
+  WhatsAppGroup,
 } from "../provider";
 import { evolutionFetch, evolutionJson } from "./client.server";
 
@@ -148,5 +149,41 @@ export const evolutionProvider: WhatsAppProvider = {
     await evolutionFetch(`/instance/delete/${encodeURIComponent(instanceName)}`, {
       method: "DELETE",
     });
+  },
+
+  async fetchGroups(instanceName): Promise<WhatsAppGroup[]> {
+    const path = `/group/fetchAllGroups/${encodeURIComponent(instanceName)}?getParticipants=false`;
+    const res = await evolutionJson<any>(path, { method: "GET" });
+    const arr: any[] = Array.isArray(res) ? res : Array.isArray(res?.groups) ? res.groups : [];
+    return arr
+      .map((g) => {
+        const jid: string = g?.id ?? g?.jid ?? g?.remoteJid ?? "";
+        if (!jid || !jid.includes("@g.us")) return null;
+        return {
+          jid,
+          name: String(g?.subject ?? g?.name ?? jid),
+          participants:
+            typeof g?.size === "number"
+              ? g.size
+              : Array.isArray(g?.participants)
+                ? g.participants.length
+                : null,
+          pictureUrl: g?.pictureUrl ?? g?.profilePicUrl ?? null,
+        } as WhatsAppGroup;
+      })
+      .filter((x): x is WhatsAppGroup => !!x);
+  },
+
+  async sendText(instanceName, jid, text): Promise<{ id?: string }> {
+    const number = jid.includes("@") ? jid.split("@")[0] : jid;
+    const res = await evolutionJson<any>(
+      `/message/sendText/${encodeURIComponent(instanceName)}`,
+      {
+        method: "POST",
+        body: JSON.stringify({ number, text, textMessage: { text } }),
+      },
+    );
+    const id = res?.key?.id ?? res?.messageId ?? res?.id;
+    return { id: typeof id === "string" ? id : undefined };
   },
 };
