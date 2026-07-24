@@ -59,6 +59,7 @@ const mocks = vi.hoisted(() => {
       return [
         { groupId: "g1", groupName: "Grupo Um" },
         { groupId: "g2", groupName: "Grupo Dois" },
+        { groupId: "g3", groupName: "Grupo Três" },
       ];
     }),
     getAutomationConfig: vi.fn(async ({ data }: any) => {
@@ -205,6 +206,29 @@ describe("Isolamento por grupo — GroupAutomationList + AutomationPanel", () =>
     const saveScopes = saveAutomationConfig.mock.calls.map((c) => c[0].data.groupId);
     expect(saveScopes).not.toContain("g1");
     expect(saveScopes).toContain("g2");
+  });
+
+  it("Abrir Grupo 3 deve carregar somente Grupo 3", async () => {
+    render(<GroupAutomationList channelId="c1" />);
+    await openEditor(/Grupo Três/);
+    await waitForPanel("Grupo Três");
+
+    const lastCall = getAutomationConfig.mock.calls.at(-1)?.[0].data;
+    expect(lastCall).toEqual(expect.objectContaining({ channelId: "c1", groupId: "g3" }));
+  });
+
+  it("Remontar a página mantém o grupo correto pelo channelId atual", async () => {
+    const first = render(<GroupAutomationList channelId="c1" />);
+    await openEditor(/Grupo Dois/);
+    await waitForPanel("Grupo Dois");
+    first.unmount();
+
+    render(<GroupAutomationList channelId="c1" />);
+    await openEditor(/Grupo Dois/);
+    await waitForPanel("Grupo Dois");
+
+    const lastCall = getAutomationConfig.mock.calls.at(-1)?.[0].data;
+    expect(lastCall).toEqual(expect.objectContaining({ channelId: "c1", groupId: "g2" }));
   });
 
   it("Salvar duas vezes no mesmo grupo não pode criar duplicação", async () => {
