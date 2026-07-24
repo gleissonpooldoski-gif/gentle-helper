@@ -219,7 +219,7 @@ function ChannelsPage() {
 
 /* ---------------- Header ---------------- */
 
-function PageHeader({ activeCount, limit }: { activeCount: number; limit: number }) {
+function PageHeader({ activeCount, limit, onAdd }: { activeCount: number; limit: number; onAdd: () => void }) {
   const pct = Math.min(100, (activeCount / limit) * 100);
   return (
     <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-6 sm:flex sm:items-end sm:justify-between">
@@ -253,6 +253,7 @@ function PageHeader({ activeCount, limit }: { activeCount: number; limit: number
 
       <Button
         size="lg"
+        onClick={onAdd}
         className="shrink-0 rounded-full bg-primary px-5 shadow-[0_10px_30px_-12px_oklch(0.62_0.19_256/0.6)] hover:bg-primary/90"
       >
         <Plus className="mr-1.5 h-4 w-4" />
@@ -264,7 +265,7 @@ function PageHeader({ activeCount, limit }: { activeCount: number; limit: number
 
 /* ---------------- Card ---------------- */
 
-function ChannelCard({ channel }: { channel: Channel }) {
+function ChannelCard({ channel, onDelete }: { channel: Channel; onDelete: () => void }) {
   return (
     <article
       className={cn(
@@ -364,6 +365,7 @@ function ChannelCard({ channel }: { channel: Channel }) {
         <Button
           size="sm"
           variant="outline"
+          onClick={onDelete}
           className="h-9 rounded-lg border-[color:var(--color-danger)]/25 bg-[color:var(--color-danger)]/5 text-[color:var(--color-danger)] hover:bg-[color:var(--color-danger)]/10 hover:text-[color:var(--color-danger)]"
         >
           <Trash2 className="h-3.5 w-3.5" />
@@ -528,7 +530,7 @@ function MiniBarChart({
   );
 }
 
-function AddChannelTile() {
+function AddChannelTile({ onClick }: { onClick: () => void }) {
   return (
     <button
       type="button"
