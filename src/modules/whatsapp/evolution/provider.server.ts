@@ -190,7 +190,11 @@ export const evolutionProvider: WhatsAppProvider = {
     } catch (err) {
       // eslint-disable-next-line no-console
       console.warn(`[Evolution] connectionState falhou (instance=${instanceName}):`, err);
-      return { status: "disconnected", phone: null, qr: null };
+      // Falha de rede não significa que a sessão está desconectada. Propagar o
+      // erro impede o painel de chamar /instance/connect e entrar em ciclo de QR.
+      throw new Error(
+        `Evolution API indisponível: ${err instanceof Error ? err.message : "falha de conexão"}`,
+      );
     }
   },
 
