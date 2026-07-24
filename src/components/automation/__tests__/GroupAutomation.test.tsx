@@ -187,8 +187,8 @@ describe("Isolamento por grupo — GroupAutomationList + AutomationPanel", () =>
     await waitForPanel("Grupo Dois");
     // input de intervalo: type=number, valor default 15
     const intervalInput = screen.getByDisplayValue("15") as HTMLInputElement;
-    await userEvent.clear(intervalInput);
-    await userEvent.type(intervalInput, "42");
+    fireEvent.change(intervalInput, { target: { value: "42" } });
+
     await userEvent.click(screen.getByRole("button", { name: /salvar/i }));
 
 
