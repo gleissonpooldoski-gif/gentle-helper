@@ -23,7 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { AppSidebar } from "@/components/app-sidebar";
-import { listChannels, type ChannelDTO } from "@/modules/channels/channels.functions";
+import { listChannelDashboards, type ChannelDashboardDTO } from "@/modules/channels/channels.functions";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -66,20 +66,38 @@ interface Channel {
     storyAuto: SocialStatus;
   };
   distribution: { label: string; value: number; color: string }[];
+  sentLast30d: number;
+  sentByPlatformLast30d: { platform: string; count: number }[];
   accent: string; // subtle gradient hint
 }
 
-function toChannel(row: ChannelDTO): Channel {
+const PLATFORM_COLORS: Record<string, string> = {
+  Shopee: "oklch(0.72 0.16 40)",
+  "Mercado Livre": "oklch(0.78 0.15 90)",
+  Magalu: "oklch(0.62 0.19 20)",
+  Amazon: "oklch(0.68 0.14 60)",
+};
+
+function colorFor(label: string): string {
+  return PLATFORM_COLORS[label] ?? "oklch(0.62 0.19 256)";
+}
+
+function toChannel(row: ChannelDashboardDTO): Channel {
+  const dist = row.productsByPlatform.length > 0
+    ? row.productsByPlatform.map((p) => ({ label: p.platform, value: p.count, color: colorFor(p.platform) }))
+    : [];
   return {
     id: row.id,
     name: row.name,
     telegramId: row.externalId ?? row.id,
-    autoPost: row.autoPost,
-    products: 0,
+    autoPost: row.automationActive,
+    products: row.productsTotal,
     intervalMin: row.intervalMin,
     random: row.randomOrder,
-    socials: { telegram: "connected", whatsapp: "connected", instagram: "disconnected", storyAuto: "disabled" },
-    distribution: [],
+    socials: row.socials,
+    distribution: dist,
+    sentLast30d: row.sentLast30d,
+    sentByPlatformLast30d: row.sentByPlatformLast30d,
     accent: "from-primary/5 to-transparent",
   };
 }
@@ -89,7 +107,7 @@ const LIMIT = 5;
 /* ---------------- Page ---------------- */
 
 function ChannelsPage() {
-  const listChannelsFn = useServerFn(listChannels);
+  const listChannelsFn = useServerFn(listChannelDashboards);
   const [channels, setChannels] = useState<Channel[]>([]);
   const [query, setQuery] = useState("");
   useEffect(() => {
@@ -257,9 +275,24 @@ function ChannelCard({ channel }: { channel: Channel }) {
           <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
             Produtos por plataforma
           </p>
-          <span className="text-[11px] text-muted-foreground">Últimos 30d</span>
+          <span className="text-[11px] text-muted-foreground">
+            {channel.sentLast30d} envios · Últimos 30d
+          </span>
         </div>
-        <MiniBarChart items={channel.distribution} />
+        {channel.distribution.length > 0 ? (
+          <MiniBarChart items={channel.distribution} />
+        ) : (
+          <p className="text-[11px] text-muted-foreground">Sem produtos importados.</p>
+        )}
+        {channel.sentByPlatformLast30d.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
+            {channel.sentByPlatformLast30d.map((p) => (
+              <span key={p.platform} className="text-[10.5px] text-muted-foreground">
+                {p.platform}: <span className="font-semibold text-foreground">{p.count}</span>
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Actions */}
@@ -406,7 +439,7 @@ function MiniBarChart({
 }: {
   items: { label: string; value: number; color: string }[];
 }) {
-  const max = Math.max(...items.map((i) => i.value));
+  const max = Math.max(1, ...items.map((i) => i.value));
   return (
     <div>
       <div className="flex items-end gap-2 h-16">
