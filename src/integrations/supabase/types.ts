@@ -782,7 +782,10 @@ export type Database = {
           ga_tag: string | null
           id: string
           logo_url: string | null
+          platforms: string[]
+          product_limit: number
           slug: string
+          sort_order: string
           subtitle: string
           theme_color: string
           title: string
@@ -797,7 +800,10 @@ export type Database = {
           ga_tag?: string | null
           id?: string
           logo_url?: string | null
+          platforms?: string[]
+          product_limit?: number
           slug: string
+          sort_order?: string
           subtitle?: string
           theme_color?: string
           title?: string
@@ -812,7 +818,10 @@ export type Database = {
           ga_tag?: string | null
           id?: string
           logo_url?: string | null
+          platforms?: string[]
+          product_limit?: number
           slug?: string
+          sort_order?: string
           subtitle?: string
           theme_color?: string
           title?: string
