@@ -572,7 +572,7 @@ export const sendWhatsAppProduct = createServerFn({ method: "POST" })
     // Renderiza usando o MESMO layout persistido no SaaS.
     const { loadLayoutFor } = await import("@/modules/posts/layout.functions");
     const { renderPost } = await import("@/modules/posts/render");
-    const layout = await loadLayoutFor(supabase, userId);
+    const layout = await loadLayoutFor(supabase, userId, (row as any).channel_id ?? null);
     const caption = renderPost(layout, product, "whatsapp");
 
     // Destinos: JIDs informados ou seleção salva.

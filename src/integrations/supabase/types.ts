@@ -532,11 +532,13 @@ export type Database = {
       }
       post_layouts: {
         Row: {
+          channel_id: string | null
           description_template: string
           footer: string
           header: string
           hide_original: boolean
           hide_sales: boolean
+          id: string
           installment_template: string
           link_template: string
           original_price_template: string
@@ -548,11 +550,13 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          channel_id?: string | null
           description_template?: string
           footer?: string
           header?: string
           hide_original?: boolean
           hide_sales?: boolean
+          id?: string
           installment_template?: string
           link_template?: string
           original_price_template?: string
@@ -564,11 +568,13 @@ export type Database = {
           user_id: string
         }
         Update: {
+          channel_id?: string | null
           description_template?: string
           footer?: string
           header?: string
           hide_original?: boolean
           hide_sales?: boolean
+          id?: string
           installment_template?: string
           link_template?: string
           original_price_template?: string
@@ -579,7 +585,15 @@ export type Database = {
           upper_title?: boolean
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "post_layouts_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       products: {
         Row: {

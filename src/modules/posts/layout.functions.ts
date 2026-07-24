@@ -22,49 +22,88 @@ function normalize(row: any | null | undefined): PostLayout {
   };
 }
 
-export const getPostLayout = createServerFn({ method: "POST" })
-  .middleware([apiClient, requireSupabaseAuth])
-  .handler(async ({ context }): Promise<PostLayout> => {
-    const { supabase, userId } = context;
-    const { data, error } = await (supabase as any)
+function isUuid(v: unknown): v is string {
+  return typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+}
+
+async function loadRow(supabase: any, userId: string, channelId: string | null) {
+  if (channelId) {
+    const { data } = await supabase
       .from("post_layouts")
       .select("*")
       .eq("user_id", userId)
+      .eq("channel_id", channelId)
       .maybeSingle();
-    if (error) throw new Error(error.message);
-    return normalize(data);
+    if (data) return data;
+  }
+  const { data } = await supabase
+    .from("post_layouts")
+    .select("*")
+    .eq("user_id", userId)
+    .is("channel_id", null)
+    .maybeSingle();
+  return data ?? null;
+}
+
+export const getPostLayout = createServerFn({ method: "POST" })
+  .middleware([apiClient, requireSupabaseAuth])
+  .inputValidator((data: { channelId?: string | null } | undefined) => ({
+    channelId: isUuid(data?.channelId) ? (data!.channelId as string) : null,
+  }))
+  .handler(async ({ data, context }): Promise<PostLayout> => {
+    const { supabase, userId } = context;
+    const row = await loadRow(supabase, userId, data.channelId);
+    return normalize(row);
   });
 
 export const savePostLayout = createServerFn({ method: "POST" })
   .middleware([apiClient, requireSupabaseAuth])
-  .inputValidator((data: Partial<PostLayout>): Partial<PostLayout> => {
+  .inputValidator((data: Partial<PostLayout> & { channelId?: string | null }) => {
     const clean: any = {};
-    for (const [k, v] of Object.entries(data ?? {})) {
+    const { channelId, ...rest } = data ?? {};
+    for (const [k, v] of Object.entries(rest)) {
       if (v !== undefined) clean[k] = v;
     }
+    clean.channelId = isUuid(channelId) ? channelId : null;
     return clean;
   })
   .handler(async ({ data, context }): Promise<PostLayout> => {
     const { supabase, userId } = context;
-    const payload = { user_id: userId, ...data, updated_at: new Date().toISOString() };
+    const { channelId, ...fields } = data as any;
+    const payload = {
+      user_id: userId,
+      channel_id: channelId,
+      ...fields,
+      updated_at: new Date().toISOString(),
+    };
+
+    // Upsert manual porque o índice único é parcial (WHERE channel_id IS NULL / NOT NULL).
+    const existing = await loadRow(supabase, userId, channelId);
+    if (existing?.id) {
+      const { data: row, error } = await (supabase as any)
+        .from("post_layouts")
+        .update(payload)
+        .eq("id", existing.id)
+        .select("*")
+        .single();
+      if (error) throw new Error(error.message);
+      return normalize(row);
+    }
     const { data: row, error } = await (supabase as any)
       .from("post_layouts")
-      .upsert(payload, { onConflict: "user_id" })
+      .insert(payload)
       .select("*")
       .single();
     if (error) throw new Error(error.message);
     return normalize(row);
   });
 
-/** Uso interno server-side. */
+/** Uso interno server-side. Fallback: canal → padrão do usuário. */
 export async function loadLayoutFor(
   supabase: any,
   userId: string,
+  channelId?: string | null,
 ): Promise<PostLayout> {
-  const { data } = await supabase
-    .from("post_layouts")
-    .select("*")
-    .eq("user_id", userId)
-    .maybeSingle();
-  return normalize(data);
+  const row = await loadRow(supabase, userId, channelId ?? null);
+  return normalize(row);
 }
