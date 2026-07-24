@@ -109,10 +109,18 @@ export const evolutionProvider: WhatsAppProvider = {
   },
 
   async reconnect(instanceName): Promise<WhatsAppProviderStatus> {
-    const qr = await fetchQr(instanceName);
+    // Se já está conectado, não pede QR.
     const state = await this.getStatus(instanceName);
+    // eslint-disable-next-line no-console
+    console.log("Evolution status", instanceName, state.status);
+    if (state.status === "connected") {
+      return { status: "connected", phone: state.phone, qr: null };
+    }
+    const qr = await fetchQr(instanceName);
+    // eslint-disable-next-line no-console
+    console.log("Evolution QR", !!qr.base64, !!qr.code);
     return {
-      status: state.status === "connected" ? "connected" : "awaiting_qr",
+      status: "awaiting_qr",
       phone: state.phone,
       qr: qr.base64 || qr.code ? qr : null,
     };
