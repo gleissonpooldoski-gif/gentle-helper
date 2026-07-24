@@ -278,7 +278,7 @@ function EditChannelPage() {
               size="lg"
               className="rounded-full bg-primary px-6 shadow-[0_10px_30px_-12px_oklch(0.62_0.19_256/0.6)] hover:bg-primary/90"
               onClick={handleUpdateChannel}
-              disabled={!channel}
+              disabled={!channel || manualSaving}
             >
               <Save className="mr-1.5 h-4 w-4" />
               Atualizar
