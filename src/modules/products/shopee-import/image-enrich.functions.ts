@@ -35,6 +35,7 @@ export const enrichShopeeImageOne = createServerFn({ method: "POST" })
     z
       .object({
         id: z.string().min(1),
+        itemId: z.string().nullish(),
         productUrl: z.string().min(1),
         offerUrl: z.string().nullish(),
       })
@@ -43,13 +44,13 @@ export const enrichShopeeImageOne = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const image = await scrapeShopeeImage(data.productUrl, data.offerUrl ?? null);
     if (!image || !isRealProductImage(image)) {
-      return { id: data.id, found: false as const };
+      return { id: data.id, itemId: data.itemId ?? null, found: false as const };
     }
     const { error } = await context.supabase
       .from("products")
       .update({ image_url: image })
       .eq("id", data.id)
       .eq("user_id", context.userId);
-    if (error) return { id: data.id, found: false as const };
-    return { id: data.id, found: true as const, image };
+    if (error) return { id: data.id, itemId: data.itemId ?? null, found: false as const };
+    return { id: data.id, itemId: data.itemId ?? null, found: true as const, image };
   });
