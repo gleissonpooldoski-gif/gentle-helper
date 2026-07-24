@@ -449,6 +449,71 @@ export const sendWhatsAppText = createServerFn({ method: "POST" })
     return { ok: true, messageId: res.id };
   });
 
+/** Envia mensagem formatada de produto/oferta para um grupo (ou lista de grupos). */
+export const sendWhatsAppProduct = createServerFn({ method: "POST" })
+  .middleware([apiClient, requireSupabaseAuth])
+  .inputValidator((data: {
+    id: string;
+    jids?: string[];        // se ausente, usa grupos selecionados
+    product: { name: string; price?: string | number | null; link: string; image?: string | null };
+  }) => {
+    if (!data?.id) throw new Error("id obrigatório");
+    const name = String(data?.product?.name ?? "").trim();
+    const link = String(data?.product?.link ?? "").trim();
+    if (!name) throw new Error("Nome do produto obrigatório");
+    if (!link) throw new Error("Link do produto obrigatório");
+    return {
+      id: String(data.id),
+      jids: Array.isArray(data.jids) ? data.jids.map((j) => String(j)) : null,
+      product: {
+        name,
+        price: data.product.price != null ? String(data.product.price) : null,
+        link,
+        image: data.product.image ? String(data.product.image) : null,
+      },
+    };
+  })
+  .handler(async ({ data, context }): Promise<{ sent: number; failed: number }> => {
+    const { supabase, userId } = context;
+    const row = await loadInstance(supabase, userId, data.id);
+    if (row.status !== "connected") throw new Error("Instância não conectada");
+
+    let targets = data.jids ?? [];
+    if (targets.length === 0) {
+      const { data: sel } = await (supabase as any)
+        .from("whatsapp_group_selections")
+        .select("group_jid")
+        .eq("user_id", userId)
+        .eq("instance_id", row.id);
+      targets = (sel ?? []).map((s: any) => s.group_jid);
+    }
+    if (targets.length === 0) throw new Error("Nenhum grupo selecionado");
+
+    const p = data.product;
+    const priceLine = p.price ? `\n💰 Preço:\n${p.price}\n` : "\n";
+    const text =
+      `🔥 OFERTA ENCONTRADA\n\n` +
+      `Produto:\n${p.name}\n` +
+      priceLine +
+      `\n🛒 Comprar:\n${p.link}`;
+
+    const { getWhatsAppProvider } = await import("./index.server");
+    const provider = getWhatsAppProvider(row.provider);
+
+    let sent = 0;
+    let failed = 0;
+    for (const jid of targets) {
+      try {
+        await provider.sendText(row.instance_name, jid, text);
+        sent++;
+        await new Promise((r) => setTimeout(r, 800));
+      } catch {
+        failed++;
+      }
+    }
+    return { sent, failed };
+  });
+
 /** Dispara mensagem para todos os grupos selecionados. */
 export const sendWhatsAppCampaign = createServerFn({ method: "POST" })
   .middleware([apiClient, requireSupabaseAuth])
