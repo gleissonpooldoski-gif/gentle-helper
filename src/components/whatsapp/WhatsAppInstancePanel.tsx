@@ -639,7 +639,7 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
                   ) : qrFlowState === "error" ? (
                     <div className="flex h-[260px] w-[260px] flex-col items-center justify-center gap-3 p-4 text-center">
                       <p className="text-xs text-muted-foreground">
-                        Evolution não retornou QR Code. Clique em Novo QR.
+                        Evolution não retornou QR Code. Verifique conexão da instância.
                       </p>
                       <Button
                         size="sm"
@@ -649,6 +649,7 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
                         <RefreshCw className="mr-1 h-4 w-4" /> Tentar novamente
                       </Button>
                     </div>
+
                   ) : qrFlowState === "checking" ? (
                     <div className="flex h-[260px] w-[260px] flex-col items-center justify-center gap-2 text-muted-foreground">
                       <Loader2 className="h-6 w-6 animate-spin" />
