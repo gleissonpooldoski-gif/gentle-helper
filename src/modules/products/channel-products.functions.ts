@@ -37,6 +37,7 @@ export const listChannelProducts = createServerFn({ method: "POST" })
       .eq("user_id", context.userId)
       .eq("channel_id", data.channelId)
       .eq("platform", data.platform)
+      .eq("availability", "active")
       .order("created_at", { ascending: false });
 
     if (error) throw new Error(error.message);

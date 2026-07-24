@@ -3634,7 +3634,7 @@ function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {})
         </div>
         <div>
           <h3 className="text-[15px] font-semibold">Shopee — Produtos & Configurações</h3>
-          <p className="text-[12.5px] text-white/85">{importedProducts.length} produtos vinculados · gerencie categorias, textos padrão e importe em massa.</p>
+          <p className="text-[12.5px] text-white/85">{products.length} produtos vinculados · gerencie categorias, textos padrão e importe em massa.</p>
         </div>
       </div>
 
@@ -3853,7 +3853,7 @@ function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {})
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h3 className="text-[15px] font-semibold">Produtos cadastrados</h3>
-              <p className="text-[12px] text-muted-foreground">{importedProducts.length} produtos vinculados a este canal</p>
+              <p className="text-[12px] text-muted-foreground">{products.length} produtos vinculados a este canal</p>
             </div>
             <div className="flex items-center gap-2">
               <Button variant="outline" size="sm" className="h-9 gap-1.5 rounded-full">
