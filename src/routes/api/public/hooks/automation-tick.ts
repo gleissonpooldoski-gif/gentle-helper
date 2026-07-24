@@ -119,27 +119,53 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
     return;
   }
 
-  // Escolhe o próximo produto disponível: pertence às lojas ativas do usuário
-  // e ainda não está registrado em automation_group_sends para este config.
+  // Escolhe o próximo produto disponível: pertence às lojas ativas do usuário,
+  // está marcado como 'active' e ainda não está registrado em automation_group_sends.
+  // Antes de retornar, valida o produto em tempo real (link + imagem).
+  // Se a validação falhar, atualiza o status no banco e tenta o próximo.
+  const { validateProduct, persistValidation } = await import(
+    "@/modules/products/validation/validate.server"
+  );
+
   async function pickNext(): Promise<any | null> {
     const { data: sent } = await admin
       .from("automation_group_sends")
       .select("product_id")
       .eq("config_id", cfg.id);
-    const excluded = (sent ?? []).map((r: any) => r.product_id).filter(Boolean);
+    const excluded = new Set((sent ?? []).map((r: any) => r.product_id).filter(Boolean));
 
+    // Busca um lote de candidatos e valida em ordem até achar um válido.
     let q = admin
       .from("products")
       .select("*")
       .eq("user_id", cfg.user_id)
       .in("platform", lojas)
+      .eq("availability", "active")
       .not("affiliate_link", "is", null)
-      .order("created_at", { ascending: true })
-      .limit(1);
-    if (excluded.length > 0) q = q.not("id", "in", `(${excluded.join(",")})`);
+      .order("last_validated_at", { ascending: true, nullsFirst: true })
+      .limit(20);
+    if (excluded.size > 0) {
+      q = q.not("id", "in", `(${Array.from(excluded).join(",")})`);
+    }
     const { data, error } = await q;
     if (error) throw new Error(error.message);
-    return (data && data[0]) || null;
+    for (const cand of data ?? []) {
+      const result = await validateProduct(cand);
+      if (result.availability === "active") {
+        await persistValidation(admin, cand.id, result);
+        return cand;
+      }
+      // Marca no banco e (se não for erro temporário) impede re-seleção neste ciclo.
+      await persistValidation(admin, cand.id, result);
+      if (result.availability !== "error") {
+        await admin.from("automation_group_sends").upsert({
+          user_id: cfg.user_id,
+          config_id: cfg.id,
+          product_id: cand.id,
+        }, { onConflict: "config_id,product_id" });
+      }
+    }
+    return null;
   }
 
   let product = await pickNext();
@@ -159,7 +185,7 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
     if (!product) {
       await admin.from("automation_configs").update({
         status: "error",
-        last_error: "Nenhum produto disponível nas lojas selecionadas",
+        last_error: "Nenhum produto ativo/válido nas lojas selecionadas",
         next_run_at: new Date(Date.now() + cfg.intervalo_min * 60_000).toISOString(),
       }).eq("id", cfg.id);
       return;
