@@ -28,6 +28,8 @@ import {
   type WASessionDTO,
 } from "@/modules/channels/whatsapp/sessions.functions";
 import { WhatsAppInstancePanel } from "@/components/whatsapp/WhatsAppInstancePanel";
+import { getPostLayout, savePostLayout } from "@/modules/posts/layout.functions";
+import { DEFAULT_POST_LAYOUT, type PostLayout } from "@/modules/posts/render";
 
 
 import {
