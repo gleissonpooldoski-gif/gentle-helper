@@ -428,15 +428,17 @@ export const saveWhatsAppGroupSelection = createServerFn({ method: "POST" })
       const rows = data.groups.map((g) => ({
         user_id: userId,
         instance_id: row.id,
-        channel_id: row.channel_id,
+        channel_id: toUuidOrNull(row.channel_id),
         group_jid: g.jid,
         group_name: g.name,
       }));
+      console.log("[WA][insert whatsapp_group_selections]", { count: rows.length, sample: rows[0] });
       const { error } = await (supabase as any)
         .from("whatsapp_group_selections")
         .insert(rows);
       if (error) throw new Error(error.message);
     }
+
     return { ok: true, count: data.groups.length };
   });
 
