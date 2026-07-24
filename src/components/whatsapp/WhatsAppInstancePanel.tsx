@@ -149,15 +149,38 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
     return () => cleanup?.();
   }, []);
 
-  const openQrModal = (instance: WhatsAppInstanceDTO) => {
+  // Máquina de estados:
+  //   checking  → consultando connectionState
+  //   connected → 🟢 WhatsApp conectado (não solicita QR)
+  //   waiting_qr → QR válido renderizado
+  //   error     → Evolution não devolveu QR
+  const openQrModal = async (instance: WhatsAppInstanceDTO) => {
     setQrFlowState("checking");
-    setQrModal(instance);
+    // 1) Primeiro verifica o estado remoto SEM criar/pedir QR.
+    try {
+      const st = await refreshFn({ data: { id: instance.id } });
+      // eslint-disable-next-line no-console
+      console.log("[WA] connectionState recebido:", st.status, "phone=", st.phone);
+      if (st.status === "connected") {
+        // Instância já está aberta — não abrir modal QR nem chamar connect/create.
+        await reload();
+        toast.success("🟢 WhatsApp conectado");
+        return;
+      }
+      // 2) Desconectado → aí sim abre o modal para pedir QR.
+      setQrModal(st);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn("[WA] connectionState falhou:", err);
+      setQrModal(instance);
+    }
   };
 
-  // Ao abrir, consulta connectionState primeiro. O servidor só solicita QR
-  // quando o estado remoto não é open. O fluxo encerra em no máximo 30s.
+  // Ao abrir o modal (state != connected), solicita QR uma única vez e
+  // faz polling curto por confirmação. Timeout máximo de 30s evita loading infinito.
   useEffect(() => {
     if (!qrModal) return;
+    if (qrFlowState === "connected") return;
 
     let cancelled = false;
     let pollingId: ReturnType<typeof setInterval> | undefined;
@@ -172,50 +195,50 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
         const upd = await refreshFn({ data: { id: qrModal.id } });
         if (cancelled) return;
         setQrModal(upd);
+        // eslint-disable-next-line no-console
+        console.log("[WA] poll connectionState:", upd.status, "qr?", !!upd.qrCode);
         if (upd.status === "connected") {
           setQrFlowState("connected");
           clearTimeout(timeoutId);
           if (pollingId) clearInterval(pollingId);
-          toast.success("WhatsApp conectado!");
-          return;
+          toast.success("🟢 WhatsApp conectado");
         }
-        if (upd.qrCode) setQrFlowState("waiting_qr");
       } catch {
-        /* mantém estado atual; timeout cuidará do erro final */
+        /* silencioso; timeout resolverá */
       }
     };
 
     const bootstrap = async () => {
       try {
-        // 1) checa estado remoto
-        const st = await refreshFn({ data: { id: qrModal.id } });
-        if (cancelled) return;
-        setQrModal(st);
-        if (st.status === "connected") {
-          setQrFlowState("connected");
-          clearTimeout(timeoutId);
-          toast.success("WhatsApp já conectado");
-          return;
-        }
-        // 2) força reconnect para obter QR imediatamente
         const rc = await reconnectFn({ data: { id: qrModal.id } });
         if (cancelled) return;
         // eslint-disable-next-line no-console
-        console.log("CONNECT RESPONSE", rc);
-        // eslint-disable-next-line no-console
-        console.log("QR VALUE", rc.qrCode);
+        console.log("[WA] resposta do QR:", { status: rc.status, hasQr: !!rc.qrCode });
         setQrModal(rc);
         if (rc.status === "connected") {
           setQrFlowState("connected");
           clearTimeout(timeoutId);
-          toast.success("WhatsApp já conectado");
+          toast.success("🟢 WhatsApp conectado");
           return;
         }
-        setQrFlowState(rc.qrCode ? "waiting_qr" : "waiting_qr");
-        pollingId = setInterval(poll, 3500);
-      } catch {
-        if (!cancelled) setQrFlowState("error");
+        const qr = normalizeQrSource(rc.qrCode);
+        // eslint-disable-next-line no-console
+        console.log("[WA] campo base64 do QR:", qr ? "encontrado" : "AUSENTE");
+        if (qr) {
+          setQrFlowState("waiting_qr");
+          pollingId = setInterval(poll, 3500);
+        } else {
+          setQrFlowState("error");
+          clearTimeout(timeoutId);
+          toast.error("Evolution não retornou QR Code. Verifique conexão da instância.");
+        }
+      } catch (err) {
+        if (cancelled) return;
+        // eslint-disable-next-line no-console
+        console.error("[WA] erro ao solicitar QR:", err);
+        setQrFlowState("error");
         clearTimeout(timeoutId);
+        toast.error(err instanceof Error ? err.message : "Falha ao solicitar QR");
       }
     };
 
@@ -225,7 +248,9 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
       clearTimeout(timeoutId);
       if (pollingId) clearInterval(pollingId);
     };
-  }, [qrModal?.id, refreshFn, reconnectFn]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [qrModal?.id]);
+
 
   // Mantém dados do modal sincronizados com a lista
   useEffect(() => {
