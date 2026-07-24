@@ -138,7 +138,7 @@ export function AutomationPanel({ channelId, groupId = null, groupName = null, t
     try {
       const c = await saveFn({
         data: {
-          channelId,
+          ...scope,
           horaInicio,
           horaFim,
           intervaloMin: intervalo,
@@ -160,7 +160,7 @@ export function AutomationPanel({ channelId, groupId = null, groupName = null, t
     try {
       await saveFn({
         data: {
-          channelId,
+          ...scope,
           horaInicio,
           horaFim,
           intervaloMin: intervalo,
@@ -168,7 +168,7 @@ export function AutomationPanel({ channelId, groupId = null, groupName = null, t
           postLoop,
         },
       });
-      const c = await startFn({ data: { channelId } });
+      const c = await startFn({ data: scope });
       applyCfg(c);
       toast.success(`Automação iniciada · ${c.queueSize} produtos na fila`);
     } catch (err) {
@@ -181,7 +181,7 @@ export function AutomationPanel({ channelId, groupId = null, groupName = null, t
   const handleStop = async () => {
     setBusy(true);
     try {
-      const c = await stopFn({ data: { channelId } });
+      const c = await stopFn({ data: scope });
       applyCfg(c);
       toast.success("Automação parada");
     } catch (err) {
@@ -194,11 +194,19 @@ export function AutomationPanel({ channelId, groupId = null, groupName = null, t
   return (
     <div className="rounded-2xl border border-border/70 bg-card p-5">
       <div className="mb-4 flex items-center justify-between gap-2">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-          Frequência e loop
-        </p>
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            {title ?? "Frequência e loop"}
+          </p>
+          {groupName && (
+            <p className="mt-0.5 truncate text-[12px] font-medium text-foreground/80" title={groupName}>
+              {groupName}
+            </p>
+          )}
+        </div>
         {cfg && <StatusBadge status={cfg.status} />}
       </div>
+
 
       {loading ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
