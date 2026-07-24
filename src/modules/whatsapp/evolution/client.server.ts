@@ -46,10 +46,23 @@ export async function getEvolutionConfig(): Promise<EvolutionClientConfig> {
   return { baseUrl, apiKey };
 }
 
+const TUNNEL_OFFLINE_MSG = "Tunnel offline. Atualize a URL da Evolution API.";
+
+export function isTunnelOfflineStatus(status: number): boolean {
+  // Cloudflare edge: 530 (origin down / 1016 no DNS), 522/523/524 tunnel/timeout
+  return status === 530 || status === 522 || status === 523 || status === 524;
+}
+
 function friendlyError(err: unknown, path: string): Error {
   const msg = err instanceof Error ? err.message : String(err);
   if (
-    /fetch failed|ENOTFOUND|ECONNREFUSED|ETIMEDOUT|network|Failed to fetch|Tunnel|522|523|524|530/i.test(
+    /Tunnel|error code: ?1016|error code: ?1033|cloudflare/i.test(msg) ||
+    /\b(530|522|523|524)\b/.test(msg)
+  ) {
+    return new Error(TUNNEL_OFFLINE_MSG);
+  }
+  if (
+    /fetch failed|ENOTFOUND|ECONNREFUSED|ETIMEDOUT|network|Failed to fetch|abort/i.test(
       msg,
     )
   ) {
@@ -87,6 +100,9 @@ export async function evolutionJson<T = unknown>(
   const res = await evolutionFetch(path, init);
   const text = await res.text();
   if (!res.ok) {
+    if (isTunnelOfflineStatus(res.status) || /error code: ?1016|error code: ?1033|cloudflare/i.test(text)) {
+      throw new Error(TUNNEL_OFFLINE_MSG);
+    }
     throw new Error(
       `Evolution API ${res.status} em ${path}: ${text.slice(0, 500)}`,
     );
