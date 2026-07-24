@@ -9,11 +9,14 @@ import { evolutionFetch, evolutionJson } from "./client.server";
 function mapState(state: string | undefined | null): WhatsAppInstanceStatus {
   switch ((state ?? "").toLowerCase()) {
     case "open":
+    case "connected":
       return "connected";
     case "connecting":
-      return "awaiting_qr";
+    case "syncing":
+      return "connecting";
     case "close":
     case "closed":
+    case "disconnected":
       return "disconnected";
     default:
       return "disconnected";
