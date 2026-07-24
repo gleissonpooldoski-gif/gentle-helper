@@ -599,7 +599,7 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
                   ) : qrFlowState === "error" ? (
                     <div className="flex h-[260px] w-[260px] flex-col items-center justify-center gap-3 p-4 text-center">
                       <p className="text-xs text-muted-foreground">
-                        Não foi possível gerar QR Code. Tentar novamente.
+                        Evolution não retornou QR Code. Clique em Novo QR.
                       </p>
                       <Button
                         size="sm"
