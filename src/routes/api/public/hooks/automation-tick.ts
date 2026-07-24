@@ -109,28 +109,64 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
 
   if (cfg.next_run_at && new Date(cfg.next_run_at).getTime() > Date.now()) return;
 
-  // Carrega fila
-  const { data: queue, error: qErr } = await admin
-    .from("automation_queue")
-    .select("*")
-    .eq("config_id", cfg.id)
-    .order("order_index", { ascending: true });
-  if (qErr) throw new Error(qErr.message);
-  if (!queue || queue.length === 0) {
+  const lojas: string[] = Array.isArray(cfg.lojas_ativas) ? cfg.lojas_ativas : [];
+  if (lojas.length === 0) {
     await admin.from("automation_configs").update({
-      status: "done",
-      last_error: "Fila vazia",
-      next_run_at: null,
+      status: "error",
+      last_error: "Nenhuma loja selecionada",
+      next_run_at: new Date(Date.now() + (cfg.intervalo_min ?? 15) * 60_000).toISOString(),
     }).eq("id", cfg.id);
     return;
   }
 
-  const idx = cfg.current_index % queue.length;
-  const item = queue[idx];
+  // Escolhe o próximo produto disponível: pertence às lojas ativas do usuário
+  // e ainda não está registrado em automation_group_sends para este config.
+  async function pickNext(): Promise<any | null> {
+    const { data: sent } = await admin
+      .from("automation_group_sends")
+      .select("product_id")
+      .eq("config_id", cfg.id);
+    const excluded = (sent ?? []).map((r: any) => r.product_id).filter(Boolean);
 
-  // Grupos selecionados para o canal (por instance/channel)
-  // Precisamos localizar a instance_id via canal ou por nome padrão.
-  // Buscamos instância pelo nome DIVULGA LINKS do usuário.
+    let q = admin
+      .from("products")
+      .select("*")
+      .eq("user_id", cfg.user_id)
+      .in("platform", lojas)
+      .not("affiliate_link", "is", null)
+      .order("created_at", { ascending: true })
+      .limit(1);
+    if (excluded.length > 0) q = q.not("id", "in", `(${excluded.join(",")})`);
+    const { data, error } = await q;
+    if (error) throw new Error(error.message);
+    return (data && data[0]) || null;
+  }
+
+  let product = await pickNext();
+
+  // Ciclo completo: se loop, limpa histórico do ciclo e recomeça; senão, done.
+  if (!product) {
+    if (!cfg.post_loop) {
+      await admin.from("automation_configs").update({
+        status: "done",
+        next_run_at: null,
+        last_error: null,
+      }).eq("id", cfg.id);
+      return;
+    }
+    await admin.from("automation_group_sends").delete().eq("config_id", cfg.id);
+    product = await pickNext();
+    if (!product) {
+      await admin.from("automation_configs").update({
+        status: "error",
+        last_error: "Nenhum produto disponível nas lojas selecionadas",
+        next_run_at: new Date(Date.now() + cfg.intervalo_min * 60_000).toISOString(),
+      }).eq("id", cfg.id);
+      return;
+    }
+  }
+
+  // Localiza a instância padrão do usuário para descobrir grupos alvo.
   const { data: inst } = await admin
     .from("whatsapp_instances")
     .select("id, instance_name")
@@ -140,14 +176,14 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
 
   let groups: Array<{ group_jid: string; group_name: string | null }> = [];
   if (cfg.group_id) {
-    // Config específica de um grupo: envia SÓ para esse grupo.
     groups = [{ group_jid: cfg.group_id, group_name: cfg.group_name ?? null }];
   } else if (inst) {
     const { data: gsel } = await admin
       .from("whatsapp_group_selections")
       .select("group_jid, group_name")
       .eq("user_id", cfg.user_id)
-      .eq("instance_id", inst.id);
+      .eq("instance_id", inst.id)
+      .eq("channel_id", cfg.channel_id);
     groups = gsel ?? [];
   }
 
@@ -176,11 +212,11 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
     await admin.from("whatsapp_campaign_history").insert({
       user_id: cfg.user_id,
       config_id: cfg.id,
-      product_id: item.product_id,
-      product_name: item.title,
-      store: item.store,
+      product_id: product.id,
+      product_name: product.title,
+      store: product.platform,
       instance_name: DEFAULT_INSTANCE,
-      media_url: item.media_url,
+      media_url: product.image_url,
       status: "failed",
       error_message: `WhatsApp desconectado (state=${state || "unknown"})`,
     });
@@ -192,33 +228,22 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
     return;
   }
 
-  // Renderiza legenda usando o layout do usuário
+  // Renderiza legenda
   const { loadLayoutFor } = await import("@/modules/posts/layout.functions");
   const { renderPost } = await import("@/modules/posts/render");
   const layout = await loadLayoutFor(admin, cfg.user_id);
-  // Recupera dados do produto (para preço, etc.)
-  let productDetail: any = { title: item.title, link: item.link, image: item.media_url };
-  if (item.product_id) {
-    const { data: pr } = await admin
-      .from("products")
-      .select("*")
-      .eq("id", item.product_id)
-      .maybeSingle();
-    if (pr) {
-      productDetail = {
-        title: pr.title,
-        description: null,
-        price: pr.promo_price,
-        price_original: pr.original_price,
-        vendas: pr.sales,
-        link: pr.affiliate_link,
-        image: pr.image_url,
-      };
-    }
-  }
+  const productDetail = {
+    title: product.title,
+    description: null,
+    price: product.promo_price,
+    price_original: product.original_price,
+    vendas: product.sales,
+    link: product.affiliate_link,
+    image: product.image_url,
+  };
   const caption = renderPost(layout, productDetail, "whatsapp");
 
-  // Envia um-a-um
+  let anySent = false;
   for (const g of groups) {
     let ok = true;
     let err: string | null = null;
@@ -226,6 +251,7 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
       if (!productDetail.image) throw new Error("Produto sem imagem");
       await sendMedia(DEFAULT_INSTANCE, g.group_jid, productDetail.image, caption);
       await new Promise((r) => setTimeout(r, 800));
+      anySent = true;
     } catch (e) {
       ok = false;
       err = e instanceof Error ? e.message : String(e);
@@ -233,9 +259,9 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
     await admin.from("whatsapp_campaign_history").insert({
       user_id: cfg.user_id,
       config_id: cfg.id,
-      product_id: item.product_id,
-      product_name: item.title,
-      store: item.store,
+      product_id: product.id,
+      product_name: product.title,
+      store: product.platform,
       group_id: g.group_jid,
       group_name: g.group_name,
       instance_name: DEFAULT_INSTANCE,
@@ -246,23 +272,26 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
     });
   }
 
-  // Avança fila
-  const nextIndex = idx + 1;
-  const done = nextIndex >= queue.length;
-  const nextStatus = done && !cfg.post_loop ? "done" : "running";
-  const nextCurrent = done ? (cfg.post_loop ? 0 : queue.length) : nextIndex;
+  // Marca produto como enviado neste ciclo (impede repetição).
+  // Só registra se pelo menos um grupo recebeu com sucesso.
+  if (anySent) {
+    await admin.from("automation_group_sends").upsert({
+      user_id: cfg.user_id,
+      config_id: cfg.id,
+      product_id: product.id,
+    }, { onConflict: "config_id,product_id" });
+  }
 
   await admin.from("automation_configs").update({
-    status: nextStatus,
-    current_index: nextCurrent,
+    status: "running",
+    current_index: (cfg.current_index ?? 0) + 1,
     last_sent_at: new Date().toISOString(),
-    last_product_name: item.title,
+    last_product_name: product.title,
     last_error: null,
-    next_run_at: nextStatus === "done"
-      ? null
-      : new Date(Date.now() + cfg.intervalo_min * 60_000).toISOString(),
+    next_run_at: new Date(Date.now() + cfg.intervalo_min * 60_000).toISOString(),
   }).eq("id", cfg.id);
 }
+
 
 export const Route = createFileRoute("/api/public/hooks/automation-tick")({
   server: {
