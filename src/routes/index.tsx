@@ -439,7 +439,7 @@ function MiniBarChart({
 }: {
   items: { label: string; value: number; color: string }[];
 }) {
-  const max = Math.max(...items.map((i) => i.value));
+  const max = Math.max(1, ...items.map((i) => i.value));
   return (
     <div>
       <div className="flex items-end gap-2 h-16">
