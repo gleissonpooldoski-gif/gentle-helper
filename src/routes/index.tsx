@@ -107,7 +107,7 @@ const LIMIT = 5;
 /* ---------------- Page ---------------- */
 
 function ChannelsPage() {
-  const listChannelsFn = useServerFn(listChannels);
+  const listChannelsFn = useServerFn(listChannelDashboards);
   const [channels, setChannels] = useState<Channel[]>([]);
   const [query, setQuery] = useState("");
   useEffect(() => {
