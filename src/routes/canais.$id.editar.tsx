@@ -3219,6 +3219,7 @@ function ShopeePanel() {
   const [staticHidden, setStaticHidden] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [sendProduct, setSendProduct] = useState<SendProduct | null>(null);
+  const [editTarget, setEditTarget] = useState<EditProductTarget | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const importBatchFn = useServerFn(importShopeeBatch);
   const listPendingFn = useServerFn(listPendingShopeeImages);
@@ -3830,7 +3831,16 @@ function ShopeePanel() {
                   >
                     <MessageCircle className="h-3 w-3" /> Grupos
                   </Button>
-                  <Button size="sm" variant="outline" className="h-8 gap-1 rounded-md px-1.5 text-[11px]">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      const m = /^csv-(.+)-\d+$/.exec(p.id);
+                      const itemId = m?.[1] ?? p.id;
+                      setEditTarget({ kind: "byItem", platform: "shopee", itemId });
+                    }}
+                    className="h-8 gap-1 rounded-md px-1.5 text-[11px]"
+                  >
                     <Edit3 className="h-3 w-3" /> Editar
                   </Button>
                   <Button size="sm" variant="outline" className="h-8 gap-1 rounded-md px-1.5 text-[11px]">
@@ -3871,6 +3881,34 @@ function ShopeePanel() {
         onClose={() => setSendProduct(null)}
         product={sendProduct}
         channelId={Route.useParams().id}
+      />
+      <EditProductModal
+        open={editTarget !== null}
+        target={editTarget}
+        onClose={() => setEditTarget(null)}
+        onSaved={(updated) => {
+          setImportedProducts((prev) =>
+            prev.map((p) => {
+              const m = /^csv-(.+)-\d+$/.exec(p.id);
+              const itemId = m?.[1] ?? p.id;
+              if (itemId !== updated.item_id) return p;
+              return {
+                ...p,
+                title: updated.title,
+                imageUrl: updated.image_url ?? p.imageUrl,
+                affiliateLink: updated.affiliate_link,
+                rawLink: updated.raw_link,
+                price: updated.promo_price != null ? `R$ ${updated.promo_price.toFixed(2).replace(".", ",")}` : p.price,
+                original: updated.original_price != null ? `R$ ${updated.original_price.toFixed(2).replace(".", ",")}` : p.original,
+                discount:
+                  updated.original_price && updated.promo_price && updated.original_price > 0
+                    ? Math.round(((updated.original_price - updated.promo_price) / updated.original_price) * 100)
+                    : p.discount,
+              };
+            }),
+          );
+          setEditTarget(null);
+        }}
       />
     </div>
   );
