@@ -3,8 +3,12 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { apiClient } from "@/lib/api-client";
 
 /**
- * Motor de automação por GRUPO: cada grupo de um canal possui sua própria
- * configuração independente (janela, intervalo, lojas, loop, status, fila).
+ * Motor de automação por GRUPO. A fonte de produtos é a planilha importada
+ * (tabela `products`). Cada grupo tem uma config independente com janela,
+ * intervalo, loop e lojas ativas. O sistema escolhe automaticamente
+ * qualquer produto disponível e usa `automation_group_sends` para garantir
+ * que um produto não se repita antes que todos os disponíveis (filtrados
+ * pelas lojas ativas) tenham sido publicados naquele grupo.
  */
 
 const VALID_STORES = new Set(["shopee", "mercadolivre", "magalu", "amazon"]);
@@ -53,22 +57,23 @@ function normalizeGroupId(v: unknown): string | null {
   return s.length > 0 ? s : null;
 }
 
-async function buildStatus(supabase: any, row: any): Promise<AutomationConfigDTO> {
+async function countAvailableProducts(
+  supabase: any,
+  userId: string,
+  lojas: string[],
+): Promise<number> {
+  if (!lojas || lojas.length === 0) return 0;
   const { count } = await supabase
-    .from("automation_queue")
+    .from("products")
     .select("id", { count: "exact", head: true })
-    .eq("config_id", row.id);
-  let current: { title: string; store: string } | null = null;
-  if (count && count > 0) {
-    const idx = row.current_index % count;
-    const { data: c } = await supabase
-      .from("automation_queue")
-      .select("title, store")
-      .eq("config_id", row.id)
-      .eq("order_index", idx)
-      .maybeSingle();
-    if (c) current = { title: c.title, store: c.store };
-  }
+    .eq("user_id", userId)
+    .in("platform", lojas)
+    .not("affiliate_link", "is", null);
+  return count ?? 0;
+}
+
+async function buildStatus(supabase: any, row: any): Promise<AutomationConfigDTO> {
+  const total = await countAvailableProducts(supabase, row.user_id, row.lojas_ativas ?? []);
   return {
     id: row.id,
     channelId: row.channel_id,
@@ -85,16 +90,13 @@ async function buildStatus(supabase: any, row: any): Promise<AutomationConfigDTO
     lastError: row.last_error,
     lastSentAt: row.last_sent_at,
     lastProductName: row.last_product_name,
-    queueSize: count ?? 0,
-    currentProduct: current,
+    queueSize: total,
+    currentProduct: row.last_product_name
+      ? { title: row.last_product_name, store: "" }
+      : null,
   };
 }
 
-/**
- * Busca a config EXATA para (user_id, channel_id, group_id). Se groupId for
- * null, busca a config "channel-wide" (sem grupo). Nunca reaproveita a config
- * de outro grupo.
- */
 async function ensureConfig(
   supabase: any,
   userId: string,
@@ -187,12 +189,11 @@ export const startAutomation = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const cfg = await ensureConfig(supabase, userId, data.channelId, data.groupId, data.groupName);
 
-    const { count } = await supabase
-      .from("automation_queue")
-      .select("id", { count: "exact", head: true })
-      .eq("config_id", cfg.id);
-    if (!count || count === 0) {
-      throw new Error("Adicione ao menos um produto à fila deste grupo antes de iniciar");
+    const total = await countAvailableProducts(supabase, userId, cfg.lojas_ativas ?? []);
+    if (total === 0) {
+      throw new Error(
+        "Nenhum produto disponível nas lojas selecionadas. Importe produtos ou ajuste o filtro de lojas.",
+      );
     }
 
     const { data: upd, error } = await supabase
@@ -306,199 +307,23 @@ export const listAutomationGroups = createServerFn({ method: "POST" })
       .from("whatsapp_group_selections")
       .select("group_jid, group_name")
       .eq("user_id", userId)
-      .eq("instance_id", inst.id)
+      .eq("instance_id", data.channelId ? data.channelId : "")
       .eq("channel_id", data.channelId)
       .order("group_name", { ascending: true });
-    if (error) throw new Error(error.message);
+    // fallback: se a query acima não retornar por conta do instance_id, buscamos por canal apenas
+    if (error) {
+      const { data: sel2, error: e2 } = await supabase
+        .from("whatsapp_group_selections")
+        .select("group_jid, group_name")
+        .eq("user_id", userId)
+        .eq("instance_id", inst.id)
+        .eq("channel_id", data.channelId)
+        .order("group_name", { ascending: true });
+      if (e2) throw new Error(e2.message);
+      return (sel2 ?? []).map((r: any) => ({ groupId: r.group_jid, groupName: r.group_name ?? null }));
+    }
     return (sel ?? []).map((r: any) => ({
       groupId: r.group_jid,
       groupName: r.group_name ?? null,
     }));
   });
-
-// ============================================================
-// Gerenciamento manual de produtos na fila do grupo
-// ============================================================
-
-export interface AutomationQueueItemDTO {
-  id: string;
-  productId: string | null;
-  orderIndex: number;
-  store: string;
-  title: string;
-  mediaUrl: string | null;
-  link: string;
-}
-
-export interface AvailableProductDTO {
-  id: string;
-  title: string;
-  platform: string;
-  imageUrl: string | null;
-  affiliateLink: string;
-}
-
-export const listAutomationProducts = createServerFn({ method: "POST" })
-  .middleware([apiClient, requireSupabaseAuth])
-  .inputValidator((data: ScopeInput) => parseScope(data))
-  .handler(async ({ data, context }): Promise<AutomationQueueItemDTO[]> => {
-    const { supabase, userId } = context;
-    const cfg = await ensureConfig(supabase, userId, data.channelId, data.groupId, data.groupName);
-    const { data: rows, error } = await supabase
-      .from("automation_queue")
-      .select("id, product_id, order_index, store, title, media_url, link")
-      .eq("config_id", cfg.id)
-      .order("order_index", { ascending: true });
-    if (error) throw new Error(error.message);
-    return (rows ?? []).map((r: any) => ({
-      id: r.id,
-      productId: r.product_id,
-      orderIndex: r.order_index,
-      store: r.store,
-      title: r.title,
-      mediaUrl: r.media_url,
-      link: r.link,
-    }));
-  });
-
-export const listAvailableProducts = createServerFn({ method: "POST" })
-  .middleware([apiClient, requireSupabaseAuth])
-  .inputValidator((data: ScopeInput & { search?: string; platforms?: string[] }) => ({
-    ...parseScope(data),
-    search: String(data?.search ?? "").trim().toLowerCase(),
-    platforms: normalizeStores(data?.platforms),
-  }))
-  .handler(async ({ data, context }): Promise<AvailableProductDTO[]> => {
-    const { supabase, userId } = context;
-    const cfg = await ensureConfig(supabase, userId, data.channelId, data.groupId, data.groupName);
-
-    const { data: already } = await supabase
-      .from("automation_queue")
-      .select("product_id")
-      .eq("config_id", cfg.id);
-    const existing = new Set((already ?? []).map((r: any) => r.product_id).filter(Boolean));
-
-    let q = supabase
-      .from("products")
-      .select("id, title, platform, image_url, affiliate_link")
-      .eq("user_id", userId)
-      .not("affiliate_link", "is", null)
-      .order("created_at", { ascending: false })
-      .limit(200);
-    if (data.platforms.length > 0) q = q.in("platform", data.platforms);
-    if (data.search) q = q.ilike("title", `%${data.search}%`);
-    const { data: prods, error } = await q;
-    if (error) throw new Error(error.message);
-    return (prods ?? [])
-      .filter((p: any) => !existing.has(p.id))
-      .map((p: any) => ({
-        id: p.id,
-        title: p.title,
-        platform: p.platform,
-        imageUrl: p.image_url,
-        affiliateLink: p.affiliate_link,
-      }));
-  });
-
-export const addAutomationProducts = createServerFn({ method: "POST" })
-  .middleware([apiClient, requireSupabaseAuth])
-  .inputValidator((data: ScopeInput & { productIds: string[] }) => ({
-    ...parseScope(data),
-    productIds: Array.isArray(data?.productIds)
-      ? data.productIds.map((x) => String(x)).filter(Boolean)
-      : [],
-  }))
-  .handler(async ({ data, context }): Promise<AutomationQueueItemDTO[]> => {
-    const { supabase, userId } = context;
-    if (data.productIds.length === 0) throw new Error("Selecione ao menos um produto");
-    const cfg = await ensureConfig(supabase, userId, data.channelId, data.groupId, data.groupName);
-
-    const { data: prods, error: pErr } = await supabase
-      .from("products")
-      .select("id, title, platform, image_url, affiliate_link")
-      .eq("user_id", userId)
-      .in("id", data.productIds);
-    if (pErr) throw new Error(pErr.message);
-    const list = (prods ?? []).filter((p: any) => p.affiliate_link);
-    if (list.length === 0) throw new Error("Nenhum produto válido");
-
-    const { data: existing } = await supabase
-      .from("automation_queue")
-      .select("product_id, order_index")
-      .eq("config_id", cfg.id);
-    const already = new Set((existing ?? []).map((r: any) => r.product_id).filter(Boolean));
-    const startIdx =
-      (existing ?? []).reduce((m: number, r: any) => Math.max(m, r.order_index + 1), 0);
-
-    const rows = list
-      .filter((p: any) => !already.has(p.id))
-      .map((p: any, i: number) => ({
-        config_id: cfg.id,
-        user_id: userId,
-        order_index: startIdx + i,
-        product_id: p.id,
-        store: p.platform,
-        title: p.title,
-        media_url: p.image_url,
-        link: p.affiliate_link,
-      }));
-    if (rows.length > 0) {
-      const { error } = await supabase.from("automation_queue").insert(rows);
-      if (error) throw new Error(error.message);
-    }
-
-    const { data: after, error: lErr } = await supabase
-      .from("automation_queue")
-      .select("id, product_id, order_index, store, title, media_url, link")
-      .eq("config_id", cfg.id)
-      .order("order_index", { ascending: true });
-    if (lErr) throw new Error(lErr.message);
-    return (after ?? []).map((r: any) => ({
-      id: r.id,
-      productId: r.product_id,
-      orderIndex: r.order_index,
-      store: r.store,
-      title: r.title,
-      mediaUrl: r.media_url,
-      link: r.link,
-    }));
-  });
-
-export const removeAutomationProduct = createServerFn({ method: "POST" })
-  .middleware([apiClient, requireSupabaseAuth])
-  .inputValidator((data: ScopeInput & { queueItemId: string }) => ({
-    ...parseScope(data),
-    queueItemId: String(data?.queueItemId ?? "").trim(),
-  }))
-  .handler(async ({ data, context }): Promise<{ ok: true }> => {
-    const { supabase, userId } = context;
-    if (!data.queueItemId) throw new Error("queueItemId obrigatório");
-    const cfg = await ensureConfig(supabase, userId, data.channelId, data.groupId, data.groupName);
-    const { error } = await supabase
-      .from("automation_queue")
-      .delete()
-      .eq("id", data.queueItemId)
-      .eq("config_id", cfg.id);
-    if (error) throw new Error(error.message);
-    return { ok: true };
-  });
-
-export const clearAutomationQueue = createServerFn({ method: "POST" })
-  .middleware([apiClient, requireSupabaseAuth])
-  .inputValidator((data: ScopeInput) => parseScope(data))
-  .handler(async ({ data, context }): Promise<{ ok: true }> => {
-    const { supabase, userId } = context;
-    const cfg = await ensureConfig(supabase, userId, data.channelId, data.groupId, data.groupName);
-    const { error } = await supabase
-      .from("automation_queue")
-      .delete()
-      .eq("config_id", cfg.id);
-    if (error) throw new Error(error.message);
-    await supabase
-      .from("automation_configs")
-      .update({ current_index: 0 })
-      .eq("id", cfg.id);
-    return { ok: true };
-  });
-
-
