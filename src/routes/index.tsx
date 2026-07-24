@@ -66,6 +66,8 @@ interface Channel {
     storyAuto: SocialStatus;
   };
   distribution: { label: string; value: number; color: string }[];
+  sentLast30d: number;
+  sentByPlatformLast30d: { platform: string; count: number }[];
   accent: string; // subtle gradient hint
 }
 
