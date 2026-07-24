@@ -408,67 +408,8 @@ function EditChannelPage() {
                 </p>
               </div>
 
-              {/* Frequência */}
-              <div className="rounded-2xl border border-border/70 bg-card p-5">
-                <p className="mb-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Frequência e loop
-                </p>
-
-                <div className="space-y-2">
-                  <Checkbox
-                    checked={autoPost}
-                    onChange={setAutoPost}
-                    label="Post automático"
-                  />
-                  <Checkbox
-                    checked={loop}
-                    onChange={setLoop}
-                    label="Post em Loop"
-                    hint="Repete os produtos ao final da lista"
-                  />
-                </div>
-
-                <div className="mt-4 grid grid-cols-2 gap-3">
-                  <Field label="Intervalo (min)">
-                    <SelectShell>15</SelectShell>
-                  </Field>
-                  <Field label="Idioma">
-                    <SelectShell>Português (PT)</SelectShell>
-                  </Field>
-                  <Field label="Hora início">
-                    <SelectShell>07:00</SelectShell>
-                  </Field>
-                  <Field label="Hora fim">
-                    <SelectShell>22:00</SelectShell>
-                  </Field>
-                  <Field label="Moeda">
-                    <SelectShell>Real (BRL)</SelectShell>
-                  </Field>
-                  <Field label="País">
-                    <SelectShell>Brasil</SelectShell>
-                  </Field>
-                </div>
-
-                <p className="mt-5 mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Lojas ativas
-                </p>
-                <div className="grid grid-cols-2 gap-1.5">
-                  {STORES.map((s) => (
-                    <Checkbox
-                      key={s}
-                      checked={activeStores.includes(s)}
-                      onChange={() => toggleStore(s)}
-                      label={s}
-                      small
-                    />
-                  ))}
-                </div>
-
-                <Button className="mt-5 h-10 w-full rounded-lg bg-primary hover:bg-primary/90">
-                  <Save className="mr-1.5 h-4 w-4" />
-                  Salvar
-                </Button>
-              </div>
+              {/* Frequência e Loop — motor de automação real */}
+              <AutomationPanel channelId={id} />
             </aside>
           </div>
           )}
