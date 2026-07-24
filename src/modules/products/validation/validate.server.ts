@@ -128,6 +128,7 @@ export async function validateProduct(product: {
 export async function persistValidation(
   admin: any,
   productId: string,
+  channelId: string,
   result: ValidationResult,
 ): Promise<void> {
   await admin
@@ -137,5 +138,6 @@ export async function persistValidation(
       last_validated_at: new Date().toISOString(),
       validation_error: result.reason ?? null,
     })
-    .eq("id", productId);
+    .eq("id", productId)
+    .eq("channel_id", channelId);
 }

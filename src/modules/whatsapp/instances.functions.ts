@@ -406,9 +406,12 @@ export const saveWhatsAppGroupSelection = createServerFn({ method: "POST" })
   .inputValidator((data: {
     id: string;
     channelId: string;
+    channelId: string;
     groups: Array<{ jid: string; name?: string }>;
   }) => {
     if (!data?.id) throw new Error("id obrigatório");
+    const channelId = String(data.channelId ?? "").trim();
+    if (!channelId) throw new Error("channelId obrigatório");
     const channelId = toUuidOrNull(data?.channelId);
     if (!channelId) throw new Error("channelId inválido");
     if (!Array.isArray(data.groups)) throw new Error("groups obrigatório");
@@ -501,7 +504,7 @@ export const sendWhatsAppProduct = createServerFn({ method: "POST" })
   }) => {
     if (!data?.id) throw new Error("id obrigatório");
     const jids = Array.isArray(data.jids) ? data.jids.map((j) => String(j)) : null;
-    if (data.productId) return { id: String(data.id), jids, productId: String(data.productId), product: null };
+    if (data.productId) return { id: String(data.id), channelId, jids, productId: String(data.productId), product: null };
     const p = data.product;
     if (!p) throw new Error("Informe productId ou product");
     const title = String(p.title ?? p.name ?? "").trim();
@@ -510,6 +513,7 @@ export const sendWhatsAppProduct = createServerFn({ method: "POST" })
     if (!link) throw new Error("Link do produto obrigatório");
     return {
       id: String(data.id),
+      channelId,
       jids,
       productId: null,
       product: {
@@ -549,6 +553,7 @@ export const sendWhatsAppProduct = createServerFn({ method: "POST" })
         .from("products")
         .select("*")
         .eq("user_id", userId)
+        .eq("channel_id", data.channelId)
         .eq("id", productId)
         .maybeSingle();
       if (error) throw new Error(error.message);
@@ -582,7 +587,8 @@ export const sendWhatsAppProduct = createServerFn({ method: "POST" })
         .from("whatsapp_group_selections")
         .select("group_jid")
         .eq("user_id", userId)
-        .eq("instance_id", row.id);
+        .eq("instance_id", row.id)
+        .eq("channel_id", data.channelId);
       targets = (sel ?? []).map((s: any) => s.group_jid);
     }
     if (targets.length === 0) throw new Error("Nenhum grupo selecionado");

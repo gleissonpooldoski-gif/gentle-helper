@@ -119,6 +119,7 @@ export function SendToGroupsModal({ open, onClose, product, channelId }: Props) 
       const res = await sendFn({
         data: {
           id: instance.id,
+          channelId,
           jids: selectedJids,
           product: {
             title: product.title,
