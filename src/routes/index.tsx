@@ -23,7 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { AppSidebar } from "@/components/app-sidebar";
-import { listChannels, type ChannelDTO } from "@/modules/channels/channels.functions";
+import { listChannelDashboards, type ChannelDashboardDTO } from "@/modules/channels/channels.functions";
 
 export const Route = createFileRoute("/")({
   head: () => ({
