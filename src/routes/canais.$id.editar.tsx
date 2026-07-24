@@ -174,6 +174,28 @@ function EditChannelPage() {
       });
   }, [getFlowSummaryFn, id]);
 
+  const refreshProductCounts = useCallback(() => {
+    void getProductCountsFn({ data: { channelId: id } })
+      .then(setProductCounts)
+      .catch(() => {
+        /* mantém último snapshot */
+      });
+  }, [getProductCountsFn, id]);
+
+  useEffect(() => {
+    refreshProductCounts();
+  }, [refreshProductCounts, tab]);
+
+  useEffect(() => {
+    const onFocus = () => refreshProductCounts();
+    window.addEventListener("focus", onFocus);
+    const t = window.setInterval(refreshProductCounts, 30_000);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      window.clearInterval(t);
+    };
+  }, [refreshProductCounts]);
+
   useEffect(() => {
     console.info("Editando canal:", id);
     let cancelled = false;
