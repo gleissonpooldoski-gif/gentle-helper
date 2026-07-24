@@ -76,8 +76,45 @@ async function countAvailableProducts(
   return count ?? 0;
 }
 
+async function countRemainingForConfig(
+  supabase: any,
+  configId: string,
+  totalActive: number,
+): Promise<number> {
+  if (totalActive <= 0) return 0;
+  const { count } = await supabase
+    .from("automation_group_sends")
+    .select("product_id", { count: "exact", head: true })
+    .eq("config_id", configId);
+  const sent = count ?? 0;
+  return Math.max(0, totalActive - sent);
+}
+
+function projectNextRunAt(row: any): string | null {
+  // Se o worker já agendou um próximo disparo, usa-o.
+  if (row?.next_run_at) return row.next_run_at;
+  // Caso contrário, projeta a partir do último envio + intervalo,
+  // desde que a automação esteja ativa (running/waiting).
+  const active = row?.status === "running" || row?.status === "waiting";
+  if (!active) return null;
+  const interval = Number(row?.intervalo_min) || 0;
+  if (!interval) return null;
+  const base = row?.last_sent_at ? new Date(row.last_sent_at).getTime() : Date.now();
+  return new Date(base + interval * 60_000).toISOString();
+}
+
 async function buildStatus(supabase: any, row: any): Promise<AutomationConfigDTO> {
-  const total = await countAvailableProducts(supabase, row.user_id, row.channel_id, row.lojas_ativas ?? []);
+  const totalActive = await countAvailableProducts(
+    supabase,
+    row.user_id,
+    row.channel_id,
+    row.lojas_ativas ?? [],
+  );
+  // "Produtos disponíveis" = ativos deste grupo ainda não enviados no ciclo atual.
+  // No modo Loop, o worker limpa automation_group_sends ao fechar o ciclo, então
+  // o número volta ao total automaticamente. No modo sem Loop, decresce até zero
+  // e a automação encerra ('done'). Em ambos os modos o valor reflete a realidade.
+  const remaining = await countRemainingForConfig(supabase, row.id, totalActive);
 
   return {
     id: row.id,
@@ -91,11 +128,11 @@ async function buildStatus(supabase: any, row: any): Promise<AutomationConfigDTO
     postLoop: !!row.post_loop,
     status: row.status,
     currentIndex: row.current_index,
-    nextRunAt: row.next_run_at,
+    nextRunAt: projectNextRunAt(row),
     lastError: row.last_error,
     lastSentAt: row.last_sent_at,
     lastProductName: row.last_product_name,
-    queueSize: total,
+    queueSize: remaining,
     currentProduct: row.last_product_name
       ? { title: row.last_product_name, store: "" }
       : null,
