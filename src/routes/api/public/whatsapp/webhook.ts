@@ -81,7 +81,7 @@ export const Route = createFileRoute("/api/public/whatsapp/webhook")({
         if (Object.keys(patch).length === 0) return json({ ok: true, ignored: event });
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-        const { error } = await supabaseAdmin
+        const { error } = await (supabaseAdmin as any)
           .from("whatsapp_instances")
           .update(patch)
           .eq("instance_name", instanceName);
