@@ -81,6 +81,7 @@ export const getProductForEdit = createServerFn({ method: "GET" })
   });
 
 const UpdateSchema = z.object({
+  channelId: z.string().uuid(),
   id: z.string().uuid(),
   title: z.string().min(1).max(500),
   image_url: z.string().url().nullable().optional(),
@@ -96,7 +97,7 @@ export const updateProduct = createServerFn({ method: "POST" })
   .middleware([apiClient, requireSupabaseAuth])
   .inputValidator((input: unknown) => UpdateSchema.parse(input))
   .handler(async ({ data, context }): Promise<EditableProductDTO> => {
-    const { id, ...updates } = data;
+    const { id, channelId, ...updates } = data;
     const patch = {
       ...updates,
       image_url: updates.image_url ?? null,
@@ -107,6 +108,7 @@ export const updateProduct = createServerFn({ method: "POST" })
       .update(patch as never)
       .eq("id", id)
       .eq("user_id", context.userId)
+      .eq("channel_id", channelId)
       .select("*")
       .maybeSingle();
     if (error) throw new Error(error.message);

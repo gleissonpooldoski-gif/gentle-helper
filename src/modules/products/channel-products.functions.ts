@@ -43,7 +43,7 @@ export const listChannelProducts = createServerFn({ method: "POST" })
 
     return (rows ?? []).map((row) => ({
       id: row.id,
-      channelId: row.channel_id,
+      channelId: row.channel_id ?? data.channelId,
       platform: row.platform,
       itemId: row.item_id ?? null,
       title: row.title ?? "",
