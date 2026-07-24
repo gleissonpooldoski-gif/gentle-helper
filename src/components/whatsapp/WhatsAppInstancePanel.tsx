@@ -114,8 +114,8 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
     }
   }, [listFn, channelId]);
 
-  // Sempre consulta/adota "DIVULGA LINKS" ao abrir. Esse fluxo usa apenas
-  // connectionState e nunca POST /instance/create.
+  // Sempre consulta/adota "DIVULGA LINKS" ao abrir e força refresh ao vivo
+  // (connectionState) de cada instância, para nunca exibir status cacheado do DB.
   const autoAdoptedRef = useRef(false);
   useEffect(() => {
     if (autoAdoptedRef.current) return;
@@ -124,12 +124,20 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
       try {
         await adoptFn({ data: { instanceName: "DIVULGA LINKS", channelId } });
       } catch {
-        /* silencioso: mantém as demais instâncias disponíveis */
-      } finally {
-        await reload();
+        /* silencioso */
       }
+      const rows = await reload();
+      // Refresh ao vivo de todas as instâncias (força connectionState real).
+      await Promise.all(
+        rows.map((r) =>
+          refreshFn({ data: { id: r.id } }).catch((err) => {
+            console.warn("[WA] refresh live falhou:", err);
+          }),
+        ),
+      );
+      await reload();
     })();
-  }, [reload, adoptFn, channelId]);
+  }, [reload, adoptFn, refreshFn, channelId]);
 
   // Realtime: refresh automático via postgres_changes
   const reloadRef = useRef(reload);
