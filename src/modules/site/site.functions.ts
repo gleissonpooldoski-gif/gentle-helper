@@ -5,6 +5,7 @@ import { apiClient } from "@/lib/api-client";
 export interface SiteConfigDTO {
   slug: string;
   title: string;
+  subtitle: string;
   logoUrl: string | null;
   gaTag: string | null;
   themeColor: string;
@@ -15,6 +16,7 @@ export interface SiteConfigDTO {
 const DEFAULT_CONFIG = (slug: string): SiteConfigDTO => ({
   slug,
   title: "Meu Site DvLinks",
+  subtitle: "",
   logoUrl: null,
   gaTag: null,
   themeColor: "#3B82F6",
