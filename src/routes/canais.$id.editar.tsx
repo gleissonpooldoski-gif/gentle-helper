@@ -555,6 +555,18 @@ function EditChannelPage() {
                     />
                   </div>
                 </div>
+
+                <div className="flex justify-end pt-2">
+                  <Button
+                    type="button"
+                    onClick={handleSaveManualPost}
+                    disabled={manualSaving || !manualPost}
+                    className="gap-2"
+                  >
+                    <Save className="h-4 w-4" />
+                    {manualSaving ? "Salvando..." : "Salvar"}
+                  </Button>
+                </div>
               </SectionCard>
 
               {/* Cupons */}
