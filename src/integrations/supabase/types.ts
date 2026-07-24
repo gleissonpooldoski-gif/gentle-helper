@@ -364,6 +364,27 @@ export type Database = {
         }
         Relationships: []
       }
+      evolution_settings: {
+        Row: {
+          base_url: string
+          id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          base_url?: string
+          id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          base_url?: string
+          id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       manual_posts: {
         Row: {
           channel_id: string
