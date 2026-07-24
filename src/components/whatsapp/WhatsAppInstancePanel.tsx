@@ -287,26 +287,40 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
   const handleReconnect = async (i: WhatsAppInstanceDTO) => {
     try {
       setBusy(`rec:${i.id}`);
-      // Abre modal em estado "checking" para que "Novo QR" nunca fique sem feedback.
       setQrFlowState("checking");
       setQrModal({ ...i, qrCode: null });
 
-      const upd = await reconnectFn({ data: { id: i.id } });
-      // Logs temporários para validar o retorno da Evolution
+      // Só solicita QR se o estado remoto não for open.
+      const st = await refreshFn({ data: { id: i.id } });
       // eslint-disable-next-line no-console
-      console.log("CONNECT RESPONSE", upd);
+      console.log("[WA] connectionState recebido (reconnect):", st.status);
+      if (st.status === "connected") {
+        setQrModal(st);
+        setQrFlowState("connected");
+        toast.success("🟢 WhatsApp conectado");
+        return;
+      }
+
+      const upd = await reconnectFn({ data: { id: i.id } });
+      // eslint-disable-next-line no-console
+      console.log("[WA] resposta do QR (reconnect):", { status: upd.status, hasQr: !!upd.qrCode });
       const qrValue = normalizeQrSource(upd.qrCode);
       // eslint-disable-next-line no-console
-      console.log("QR VALUE", qrValue);
+      console.log("[WA] campo base64 do QR (reconnect):", qrValue ? "encontrado" : "AUSENTE");
 
       if (upd.status === "connected") {
         setQrModal(upd);
         setQrFlowState("connected");
-        toast.success("WhatsApp já conectado");
+        toast.success("🟢 WhatsApp conectado");
         return;
       }
       setQrModal(upd);
-      setQrFlowState(qrValue ? "waiting_qr" : "checking");
+      if (qrValue) {
+        setQrFlowState("waiting_qr");
+      } else {
+        setQrFlowState("error");
+        toast.error("Evolution não retornou QR Code. Verifique conexão da instância.");
+      }
     } catch (err) {
       setQrFlowState("error");
       toast.error(err instanceof Error ? err.message : "Falha ao reconectar");
@@ -314,6 +328,7 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
       setBusy(null);
     }
   };
+
 
 
   const handleDisconnect = async (i: WhatsAppInstanceDTO) => {
