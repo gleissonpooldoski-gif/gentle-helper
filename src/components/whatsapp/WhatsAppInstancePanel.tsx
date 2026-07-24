@@ -228,21 +228,36 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
   };
 
   const handleReconnect = async (i: WhatsAppInstanceDTO) => {
-    // Se já está conectado, não pede QR novo.
-    if (i.status === "connected") {
-      toast.success("WhatsApp já conectado");
-      return;
-    }
     try {
       setBusy(`rec:${i.id}`);
+      // Abre modal em estado "checking" para que "Novo QR" nunca fique sem feedback.
+      setQrFlowState("checking");
+      setQrModal({ ...i, qrCode: null });
+
       const upd = await reconnectFn({ data: { id: i.id } });
-      openQrModal(upd);
+      // Logs temporários para validar o retorno da Evolution
+      // eslint-disable-next-line no-console
+      console.log("CONNECT RESPONSE", upd);
+      const qrValue = normalizeQrSource(upd.qrCode);
+      // eslint-disable-next-line no-console
+      console.log("QR VALUE", qrValue);
+
+      if (upd.status === "connected") {
+        setQrModal(upd);
+        setQrFlowState("connected");
+        toast.success("WhatsApp já conectado");
+        return;
+      }
+      setQrModal(upd);
+      setQrFlowState(qrValue ? "waiting_qr" : "checking");
     } catch (err) {
+      setQrFlowState("error");
       toast.error(err instanceof Error ? err.message : "Falha ao reconectar");
     } finally {
       setBusy(null);
     }
   };
+
 
   const handleDisconnect = async (i: WhatsAppInstanceDTO) => {
     if (!confirm(`Desconectar "${i.instanceName}"?`)) return;
