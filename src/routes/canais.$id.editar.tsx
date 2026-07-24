@@ -2183,49 +2183,7 @@ function WhatsAppGroupsPanel() {
   return (
     <div className="mt-6 space-y-6">
       <WhatsAppInstancePanel channelId={channelId} />
-      <WhatsAppConnectionCard />
 
-      {/* WhatsApp Web / Passkey solution */}
-      <div className="overflow-hidden rounded-2xl border border-[oklch(0.85_0.12_150)] bg-gradient-to-br from-[oklch(0.97_0.05_150)] to-[oklch(0.95_0.06_155)] shadow-[0_1px_2px_rgba(15,23,42,0.04),0_10px_30px_-18px_rgba(20,150,90,0.35)]">
-        <div className="flex flex-col gap-5 p-6 sm:flex-row sm:items-start">
-          <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-[oklch(0.72_0.18_150)] to-[oklch(0.58_0.2_155)] text-white shadow-lg">
-            <Sparkles className="h-6 w-6" strokeWidth={2.4} />
-          </div>
-          <div className="flex-1 space-y-3">
-            <div>
-              <span className="inline-flex items-center gap-1 rounded-full bg-white/70 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[oklch(0.42_0.15_155)]">
-                ⭐ Novidade
-              </span>
-              <h2 className="mt-2 font-display text-xl font-bold text-foreground">
-                Solução definitiva para conectar o WhatsApp
-              </h2>
-              <p className="mt-1.5 text-[13.5px] leading-relaxed text-foreground/75">
-                O WhatsApp Web agora exige uma <b>chave de acesso (passkey)</b> para manter a sessão ativa. Instale a nossa extensão oficial, copie o token gerado abaixo e cole na extensão para conectar sua conta em segundos — sem precisar escanear QR code toda semana.
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="flex items-center gap-2 rounded-lg border border-[oklch(0.85_0.1_150)] bg-white px-3 py-2 font-mono text-[12px] text-foreground/80">
-                <span className="text-muted-foreground">Token:</span>
-                <span className="font-semibold text-foreground">dvl_wa_a91f•••4c72</span>
-                <button className="ml-1 text-primary hover:underline">Copiar</button>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap gap-2 pt-1">
-              <Button className="gap-2 rounded-lg bg-gradient-to-r from-[oklch(0.62_0.22_255)] to-[oklch(0.55_0.24_260)] text-white shadow-sm hover:opacity-95">
-                <Chrome className="h-4 w-4" /> Instalar Extensão do Chrome
-              </Button>
-              <Button variant="outline" className="gap-2 rounded-lg border-border/70 bg-white">
-                <PlayCircle className="h-4 w-4" /> Assistir vídeo tutorial
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Sessões WhatsApp */}
-      <WhatsAppSessionsPanel />
 
 
       {/* Operational alerts */}
