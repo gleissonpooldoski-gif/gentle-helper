@@ -6,6 +6,7 @@
 export type WhatsAppInstanceStatus =
   | "creating"
   | "awaiting_qr"
+  | "connecting"
   | "connected"
   | "disconnected"
   | "error";

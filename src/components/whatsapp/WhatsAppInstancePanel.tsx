@@ -50,6 +50,7 @@ function normalizeQrSource(qrCode: string | null): string | null {
 const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
   creating: { label: "Criando…", cls: "bg-amber-100 text-amber-800" },
   awaiting_qr: { label: "Aguardando QR", cls: "bg-blue-100 text-blue-800" },
+  connecting: { label: "Conectando…", cls: "bg-amber-100 text-amber-800" },
   connected: { label: "Conectado", cls: "bg-emerald-100 text-emerald-800" },
   disconnected: { label: "Desconectado", cls: "bg-muted text-muted-foreground" },
   error: { label: "Erro", cls: "bg-red-100 text-red-800" },
@@ -113,8 +114,8 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
     }
   }, [listFn, channelId]);
 
-  // Sempre consulta/adota "DIVULGA LINKS" ao abrir. Esse fluxo usa apenas
-  // connectionState e nunca POST /instance/create.
+  // Sempre consulta/adota "DIVULGA LINKS" ao abrir e força refresh ao vivo
+  // (connectionState) de cada instância, para nunca exibir status cacheado do DB.
   const autoAdoptedRef = useRef(false);
   useEffect(() => {
     if (autoAdoptedRef.current) return;
@@ -123,12 +124,20 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
       try {
         await adoptFn({ data: { instanceName: "DIVULGA LINKS", channelId } });
       } catch {
-        /* silencioso: mantém as demais instâncias disponíveis */
-      } finally {
-        await reload();
+        /* silencioso */
       }
+      const rows = await reload();
+      // Refresh ao vivo de todas as instâncias (força connectionState real).
+      await Promise.all(
+        rows.map((r) =>
+          refreshFn({ data: { id: r.id } }).catch((err) => {
+            console.warn("[WA] refresh live falhou:", err);
+          }),
+        ),
+      );
+      await reload();
     })();
-  }, [reload, adoptFn, channelId]);
+  }, [reload, adoptFn, refreshFn, channelId]);
 
   // Realtime: refresh automático via postgres_changes
   const reloadRef = useRef(reload);
@@ -515,6 +524,32 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
                     >
                       {s.label}
                     </span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={async () => {
+                        try {
+                          setBusy(`ref:${i.id}`);
+                          const upd = await refreshFn({ data: { id: i.id } });
+                          await reload();
+                          if (upd.status === "connected") toast.success("🟢 WhatsApp conectado");
+                          else if (upd.status === "connecting") toast.message("Conectando…");
+                          else if (upd.status === "disconnected") toast.message("Desconectado");
+                        } catch (err) {
+                          toast.error(err instanceof Error ? err.message : "Falha ao atualizar");
+                        } finally {
+                          setBusy(null);
+                        }
+                      }}
+                      disabled={busy === `ref:${i.id}`}
+                      title="Atualizar status"
+                    >
+                      {busy === `ref:${i.id}` ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-4 w-4" />
+                      )}
+                    </Button>
                     {i.status === "awaiting_qr" && (
                       <Button size="sm" variant="outline" onClick={() => openQrModal(i)}>
                         <QrCode className="mr-1 h-4 w-4" /> Ver QR
