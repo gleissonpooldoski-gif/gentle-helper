@@ -600,6 +600,7 @@ export type Database = {
           affiliate_link: string
           availability: string
           category: string | null
+          channel_id: string | null
           commission_rate: number | null
           commission_value: number | null
           created_at: string
@@ -622,6 +623,7 @@ export type Database = {
           affiliate_link: string
           availability?: string
           category?: string | null
+          channel_id?: string | null
           commission_rate?: number | null
           commission_value?: number | null
           created_at?: string
@@ -644,6 +646,7 @@ export type Database = {
           affiliate_link?: string
           availability?: string
           category?: string | null
+          channel_id?: string | null
           commission_rate?: number | null
           commission_value?: number | null
           created_at?: string
@@ -663,6 +666,13 @@ export type Database = {
           validation_error?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "products_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "products_user_id_fkey"
             columns: ["user_id"]

@@ -25,6 +25,7 @@ export interface EditableProductDTO {
 
 const GetSchema = z
   .object({
+    channelId: z.string().uuid(),
     id: z.string().uuid().optional(),
     platform: z.string().min(1).optional(),
     itemId: z.string().min(1).optional(),
@@ -37,9 +38,15 @@ export const getProductForEdit = createServerFn({ method: "GET" })
   .middleware([apiClient, requireSupabaseAuth])
   .inputValidator((input: unknown) => GetSchema.parse(input))
   .handler(async ({ data, context }): Promise<EditableProductDTO | null> => {
-    let q = context.supabase.from("products").select("*").eq("user_id", context.userId).limit(1);
+    let q = context.supabase
+      .from("products")
+      .select("*")
+      .eq("user_id", context.userId)
+      .eq("channel_id", data.channelId)
+      .limit(1);
     if (data.id) q = q.eq("id", data.id);
     else q = q.eq("platform", data.platform!).eq("item_id", data.itemId!);
+
     const { data: row, error } = await q.maybeSingle();
     if (error) throw new Error(error.message);
     if (!row) return null;

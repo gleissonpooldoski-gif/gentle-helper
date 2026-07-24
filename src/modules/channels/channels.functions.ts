@@ -174,7 +174,7 @@ export const listChannelDashboards = createServerFn({ method: "GET" })
         .order("created_at", { ascending: true }),
       supabase
         .from("products")
-        .select("platform, availability, affiliate_link")
+        .select("channel_id, platform, availability, affiliate_link")
         .eq("user_id", userId),
       supabase.from("whatsapp_instances").select("channel_id, status").eq("user_id", userId),
       supabase
@@ -190,14 +190,23 @@ export const listChannelDashboards = createServerFn({ method: "GET" })
 
     if (channelsRes.error) throw new Error(channelsRes.error.message);
 
-    // Index products by platform (only active + affiliate-linked count as "available for a channel").
-    const productsByPlatformAll = new Map<string, number>();
-    for (const row of (productsRes.data ?? []) as { platform: string | null; availability: string | null; affiliate_link: string | null }[]) {
+    // Index products by (channel_id, platform) — strict per-channel isolation.
+    const productsByChannelPlatform = new Map<string, Map<string, number>>();
+    for (const row of (productsRes.data ?? []) as {
+      channel_id: string | null;
+      platform: string | null;
+      availability: string | null;
+      affiliate_link: string | null;
+    }[]) {
+      if (!row.channel_id) continue;
       if ((row.availability ?? "").toLowerCase() !== "active") continue;
       if (!row.affiliate_link) continue;
       const p = (row.platform ?? "outros").toLowerCase();
-      productsByPlatformAll.set(p, (productsByPlatformAll.get(p) ?? 0) + 1);
+      const inner = productsByChannelPlatform.get(row.channel_id) ?? new Map<string, number>();
+      inner.set(p, (inner.get(p) ?? 0) + 1);
+      productsByChannelPlatform.set(row.channel_id, inner);
     }
+
 
     // WhatsApp per channel
     const waByChannel = new Map<string, boolean>();
@@ -243,15 +252,20 @@ export const listChannelDashboards = createServerFn({ method: "GET" })
     return (channelsRes.data ?? []).map((row: any) => {
       const base = mapChannel(row);
       const lojas = lojasByChannel.get(base.id) ?? new Set<string>();
+      const channelProducts = productsByChannelPlatform.get(base.id) ?? new Map<string, number>();
 
-      // Per-channel product counts: only platforms in this channel's lojas_ativas.
+      // Mostra a quantidade real de produtos existentes no grupo (por plataforma).
+      // Se houver `lojas_ativas`, garante que essas plataformas apareçam mesmo com 0.
+      const platforms = new Set<string>([...channelProducts.keys(), ...lojas]);
       const productsByPlatform: { platform: string; count: number }[] = [];
       let productsTotal = 0;
-      for (const platform of lojas) {
-        const count = productsByPlatformAll.get(platform) ?? 0;
+      for (const platform of platforms) {
+        const count = channelProducts.get(platform) ?? 0;
         productsTotal += count;
         productsByPlatform.push({ platform: labelPlatform(platform), count });
       }
+
+
 
       const inner = sentByChannelPlatform.get(base.id);
       const sentByPlatformLast30d = inner

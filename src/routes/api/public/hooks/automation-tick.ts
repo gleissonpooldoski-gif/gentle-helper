@@ -154,11 +154,13 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
       .from("products")
       .select("*")
       .eq("user_id", cfg.user_id)
+      .eq("channel_id", cfg.channel_id)
       .in("platform", lojas)
       .eq("availability", "active")
       .not("affiliate_link", "is", null)
       .order("last_validated_at", { ascending: true, nullsFirst: true })
       .limit(30);
+
     if (excluded.size > 0) {
       q = q.not("id", "in", `(${Array.from(excluded).join(",")})`);
     }

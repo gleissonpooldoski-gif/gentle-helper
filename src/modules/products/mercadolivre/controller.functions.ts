@@ -51,9 +51,15 @@ async function tryLoadToken(userId: string): Promise<string | null> {
   }
 }
 
-function toUpsert(userId: string, item: MLItem, affiliateTag: string | null): MLProductUpsert {
+function toUpsert(
+  userId: string,
+  channelId: string | null,
+  item: MLItem,
+  affiliateTag: string | null,
+): MLProductUpsert {
   return {
     user_id: userId,
+    channel_id: channelId,
     platform: "mercadolivre",
     item_id: item.id,
     title: item.title,
@@ -69,10 +75,13 @@ function toUpsert(userId: string, item: MLItem, affiliateTag: string | null): ML
   };
 }
 
+
 /** Add one product by pasting any ML URL / short link / raw MLB id. */
 export const addMLProductByLink = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ link: z.string().min(3) }).parse(input))
+  .inputValidator((input: unknown) =>
+    z.object({ channelId: z.string().uuid(), link: z.string().min(3) }).parse(input),
+  )
   .handler(async ({ data, context }) => {
     const raw = data.link.trim();
     let mlbId = parseMLBId(raw);
@@ -87,9 +96,10 @@ export const addMLProductByLink = createServerFn({ method: "POST" })
     if (!item) throw new Error(`Produto ${mlbId} não encontrado na API do Mercado Livre.`);
 
     const tag = await loadAffiliateTag(context.supabase, context.userId);
-    const outcome = await upsertProducts(context.supabase, context.userId, [
-      toUpsert(context.userId, item, tag),
+    const outcome = await upsertProducts(context.supabase, context.userId, data.channelId, [
+      toUpsert(context.userId, data.channelId, item, tag),
     ]);
+
 
     return {
       product: {
@@ -168,7 +178,12 @@ export const searchMLProducts = createServerFn({ method: "POST" })
 export const addMLProductsByIds = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
-    z.object({ ids: z.array(z.string().min(3)).min(1).max(50) }).parse(input),
+    z
+      .object({
+        channelId: z.string().uuid(),
+        ids: z.array(z.string().min(3)).min(1).max(50),
+      })
+      .parse(input),
   )
   .handler(async ({ data, context }) => {
     const token = await loadToken(context.userId);
@@ -193,7 +208,8 @@ export const addMLProductsByIds = createServerFn({ method: "POST" })
 
     if (items.length === 0) return { inserted: 0, updated: 0, failed: data.ids.length };
 
-    const batch = items.map((i) => toUpsert(context.userId, i, tag));
-    const outcome = await upsertProducts(context.supabase, context.userId, batch);
+    const batch = items.map((i) => toUpsert(context.userId, data.channelId, i, tag));
+    const outcome = await upsertProducts(context.supabase, context.userId, data.channelId, batch);
     return { ...outcome, failed: data.ids.length - items.length };
+
   });

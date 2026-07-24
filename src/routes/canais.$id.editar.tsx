@@ -2536,6 +2536,8 @@ function formatBRL(v: number | null): string {
 }
 
 function MercadoLivrePanel() {
+  const { id: channelId } = Route.useParams();
+
   const [autoAffiliate, setAutoAffiliate] = useState(true);
   const [bestSellers, setBestSellers] = useState(false);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
@@ -2573,7 +2575,7 @@ function MercadoLivrePanel() {
     }
     setAddingLink(true);
     try {
-      const res = await addByLinkFn({ data: { link } });
+      const res = await addByLinkFn({ data: { channelId, link } });
       const label = res.inserted > 0 ? "Produto adicionado" : "Produto atualizado";
       toast.success(label, {
         description: `${res.product.title.slice(0, 60)}${res.product.title.length > 60 ? "…" : ""}`,
@@ -2649,7 +2651,7 @@ function MercadoLivrePanel() {
   const handleAddOne = async (id: string) => {
     setAddingIds((s) => new Set(s).add(id));
     try {
-      const res = await addByIdsFn({ data: { ids: [id] } });
+      const res = await addByIdsFn({ data: { channelId, ids: [id] } });
       if (res.inserted + res.updated > 0) {
         setAddedIds((s) => new Set(s).add(id));
         toast.success(res.inserted > 0 ? "Produto adicionado" : "Produto atualizado");
@@ -3121,7 +3123,9 @@ function MercadoLivrePanel() {
       />
       <EditProductModal
         open={editTarget !== null}
+        channelId={channelId}
         target={editTarget}
+
         onClose={() => setEditTarget(null)}
         onSaved={() => setEditTarget(null)}
       />
@@ -3209,6 +3213,8 @@ const SHOPEE_PRODUCTS: ShopeeProduct[] = [
 ];
 
 function ShopeePanel() {
+  const { id: channelId } = Route.useParams();
+
   const [tags, setTags] = useState<ShopeeTag[]>(SHOPEE_TAGS);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [importedProducts, setImportedProducts] = useState<ShopeeProduct[]>([]);
@@ -3252,7 +3258,7 @@ function ShopeePanel() {
       if (!window.confirm("Tem certeza que deseja excluir todos os produtos?")) return;
       setBulkBusy(true);
       try {
-        await deleteAllFn({ data: { platform: "shopee" } });
+        await deleteAllFn({ data: { channelId, platform: "shopee" } });
         setImportedProducts([]);
         setStaticHidden(true);
         setDeletedIds(new Set());
@@ -3282,7 +3288,7 @@ function ShopeePanel() {
     setBulkBusy(true);
     try {
       if (itemIds.length > 0) {
-        await deleteByItemsFn({ data: { platform: "shopee", itemIds } });
+        await deleteByItemsFn({ data: { channelId, platform: "shopee", itemIds } });
       }
       setDeletedIds((prev) => {
         const next = new Set(prev);
@@ -3330,7 +3336,7 @@ function ShopeePanel() {
 
   const enrichImagesInBackground = async () => {
     try {
-      const pending = await listPendingFn();
+      const pending = await listPendingFn({ data: { channelId } });
       if (!pending || pending.length === 0) return;
       const total = pending.length;
       let done = 0;
@@ -3402,7 +3408,7 @@ function ShopeePanel() {
 
       for (let i = 0; i < rows.length; i += BATCH) {
         const chunk = rows.slice(i, i + BATCH);
-        const outcome = await importBatchFn({ data: { rows: chunk } });
+        const outcome = await importBatchFn({ data: { channelId, rows: chunk } });
         inserted += outcome.inserted;
         updated += outcome.updated;
         setProgress({ done: Math.min(i + chunk.length, rows.length), total: rows.length });
@@ -3884,7 +3890,9 @@ function ShopeePanel() {
       />
       <EditProductModal
         open={editTarget !== null}
+        channelId={channelId}
         target={editTarget}
+
         onClose={() => setEditTarget(null)}
         onSaved={(updated) => {
           setImportedProducts((prev) =>

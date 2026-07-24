@@ -60,13 +60,16 @@ function normalizeGroupId(v: unknown): string | null {
 async function countAvailableProducts(
   supabase: any,
   userId: string,
+  channelId: string | null,
   lojas: string[],
 ): Promise<number> {
+  if (!channelId) return 0;
   if (!lojas || lojas.length === 0) return 0;
   const { count } = await supabase
     .from("products")
     .select("id", { count: "exact", head: true })
     .eq("user_id", userId)
+    .eq("channel_id", channelId)
     .in("platform", lojas)
     .eq("availability", "active")
     .not("affiliate_link", "is", null);
@@ -74,7 +77,8 @@ async function countAvailableProducts(
 }
 
 async function buildStatus(supabase: any, row: any): Promise<AutomationConfigDTO> {
-  const total = await countAvailableProducts(supabase, row.user_id, row.lojas_ativas ?? []);
+  const total = await countAvailableProducts(supabase, row.user_id, row.channel_id, row.lojas_ativas ?? []);
+
   return {
     id: row.id,
     channelId: row.channel_id,
@@ -190,7 +194,7 @@ export const startAutomation = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const cfg = await ensureConfig(supabase, userId, data.channelId, data.groupId, data.groupName);
 
-    const total = await countAvailableProducts(supabase, userId, cfg.lojas_ativas ?? []);
+    const total = await countAvailableProducts(supabase, userId, data.channelId, cfg.lojas_ativas ?? []);
     if (total === 0) {
       throw new Error(
         "Nenhum produto disponível nas lojas selecionadas. Importe produtos ou ajuste o filtro de lojas.",
@@ -349,8 +353,10 @@ export const getChannelFlowSummary = createServerFn({ method: "POST" })
       .from("products")
       .select("id", { count: "exact", head: true })
       .eq("user_id", userId)
+      .eq("channel_id", data.channelId)
       .eq("availability", "active")
       .not("affiliate_link", "is", null);
+
 
     const { data: cfgs } = await supabase
       .from("automation_configs")

@@ -1,12 +1,12 @@
 /**
- * Server functions for bulk deletion of products.
- * Always scoped by user_id (RLS also enforces).
+ * Server functions for bulk deletion of products (escopado por grupo).
  */
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const DeleteByItemsSchema = z.object({
+  channelId: z.string().uuid(),
   platform: z.string().min(1),
   itemIds: z.array(z.string().min(1)).min(1).max(1000),
 });
@@ -19,6 +19,7 @@ export const deleteProductsByItemIds = createServerFn({ method: "POST" })
       .from("products")
       .delete({ count: "exact" })
       .eq("user_id", context.userId)
+      .eq("channel_id", data.channelId)
       .eq("platform", data.platform)
       .in("item_id", data.itemIds);
     if (error) throw new Error(error.message);
@@ -26,6 +27,7 @@ export const deleteProductsByItemIds = createServerFn({ method: "POST" })
   });
 
 const DeleteAllSchema = z.object({
+  channelId: z.string().uuid(),
   platform: z.string().min(1),
 });
 
@@ -37,6 +39,7 @@ export const deleteAllProducts = createServerFn({ method: "POST" })
       .from("products")
       .delete({ count: "exact" })
       .eq("user_id", context.userId)
+      .eq("channel_id", data.channelId)
       .eq("platform", data.platform);
     if (error) throw new Error(error.message);
     return { deleted: count ?? 0 };
