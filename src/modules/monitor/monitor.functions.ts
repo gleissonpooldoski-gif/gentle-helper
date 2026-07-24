@@ -149,22 +149,42 @@ export const saveMonitorGroups = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
 
-    // Remove tudo do canal, depois insere a nova seleção (idempotente).
+    // Resolve as instâncias WhatsApp deste canal — a seleção é por instância.
+    const { data: instances } = await (supabase as any)
+      .from("whatsapp_instances")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("channel_id", data.channelId);
+    const instanceIds: string[] = (instances ?? []).map((i: any) => i.id);
+    if (instanceIds.length === 0) {
+      throw new Error(
+        "Nenhuma instância WhatsApp vinculada a este canal. Conecte uma instância antes de salvar grupos.",
+      );
+    }
+
+    // Remove SOMENTE os vínculos das instâncias deste canal (nunca toca em outras).
     await (supabase as any)
       .from("monitored_groups")
       .delete()
       .eq("user_id", userId)
-      .eq("channel_id", data.channelId);
+      .eq("channel_id", data.channelId)
+      .in("instance_id", instanceIds);
 
     if (data.groups.length > 0) {
-      const rows = data.groups.map((g) => ({
-        user_id: userId,
-        channel_id: data.channelId,
-        group_jid: g.jid,
-        group_name: g.name,
-        platform: g.platform,
-        is_active: true,
-      }));
+      const rows: any[] = [];
+      for (const instId of instanceIds) {
+        for (const g of data.groups) {
+          rows.push({
+            user_id: userId,
+            channel_id: data.channelId,
+            instance_id: instId,
+            group_jid: g.jid,
+            group_name: g.name,
+            platform: g.platform,
+            is_active: true,
+          });
+        }
+      }
       const { error } = await (supabase as any)
         .from("monitored_groups")
         .insert(rows);
@@ -173,3 +193,4 @@ export const saveMonitorGroups = createServerFn({ method: "POST" })
 
     return { ok: true, count: data.groups.length };
   });
+
