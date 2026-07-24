@@ -325,7 +325,7 @@ function EditChannelPage() {
           </div>
 
           {tab === "layout" ? (
-            <LayoutPostPanel />
+            <LayoutPostPanel channelId={id} />
           ) : tab === "instagram" ? (
             <InstagramPanel />
           ) : tab === "instasched" ? (
