@@ -301,14 +301,24 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
           <Smartphone className="h-5 w-5" />
           <h3 className="text-base font-semibold">WhatsApp — Instâncias</h3>
         </div>
-        <Button
-          size="sm"
-          variant="secondary"
-          onClick={() => setModalOpen(true)}
-          className="bg-white text-emerald-700 hover:bg-white/90"
-        >
-          <Plus className="mr-1 h-4 w-4" /> Conectar novo número
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => setAdoptOpen(true)}
+            className="bg-white/10 text-white ring-1 ring-white/30 hover:bg-white/20"
+          >
+            <Download className="mr-1 h-4 w-4" /> Importar existente
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => setModalOpen(true)}
+            className="bg-white text-emerald-700 hover:bg-white/90"
+          >
+            <Plus className="mr-1 h-4 w-4" /> Conectar novo número
+          </Button>
+        </div>
       </div>
 
       <div className="p-5">
