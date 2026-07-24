@@ -364,6 +364,98 @@ export type Database = {
         }
         Relationships: []
       }
+      manual_posts: {
+        Row: {
+          channel_id: string
+          coupon_code: string
+          coupon_min_value: string
+          coupon_type: string
+          coupon_value: string
+          created_at: string
+          custom_header: string
+          description: string
+          header_mode: string
+          id: string
+          keep_link: boolean
+          last_error: string | null
+          never_expires: boolean
+          price_current: string
+          price_installment: string
+          price_original: string
+          price_suffix: string
+          product_link: string
+          scheduled_date: string | null
+          scheduled_time: string | null
+          sent_at: string | null
+          shopee_video_link: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          channel_id: string
+          coupon_code?: string
+          coupon_min_value?: string
+          coupon_type?: string
+          coupon_value?: string
+          created_at?: string
+          custom_header?: string
+          description?: string
+          header_mode?: string
+          id?: string
+          keep_link?: boolean
+          last_error?: string | null
+          never_expires?: boolean
+          price_current?: string
+          price_installment?: string
+          price_original?: string
+          price_suffix?: string
+          product_link?: string
+          scheduled_date?: string | null
+          scheduled_time?: string | null
+          sent_at?: string | null
+          shopee_video_link?: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          channel_id?: string
+          coupon_code?: string
+          coupon_min_value?: string
+          coupon_type?: string
+          coupon_value?: string
+          created_at?: string
+          custom_header?: string
+          description?: string
+          header_mode?: string
+          id?: string
+          keep_link?: boolean
+          last_error?: string | null
+          never_expires?: boolean
+          price_current?: string
+          price_installment?: string
+          price_original?: string
+          price_suffix?: string
+          product_link?: string
+          scheduled_date?: string | null
+          scheduled_time?: string | null
+          sent_at?: string | null
+          shopee_video_link?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "manual_posts_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mercadolivre_integrations: {
         Row: {
           access_token_ciphertext: string
