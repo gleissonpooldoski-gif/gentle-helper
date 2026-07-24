@@ -8,6 +8,7 @@ import type { Database } from "@/integrations/supabase/types";
 import type { ShopeeCsvRow } from "./csv.processor";
 import { mapRowToProduct } from "./product.mapper";
 import { upsertBatch, type BatchOutcome } from "./repository";
+import { isRealProductImage } from "./image-resolver";
 
 export async function importBatch(
   supabase: SupabaseClient<Database>,
@@ -16,18 +17,12 @@ export async function importBatch(
 ): Promise<BatchOutcome> {
   const normalized = rows.map((r) => ({
     ...r,
-    imageUrl: isValidHttpUrl(r.imageUrl) ? r.imageUrl : null,
+    // Only accept CSV images that come from a real Shopee product CDN and
+    // are NOT known placeholders. Everything else → null (pending), so the
+    // background enricher will fetch the real og:image.
+    imageUrl: isRealProductImage(r.imageUrl) ? r.imageUrl : null,
   }));
   const payload = normalized.map((r) => mapRowToProduct(userId, r));
   return upsertBatch(supabase, userId, payload);
 }
 
-function isValidHttpUrl(v: string | null | undefined): v is string {
-  if (!v) return false;
-  try {
-    const u = new URL(v);
-    return u.protocol === "http:" || u.protocol === "https:";
-  } catch {
-    return false;
-  }
-}
