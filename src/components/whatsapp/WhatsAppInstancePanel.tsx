@@ -181,7 +181,13 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
     } catch (err) {
       // eslint-disable-next-line no-console
       console.warn("[WA] connectionState falhou:", err);
-      setQrModal(instance);
+      setQrFlowState("error");
+      setQrModal(null);
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : "Evolution API indisponível. Verifique o endereço público do serviço.",
+      );
     }
   };
 
@@ -648,7 +654,7 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
                   ) : qrFlowState === "error" ? (
                     <div className="flex h-[260px] w-[260px] flex-col items-center justify-center gap-3 p-4 text-center">
                       <p className="text-xs text-muted-foreground">
-                        Evolution não retornou QR Code. Verifique conexão da instância.
+                        Não foi possível obter um QR válido. Verifique se a Evolution API está acessível e tente novamente.
                       </p>
                       <Button
                         size="sm"
