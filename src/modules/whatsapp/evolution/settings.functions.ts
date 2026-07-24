@@ -101,22 +101,55 @@ export const testEvolutionConnection = createServerFn({ method: "POST" })
       });
       const text = await res.text();
       if (res.ok) {
-        return { ok: true, status: res.status, message: "Conectado", baseUrl };
+        return { ok: true, status: res.status, message: "Evolution API conectada", baseUrl };
+      }
+      if (res.status === 530 || res.status === 522 || res.status === 523 || res.status === 524) {
+        return {
+          ok: false,
+          status: res.status,
+          message: "Tunnel offline. Atualize a URL da Evolution API.",
+          baseUrl,
+        };
+      }
+      if (res.status === 401 || res.status === 403) {
+        return {
+          ok: false,
+          status: res.status,
+          message: "Erro de autenticação na Evolution API (apikey inválida).",
+          baseUrl,
+        };
+      }
+      if (/error code: ?1016|error code: ?1033/i.test(text)) {
+        return {
+          ok: false,
+          status: res.status,
+          message: "Tunnel offline. Atualize a URL da Evolution API.",
+          baseUrl,
+        };
       }
       return {
         ok: false,
         status: res.status,
-        message: `Falha: HTTP ${res.status} ${text.slice(0, 120)}`,
+        message: `API indisponível: HTTP ${res.status} ${text.slice(0, 120)}`,
         baseUrl,
       };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
+      if (/ENOTFOUND|getaddrinfo|dns/i.test(msg)) {
+        return { ok: false, status: null, message: "URL inválida ou DNS não resolveu.", baseUrl };
+      }
+      if (/abort|ETIMEDOUT|timeout/i.test(msg)) {
+        return {
+          ok: false,
+          status: null,
+          message: "Tunnel offline. Atualize a URL da Evolution API.",
+          baseUrl,
+        };
+      }
       return {
         ok: false,
         status: null,
-        message: /abort/i.test(msg)
-          ? "Evolution API indisponível. Verifique a conexão."
-          : `Evolution API indisponível. Verifique a conexão. (${msg})`,
+        message: `Evolution API indisponível (${msg}).`,
         baseUrl,
       };
     } finally {
