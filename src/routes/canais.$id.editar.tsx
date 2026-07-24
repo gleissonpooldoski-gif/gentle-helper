@@ -27,6 +27,8 @@ import {
   unlinkChannelSession,
   type WASessionDTO,
 } from "@/modules/channels/whatsapp/sessions.functions";
+import { WhatsAppInstancePanel } from "@/components/whatsapp/WhatsAppInstancePanel";
+
 
 import {
   AlertTriangle,
@@ -1806,6 +1808,7 @@ const WA_CHANNELS = [
 ];
 
 function WhatsAppGroupsPanel() {
+  const { id: channelId } = Route.useParams();
   const [subTab, setSubTab] = useState<"grupos" | "canais">("grupos");
   const [noImage, setNoImage] = useState(false);
   const [groups, setGroups] = useState(WA_GROUPS);
@@ -1820,6 +1823,7 @@ function WhatsAppGroupsPanel() {
 
   return (
     <div className="mt-6 space-y-6">
+      <WhatsAppInstancePanel channelId={channelId} />
       <WhatsAppConnectionCard />
 
       {/* WhatsApp Web / Passkey solution */}
