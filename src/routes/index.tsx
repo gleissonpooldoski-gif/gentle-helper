@@ -1,5 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
+import { useEffect } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import {
   Check,
   Instagram,
@@ -21,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { AppSidebar } from "@/components/app-sidebar";
+import { listChannels, type ChannelDTO } from "@/modules/channels/channels.functions";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -66,83 +69,45 @@ interface Channel {
   accent: string; // subtle gradient hint
 }
 
-const CHANNELS: Channel[] = [
-  {
-    id: "1",
-    name: "SEGREDO DAS PROMOÇÕES",
-    telegramId: "25553",
-    autoPost: true,
-    products: 1071,
-    intervalMin: 15,
-    random: true,
+function toChannel(row: ChannelDTO): Channel {
+  return {
+    id: row.id,
+    name: row.name,
+    telegramId: row.externalId ?? row.id,
+    autoPost: row.autoPost,
+    products: 0,
+    intervalMin: row.intervalMin,
+    random: row.randomOrder,
     socials: { telegram: "connected", whatsapp: "connected", instagram: "disconnected", storyAuto: "disabled" },
-    distribution: [
-      { label: "Shopee", value: 62, color: "oklch(0.72 0.18 30)" },
-      { label: "Mercado Livre", value: 24, color: "oklch(0.85 0.15 90)" },
-      { label: "Amazon", value: 9, color: "oklch(0.62 0.19 256)" },
-      { label: "Magalu", value: 5, color: "oklch(0.68 0.17 220)" },
-    ],
-    accent: "from-[oklch(0.62_0.19_256/0.08)] to-transparent",
-  },
-  {
-    id: "2",
-    name: "MUNDO FITNESS PROMO",
-    telegramId: "18902",
-    autoPost: true,
-    products: 816,
-    intervalMin: 10,
-    random: false,
-    socials: { telegram: "connected", whatsapp: "connected", instagram: "connected", storyAuto: "connected" },
-    distribution: [
-      { label: "Amazon", value: 48, color: "oklch(0.62 0.19 256)" },
-      { label: "Shopee", value: 32, color: "oklch(0.72 0.18 30)" },
-      { label: "Mercado Livre", value: 20, color: "oklch(0.85 0.15 90)" },
-    ],
-    accent: "from-[oklch(0.75_0.16_150/0.08)] to-transparent",
-  },
-  {
-    id: "3",
-    name: "OFERTAS DA CONFEITARIA",
-    telegramId: "77410",
-    autoPost: false,
-    products: 2013,
-    intervalMin: 15,
-    random: true,
-    socials: { telegram: "connected", whatsapp: "disconnected", instagram: "disconnected", storyAuto: "disabled" },
-    distribution: [
-      { label: "Shopee", value: 55, color: "oklch(0.72 0.18 30)" },
-      { label: "Mercado Livre", value: 30, color: "oklch(0.85 0.15 90)" },
-      { label: "AliExpress", value: 15, color: "oklch(0.65 0.2 15)" },
-    ],
-    accent: "from-[oklch(0.78_0.15_50/0.08)] to-transparent",
-  },
-  {
-    id: "4",
-    name: "TECH BRASIL DEALS",
-    telegramId: "43201",
-    autoPost: true,
-    products: 542,
-    intervalMin: 20,
-    random: true,
-    socials: { telegram: "connected", whatsapp: "connected", instagram: "disconnected", storyAuto: "connected" },
-    distribution: [
-      { label: "Amazon", value: 60, color: "oklch(0.62 0.19 256)" },
-      { label: "Terabyte", value: 25, color: "oklch(0.4 0.05 260)" },
-      { label: "Magalu", value: 15, color: "oklch(0.68 0.17 220)" },
-    ],
-    accent: "from-[oklch(0.7_0.18_290/0.08)] to-transparent",
-  },
-];
+    distribution: [],
+    accent: "from-primary/5 to-transparent",
+  };
+}
 
 const LIMIT = 5;
 
 /* ---------------- Page ---------------- */
 
 function ChannelsPage() {
+  const listChannelsFn = useServerFn(listChannels);
+  const [channels, setChannels] = useState<Channel[]>([]);
   const [query, setQuery] = useState("");
+  useEffect(() => {
+    let cancelled = false;
+    void listChannelsFn()
+      .then((rows) => {
+        if (!cancelled) setChannels(rows.map(toChannel));
+      })
+      .catch(() => {
+        if (!cancelled) setChannels([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [listChannelsFn]);
   const filtered = useMemo(
-    () => CHANNELS.filter((c) => c.name.toLowerCase().includes(query.trim().toLowerCase())),
-    [query],
+    () => channels.filter((c) => c.name.toLowerCase().includes(query.trim().toLowerCase())),
+    [channels, query],
   );
 
   return (
@@ -151,7 +116,7 @@ function ChannelsPage() {
 
       <div className="flex-1 lg:min-w-0">
         <main className="mx-auto w-full max-w-[1400px] px-4 pb-24 pt-10 sm:px-6 lg:px-10">
-          <PageHeader activeCount={CHANNELS.length} limit={LIMIT} />
+          <PageHeader activeCount={channels.length} limit={LIMIT} />
 
           <div className="mt-8 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 sm:flex sm:items-center sm:justify-between">
             <div className="relative w-full sm:w-80">
@@ -164,7 +129,7 @@ function ChannelsPage() {
               />
             </div>
             <p className="text-xs text-muted-foreground">
-              Exibindo <span className="font-semibold text-foreground">{filtered.length}</span> de {CHANNELS.length} canais
+              Exibindo <span className="font-semibold text-foreground">{filtered.length}</span> de {channels.length} canais
             </p>
           </div>
 

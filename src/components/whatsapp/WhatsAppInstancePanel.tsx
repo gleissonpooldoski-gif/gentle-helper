@@ -34,7 +34,7 @@ import {
 } from "@/modules/whatsapp/instances.functions";
 
 interface Props {
-  channelId?: string;
+  channelId: string;
 }
 
 type QrFlowState = "checking" | "connected" | "waiting_qr" | "error";
@@ -90,9 +90,18 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
     mode: "test" | "campaign";
   } | null>(null);
 
+  useEffect(() => {
+    setItems([]);
+    setGroupsModal(null);
+    setSendModal(null);
+    setQrModal(null);
+    setLoading(true);
+    autoAdoptedRef.current = false;
+  }, [channelId]);
+
   const reload = useCallback(async () => {
     try {
-      const rows = await listFn({ data: channelId ? { channelId } : {} });
+      const rows = await listFn({ data: { channelId } });
       setItems(rows);
       return rows;
     } catch (err) {
@@ -379,7 +388,7 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
   const openGroups = async (i: WhatsAppInstanceDTO) => {
     setGroupsModal({ inst: i, groups: [], loading: true, filter: "" });
     try {
-      const gs = await groupsFn({ data: { id: i.id } });
+      const gs = await groupsFn({ data: { id: i.id, channelId } });
       setGroupsModal((m) => (m ? { ...m, groups: gs, loading: false } : m));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Falha ao buscar grupos");
@@ -405,7 +414,7 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
       const chosen = groupsModal.groups
         .filter((g) => g.selected)
         .map((g) => ({ jid: g.jid, name: g.name }));
-      await saveGroupsFn({ data: { id: groupsModal.inst.id, groups: chosen } });
+      await saveGroupsFn({ data: { id: groupsModal.inst.id, channelId, groups: chosen } });
       toast.success(`${chosen.length} grupo(s) salvo(s)`);
       setGroupsModal(null);
     } catch (err) {

@@ -105,6 +105,13 @@ export function AutomationPanel({ channelId, groupId = null, groupName = null, t
 
   useEffect(() => {
     let cancelled = false;
+    setCfg(null);
+    setHistory([]);
+    setHoraInicio("07:00");
+    setHoraFim("22:00");
+    setIntervalo(15);
+    setPostLoop(true);
+    setLojas(["shopee", "mercadolivre"]);
     (async () => {
       setLoading(true);
       try {

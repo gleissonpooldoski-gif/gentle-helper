@@ -37,9 +37,10 @@ interface Props {
   open: boolean;
   onClose: () => void;
   product: SendProduct | null;
+  channelId: string;
 }
 
-export function SendToGroupsModal({ open, onClose, product }: Props) {
+export function SendToGroupsModal({ open, onClose, product, channelId }: Props) {
   const adoptFn = useServerFn(adoptEvolutionInstance);
   const fetchGroupsFn = useServerFn(fetchWhatsAppGroups);
   const sendFn = useServerFn(sendWhatsAppProduct);
@@ -68,7 +69,7 @@ export function SendToGroupsModal({ open, onClose, product }: Props) {
           setGroups([]);
           return;
         }
-        const gs = await fetchGroupsFn({ data: { id: inst.id } });
+        const gs = await fetchGroupsFn({ data: { id: inst.id, channelId } });
         setGroups(gs);
         const preset: Record<string, boolean> = {};
         gs.forEach((g) => {
@@ -81,7 +82,7 @@ export function SendToGroupsModal({ open, onClose, product }: Props) {
         setLoading(false);
       }
     })();
-  }, [open, adoptFn, fetchGroupsFn]);
+  }, [open, channelId, adoptFn, fetchGroupsFn]);
 
   if (!open) return null;
 

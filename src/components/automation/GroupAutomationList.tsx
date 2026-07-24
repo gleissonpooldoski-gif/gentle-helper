@@ -119,7 +119,7 @@ export function GroupAutomationList({ channelId }: { channelId: string }) {
           </DialogHeader>
           {open && (
             <AutomationPanel
-              key={open.groupId}
+              key={`${channelId}:${open.groupId}`}
               channelId={channelId}
               groupId={open.groupId}
               groupName={open.groupName}
