@@ -26,6 +26,11 @@ export function GroupAutomationList({ channelId }: { channelId: string }) {
   const [open, setOpen] = useState<AutomationGroupDTO | null>(null);
 
   useEffect(() => {
+    // Ao trocar de canal: descarta grupos, modal aberto e erro do canal anterior.
+    // Impede que estado local ou dados de listagem vazem entre canais.
+    setGroups(null);
+    setOpen(null);
+    setError(null);
     let cancelled = false;
     (async () => {
       try {
@@ -40,6 +45,7 @@ export function GroupAutomationList({ channelId }: { channelId: string }) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channelId]);
+
 
   if (error) {
     return (
