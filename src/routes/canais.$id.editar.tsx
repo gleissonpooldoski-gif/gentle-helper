@@ -3386,7 +3386,7 @@ const SHOPEE_PRODUCTS: ShopeeProduct[] = [
   { id: "s12", title: "Kit 100 Elásticos de Cabelo Invisibobble Sortidos", emoji: "🎀", color: "oklch(0.9 0.06 320)", format: "FEED", price: "R$ 7,90", original: "R$ 19,90", discount: 60, when: "3 dias atrás" },
 ];
 
-function ShopeePanel() {
+function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {}) {
   const { id: channelId } = Route.useParams();
 
   const [tags, setTags] = useState<ShopeeTag[]>(SHOPEE_TAGS);
