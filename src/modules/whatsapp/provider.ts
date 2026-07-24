@@ -42,4 +42,9 @@ export interface WhatsAppProvider {
   deleteInstance(instanceName: string): Promise<void>;
   fetchGroups(instanceName: string): Promise<WhatsAppGroup[]>;
   sendText(instanceName: string, jid: string, text: string): Promise<{ id?: string }>;
+  sendMedia(
+    instanceName: string,
+    jid: string,
+    input: { mediaUrl: string; caption: string; fileName?: string },
+  ): Promise<{ id?: string }>;
 }
