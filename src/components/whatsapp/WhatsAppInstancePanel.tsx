@@ -371,14 +371,28 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
                       </Button>
                     )}
                     {i.status === "connected" && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleDisconnect(i)}
-                        disabled={busy === `dis:${i.id}`}
-                      >
-                        <Power className="mr-1 h-4 w-4" /> Desconectar
-                      </Button>
+                      <>
+                        <Button size="sm" variant="outline" onClick={() => openGroups(i)}>
+                          <Users className="mr-1 h-4 w-4" /> Grupos
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            setSendModal({ inst: i, text: "", jid: "", mode: "test" })
+                          }
+                        >
+                          <Send className="mr-1 h-4 w-4" /> Enviar
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleDisconnect(i)}
+                          disabled={busy === `dis:${i.id}`}
+                        >
+                          <Power className="mr-1 h-4 w-4" /> Desconectar
+                        </Button>
+                      </>
                     )}
                     <Button
                       size="sm"
