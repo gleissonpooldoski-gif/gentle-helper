@@ -38,6 +38,8 @@ import { getManualPost, saveManualPost, type ManualPostDTO } from "@/modules/pos
 import { ensureAffiliateLink, buildMLAffiliateUrl } from "@/lib/affiliate-linker";
 import { EditProductModal, type EditProductTarget } from "@/components/products/EditProductModal";
 import { listChannelProducts, type ChannelProductDTO } from "@/modules/products/channel-products.functions";
+import { listMonitorGroups, saveMonitorGroups, type MonitorGroupDTO } from "@/modules/monitor/monitor.functions";
+
 
 
 import {
