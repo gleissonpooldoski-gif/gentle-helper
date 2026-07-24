@@ -275,9 +275,24 @@ function ChannelCard({ channel }: { channel: Channel }) {
           <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
             Produtos por plataforma
           </p>
-          <span className="text-[11px] text-muted-foreground">Últimos 30d</span>
+          <span className="text-[11px] text-muted-foreground">
+            {channel.sentLast30d} envios · Últimos 30d
+          </span>
         </div>
-        <MiniBarChart items={channel.distribution} />
+        {channel.distribution.length > 0 ? (
+          <MiniBarChart items={channel.distribution} />
+        ) : (
+          <p className="text-[11px] text-muted-foreground">Sem produtos importados.</p>
+        )}
+        {channel.sentByPlatformLast30d.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
+            {channel.sentByPlatformLast30d.map((p) => (
+              <span key={p.platform} className="text-[10.5px] text-muted-foreground">
+                {p.platform}: <span className="font-semibold text-foreground">{p.count}</span>
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Actions */}
