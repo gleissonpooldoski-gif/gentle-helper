@@ -13,17 +13,17 @@ export const listPendingShopeeImages = createServerFn({ method: "POST" })
   .handler(async ({ context }) => {
     const { data, error } = await context.supabase
       .from("products")
-      .select("id, raw_link, affiliate_link, image_url")
+      .select("id, item_id, raw_link, affiliate_link, image_url")
       .eq("user_id", context.userId)
       .eq("platform", "shopee")
       .not("raw_link", "is", null);
     if (error) throw new Error(error.message);
     return (data ?? [])
       .filter((r) => !!r.raw_link)
-      // Consider both null image_url AND placeholder/invalid URLs as pending.
       .filter((r) => !isRealProductImage(r.image_url))
       .map((r) => ({
         id: r.id,
+        itemId: r.item_id ?? null,
         productUrl: r.raw_link,
         offerUrl: r.affiliate_link,
       }));
