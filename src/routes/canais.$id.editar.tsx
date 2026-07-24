@@ -3112,7 +3112,7 @@ function MercadoLivrePanel({ onCountsChanged }: { onCountsChanged?: () => void }
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h3 className="text-[15px] font-semibold">Produtos cadastrados</h3>
-              <p className="text-[12px] text-muted-foreground">272 produtos vinculados a este canal</p>
+              <p className="text-[12px] text-muted-foreground">{channelProducts.length} produtos vinculados a este canal</p>
             </div>
             <div className="flex items-center gap-2">
               <Button variant="outline" size="sm" className="h-9 gap-1.5 rounded-full">
