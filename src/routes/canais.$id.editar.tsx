@@ -3334,7 +3334,7 @@ function ShopeePanel() {
 
   const enrichImagesInBackground = async () => {
     try {
-      const pending = await listPendingFn();
+      const pending = await listPendingFn({ data: { channelId } });
       if (!pending || pending.length === 0) return;
       const total = pending.length;
       let done = 0;
