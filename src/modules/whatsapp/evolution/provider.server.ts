@@ -24,12 +24,19 @@ function normalizeQr(raw: any): { base64: string | null; code: string | null } {
   const base64 =
     raw?.base64 ??
     raw?.qrcode?.base64 ??
+    raw?.qr?.base64 ??
     raw?.qrcode ??
     raw?.qr ??
     null;
-  const code = raw?.code ?? raw?.qrcode?.code ?? raw?.pairingCode ?? null;
+  const code =
+    raw?.code ??
+    raw?.qrcode?.code ??
+    raw?.qr?.code ??
+    raw?.pairingCode ??
+    null;
   let b64: string | null = null;
   if (typeof base64 === "string" && base64.length > 0) {
+    // Não duplicar prefixo "data:image/png;base64," se já veio no retorno.
     b64 = base64.startsWith("data:") ? base64 : `data:image/png;base64,${base64}`;
   }
   return { base64: b64, code: typeof code === "string" ? code : null };
@@ -45,7 +52,10 @@ async function fetchQr(instanceName: string): Promise<{ base64: string | null; c
     const text = await res.text();
     if (!text) return { base64: null, code: null };
     try {
-      return normalizeQr(JSON.parse(text));
+      const json = JSON.parse(text);
+      // eslint-disable-next-line no-console
+      console.log("[Evolution] /instance/connect raw response:", JSON.stringify(json).slice(0, 500));
+      return normalizeQr(json);
     } catch {
       return { base64: null, code: null };
     }

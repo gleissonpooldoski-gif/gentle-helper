@@ -501,10 +501,14 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
                       <CheckCircle2 className="h-12 w-12" />
                       <p className="text-sm font-semibold">Conectado</p>
                     </div>
-                  ) : qrModal.qrCode && qrModal.qrCode.startsWith("data:") ? (
+                  ) : qrModal.qrCode && /^(data:image|[A-Za-z0-9+/=]{100,})/.test(qrModal.qrCode) ? (
                     <img
-                      src={qrModal.qrCode}
-                      alt="QR Code"
+                      src={
+                        qrModal.qrCode.startsWith("data:")
+                          ? qrModal.qrCode
+                          : `data:image/png;base64,${qrModal.qrCode}`
+                      }
+                      alt="QR Code WhatsApp"
                       width={260}
                       height={260}
                     />

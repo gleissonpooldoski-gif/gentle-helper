@@ -163,6 +163,15 @@ export const refreshWhatsAppInstance = createServerFn({ method: "POST" })
     if (st.status === "connected") {
       patch.qr_code = null;
       patch.last_seen_at = new Date().toISOString();
+    } else if (!row.qr_code) {
+      // Se ainda não temos QR, força reconexão para buscar um agora.
+      try {
+        const rc = await provider.reconnect(row.instance_name);
+        patch.status = rc.status;
+        patch.qr_code = rc.qr?.base64 ?? rc.qr?.code ?? null;
+      } catch {
+        /* ignore */
+      }
     }
     const { data: updated, error: upErr } = await (supabase as any)
       .from("whatsapp_instances")
