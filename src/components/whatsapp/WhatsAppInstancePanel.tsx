@@ -162,11 +162,12 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
     let cancelled = false;
     let pollingId: ReturnType<typeof setInterval> | undefined;
     const timeoutId = setTimeout(() => {
-      if (!cancelled) setQrFlowState("error");
+      if (cancelled) return;
+      setQrFlowState((prev) => (prev === "waiting_qr" || prev === "checking" ? "error" : prev));
       if (pollingId) clearInterval(pollingId);
     }, 30_000);
 
-    const checkStatus = async () => {
+    const poll = async () => {
       try {
         const upd = await refreshFn({ data: { id: qrModal.id } });
         if (cancelled) return;
@@ -178,22 +179,53 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
           toast.success("WhatsApp conectado!");
           return;
         }
-        setQrFlowState("waiting_qr");
+        if (upd.qrCode) setQrFlowState("waiting_qr");
       } catch {
-        if (!cancelled) setQrFlowState("error");
-        clearTimeout(timeoutId);
-        if (pollingId) clearInterval(pollingId);
+        /* mantém estado atual; timeout cuidará do erro final */
       }
     };
 
-    void checkStatus();
-    pollingId = setInterval(checkStatus, 3500);
+    const bootstrap = async () => {
+      try {
+        // 1) checa estado remoto
+        const st = await refreshFn({ data: { id: qrModal.id } });
+        if (cancelled) return;
+        setQrModal(st);
+        if (st.status === "connected") {
+          setQrFlowState("connected");
+          clearTimeout(timeoutId);
+          toast.success("WhatsApp já conectado");
+          return;
+        }
+        // 2) força reconnect para obter QR imediatamente
+        const rc = await reconnectFn({ data: { id: qrModal.id } });
+        if (cancelled) return;
+        // eslint-disable-next-line no-console
+        console.log("CONNECT RESPONSE", rc);
+        // eslint-disable-next-line no-console
+        console.log("QR VALUE", rc.qrCode);
+        setQrModal(rc);
+        if (rc.status === "connected") {
+          setQrFlowState("connected");
+          clearTimeout(timeoutId);
+          toast.success("WhatsApp já conectado");
+          return;
+        }
+        setQrFlowState(rc.qrCode ? "waiting_qr" : "waiting_qr");
+        pollingId = setInterval(poll, 3500);
+      } catch {
+        if (!cancelled) setQrFlowState("error");
+        clearTimeout(timeoutId);
+      }
+    };
+
+    void bootstrap();
     return () => {
       cancelled = true;
       clearTimeout(timeoutId);
       if (pollingId) clearInterval(pollingId);
     };
-  }, [qrModal?.id, refreshFn]);
+  }, [qrModal?.id, refreshFn, reconnectFn]);
 
   // Mantém dados do modal sincronizados com a lista
   useEffect(() => {
@@ -567,7 +599,7 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
                   ) : qrFlowState === "error" ? (
                     <div className="flex h-[260px] w-[260px] flex-col items-center justify-center gap-3 p-4 text-center">
                       <p className="text-xs text-muted-foreground">
-                        Não foi possível gerar QR Code. Tentar novamente.
+                        Evolution não retornou QR Code. Clique em Novo QR.
                       </p>
                       <Button
                         size="sm"
