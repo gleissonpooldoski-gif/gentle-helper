@@ -3077,7 +3077,18 @@ function ShopeePanel() {
           const item = pending[idx]!;
           try {
             const res = await enrichOneFn({ data: item });
-            if (res.found) found += 1;
+            if (res.found) {
+              found += 1;
+              const newImg = res.image;
+              const itemId = res.itemId;
+              if (newImg && itemId) {
+                setImportedProducts((prev) =>
+                  prev.map((p) =>
+                    extractItemId(p.id) === itemId ? { ...p, imageUrl: newImg } : p,
+                  ),
+                );
+              }
+            }
           } catch {
             /* ignore individual failures */
           }
