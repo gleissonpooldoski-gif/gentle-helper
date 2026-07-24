@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Save, Play, Square, Loader2, Clock, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Save, Play, Square, Loader2, Clock, AlertTriangle, CheckCircle2, Plus, Trash2, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import {
   getAutomationConfig,
@@ -11,9 +12,17 @@ import {
   startAutomation,
   stopAutomation,
   listCampaignHistory,
+  listAutomationProducts,
+  listAvailableProducts,
+  addAutomationProducts,
+  removeAutomationProduct,
+  clearAutomationQueue,
   type AutomationConfigDTO,
+  type AutomationQueueItemDTO,
+  type AvailableProductDTO,
   type CampaignHistoryDTO,
 } from "@/modules/automation/automation.functions";
+
 
 const STORE_OPTIONS: Array<{ slug: string; label: string }> = [
   { slug: "shopee", label: "Shopee" },
