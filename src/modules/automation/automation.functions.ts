@@ -187,35 +187,12 @@ export const startAutomation = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const cfg = await ensureConfig(supabase, userId, data.channelId, data.groupId, data.groupName);
 
-    const lojas: string[] = cfg.lojas_ativas ?? [];
-    if (lojas.length === 0) throw new Error("Selecione ao menos uma loja ativa");
-
-    const { data: prods, error: pErr } = await supabase
-      .from("products")
-      .select("id, title, platform, image_url, affiliate_link, created_at")
-      .eq("user_id", userId)
-      .in("platform", lojas)
-      .order("created_at", { ascending: true });
-    if (pErr) throw new Error(pErr.message);
-    const list = (prods ?? []).filter((p: any) => p.affiliate_link);
-    if (list.length === 0) throw new Error("Nenhum produto encontrado nas lojas ativas");
-
-    await supabase.from("automation_queue").delete().eq("config_id", cfg.id);
-
-    const rows = list.map((p: any, i: number) => ({
-      config_id: cfg.id,
-      user_id: userId,
-      order_index: i,
-      product_id: p.id,
-      store: p.platform,
-      title: p.title,
-      media_url: p.image_url,
-      link: p.affiliate_link,
-    }));
-    for (let i = 0; i < rows.length; i += 500) {
-      const chunk = rows.slice(i, i + 500);
-      const { error } = await supabase.from("automation_queue").insert(chunk);
-      if (error) throw new Error(error.message);
+    const { count } = await supabase
+      .from("automation_queue")
+      .select("id", { count: "exact", head: true })
+      .eq("config_id", cfg.id);
+    if (!count || count === 0) {
+      throw new Error("Adicione ao menos um produto à fila deste grupo antes de iniciar");
     }
 
     const { data: upd, error } = await supabase
@@ -232,6 +209,7 @@ export const startAutomation = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return buildStatus(supabase, upd);
   });
+
 
 export const stopAutomation = createServerFn({ method: "POST" })
   .middleware([apiClient, requireSupabaseAuth])
