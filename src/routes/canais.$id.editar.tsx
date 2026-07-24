@@ -2486,7 +2486,7 @@ const ML_HEADERS = [
 
 type MLProduct = {
   id: string;
-  itemId: string | null;
+  itemId?: string | null;
   title: string;
   emoji: string;
   color: string;
@@ -2495,8 +2495,8 @@ type MLProduct = {
   original: string;
   discount: number;
   when: string;
-  permalink: string;
-  thumbnail: string | null;
+  permalink?: string;
+  thumbnail?: string | null;
 };
 
 const ML_PRODUCTS: MLProduct[] = [
@@ -3118,7 +3118,7 @@ function MercadoLivrePanel() {
                     onClick={() =>
                       setSendProduct({
                         title: p.title,
-                        link: p.permalink,
+                        link: p.permalink ?? "",
                         price: p.price,
                         price_original: p.original,
                         image: p.thumbnail,
@@ -3286,7 +3286,6 @@ function ShopeePanel() {
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [bulkAction, setBulkAction] = useState<string>("");
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
-  const [staticHidden, setStaticHidden] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [sendProduct, setSendProduct] = useState<SendProduct | null>(null);
   const [editTarget, setEditTarget] = useState<EditProductTarget | null>(null);
@@ -3335,7 +3334,6 @@ function ShopeePanel() {
   const reloadProducts = useCallback(async () => {
     const rows = await listProductsFn({ data: { channelId, platform: "shopee" } });
     setImportedProducts(rows.map(rowToStoredProduct));
-    setStaticHidden(false);
     setDeletedIds(new Set());
   }, [channelId, listProductsFn]);
 
@@ -3362,7 +3360,6 @@ function ShopeePanel() {
       try {
         await deleteAllFn({ data: { channelId, platform: "shopee" } });
         setImportedProducts([]);
-        setStaticHidden(true);
         setDeletedIds(new Set());
         setSelected({});
         setBulkAction("");
@@ -3414,27 +3411,6 @@ function ShopeePanel() {
   const removeTag = (id: string) => setTags((t) => t.filter((x) => x.id !== id));
 
   const handlePickCsv = () => fileInputRef.current?.click();
-
-  const rowToPreview = (row: ShopeeCsvRow, index: number): ShopeeProduct => {
-    const priceLabel =
-      row.price != null
-        ? `R$ ${row.price.toFixed(2).replace(".", ",")}`
-        : "—";
-    return {
-      id: `csv-${row.itemId}-${index}`,
-      title: row.itemName,
-      emoji: "🛍️",
-      color: "oklch(0.92 0.06 30)",
-      format: index % 2 === 0 ? "FEED" : "STORY",
-      price: priceLabel,
-      original: priceLabel,
-      discount: Math.round(row.commissionRate ?? 0),
-      when: "Importado agora",
-      affiliateLink: row.offerUrl,
-      rawLink: row.productUrl,
-      imageUrl: row.imageUrl ?? undefined,
-    };
-  };
 
   const enrichImagesInBackground = async () => {
     try {

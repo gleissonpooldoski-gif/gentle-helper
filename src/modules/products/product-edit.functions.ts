@@ -54,7 +54,8 @@ export const getProductForEdit = createServerFn({ method: "GET" })
     const { data: configs } = await context.supabase
       .from("automation_configs")
       .select("group_name, lojas_ativas")
-      .eq("user_id", context.userId);
+      .eq("user_id", context.userId)
+      .eq("channel_id", data.channelId);
 
     const platform = String(row.platform ?? "").toLowerCase();
     const groups = new Set<string>();
