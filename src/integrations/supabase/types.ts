@@ -67,6 +67,8 @@ export type Database = {
           channel_id: string
           created_at: string
           current_index: number
+          group_id: string | null
+          group_name: string | null
           hora_fim: string
           hora_inicio: string
           id: string
@@ -85,6 +87,8 @@ export type Database = {
           channel_id: string
           created_at?: string
           current_index?: number
+          group_id?: string | null
+          group_name?: string | null
           hora_fim?: string
           hora_inicio?: string
           id?: string
@@ -103,6 +107,8 @@ export type Database = {
           channel_id?: string
           created_at?: string
           current_index?: number
+          group_id?: string | null
+          group_name?: string | null
           hora_fim?: string
           hora_inicio?: string
           id?: string
