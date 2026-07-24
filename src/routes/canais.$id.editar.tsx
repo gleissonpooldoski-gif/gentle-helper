@@ -127,6 +127,8 @@ function EditChannelPage() {
   const getChannelFn = useServerFn(getChannel);
   const updateChannelFn = useServerFn(updateChannel);
   const getFlowSummaryFn = useServerFn(getChannelFlowSummary);
+  const getManualPostFn = useServerFn(getManualPost);
+  const saveManualPostFn = useServerFn(saveManualPost);
   const [channel, setChannel] = useState<ChannelDTO | null>(null);
   const [channelError, setChannelError] = useState<string | null>(null);
   const [flowSummary, setFlowSummary] = useState<ChannelFlowSummaryDTO | null>(null);
@@ -141,6 +143,19 @@ function EditChannelPage() {
     "Amazon",
     "Mercado Livre",
   ]);
+
+  // -------- Post manual: rascunho persistido por canal --------
+  const [manualPost, setManualPost] = useState<ManualPostDTO | null>(null);
+  const [manualSaving, setManualSaving] = useState(false);
+  const patchManual = useCallback(<K extends keyof ManualPostDTO>(k: K, v: ManualPostDTO[K]) => {
+    setManualPost((prev) => (prev ? { ...prev, [k]: v } : prev));
+  }, []);
+  // Sincroniza dois checkboxes que já existiam com o rascunho.
+  useEffect(() => {
+    if (!manualPost) return;
+    setKeepLink(manualPost.keepLink);
+    setNeverExpires(manualPost.neverExpires);
+  }, [manualPost?.id]);
 
   const refreshFlowSummary = useCallback(() => {
     void getFlowSummaryFn({ data: { channelId: id } })
