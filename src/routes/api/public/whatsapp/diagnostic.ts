@@ -56,6 +56,29 @@ export const Route = createFileRoute("/api/public/whatsapp/diagnostic")({
           result.connectionState = { error: e?.message ?? String(e) };
         }
 
+        // 3) fetchAllGroups DIVULGA LINKS
+        try {
+          const res = await fetch(
+            `${baseUrl}/group/fetchAllGroups/${encodeURIComponent("DIVULGA LINKS")}?getParticipants=false`,
+            { headers },
+          );
+          const text = await res.text();
+          let parsed: any = null;
+          try { parsed = JSON.parse(text); } catch { parsed = text.slice(0, 500); }
+          const arr: any[] = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.groups) ? parsed.groups : [];
+          result.fetchAllGroups = {
+            status: res.status,
+            count: arr.length,
+            sample: arr.slice(0, 3).map((g) => ({
+              jid: g?.id ?? g?.jid ?? g?.remoteJid,
+              subject: g?.subject ?? g?.name,
+              size: g?.size ?? (Array.isArray(g?.participants) ? g.participants.length : null),
+            })),
+          };
+        } catch (e: any) {
+          result.fetchAllGroups = { error: e?.message ?? String(e) };
+        }
+
         return new Response(JSON.stringify(result, null, 2), {
           status: 200,
           headers: { "Content-Type": "application/json" },
