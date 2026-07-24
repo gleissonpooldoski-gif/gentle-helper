@@ -50,6 +50,12 @@ function toUuidOrNull(v: unknown): string | null {
   return UUID_RE.test(s) ? s : null;
 }
 
+const EXISTING_DIVULGA_LINKS_INSTANCE = "DIVULGA LINKS";
+
+function isExistingDivulgaLinksInstance(instanceName: string): boolean {
+  return instanceName.trim().toUpperCase() === EXISTING_DIVULGA_LINKS_INSTANCE;
+}
+
 /** Lista instâncias do usuário (opcionalmente do canal). */
 export const listWhatsAppInstances = createServerFn({ method: "POST" })
   .middleware([apiClient, requireSupabaseAuth])
@@ -88,6 +94,12 @@ export const createWhatsAppInstance = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const { getWhatsAppProvider } = await import("./index.server");
     const provider = getWhatsAppProvider("evolution");
+
+    // Defesa no backend: a instância existente deve seguir exclusivamente
+    // pelo fluxo de adoção/status, jamais por POST /instance/create.
+    if (isExistingDivulgaLinksInstance(data.name)) {
+      throw new Error('A instância "DIVULGA LINKS" já existe. Use a conexão existente.');
+    }
 
     // Nome único remoto: user prefix + slug + short
     const slug = data.name

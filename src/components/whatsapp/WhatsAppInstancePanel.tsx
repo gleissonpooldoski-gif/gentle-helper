@@ -93,24 +93,19 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
     }
   }, [listFn, channelId]);
 
-  // Auto-adota "DIVULGA LINKS" se ainda não estiver registrada localmente.
-  // Evita chamar POST /instance/create (que retorna 403 code 1003 se já existir na Evolution).
+  // Sempre consulta/adota "DIVULGA LINKS" ao abrir. Esse fluxo usa apenas
+  // connectionState e nunca POST /instance/create.
   const autoAdoptedRef = useRef(false);
   useEffect(() => {
     if (autoAdoptedRef.current) return;
     autoAdoptedRef.current = true;
     (async () => {
-      const rows = await reload();
-      const has = rows.some(
-        (r) => r.instanceName.trim().toLowerCase() === "divulga links",
-      );
-      if (!has) {
-        try {
-          await adoptFn({ data: { instanceName: "DIVULGA LINKS", channelId } });
-          await reload();
-        } catch {
-          /* silencioso: se não existir na Evolution, usuário cria manualmente */
-        }
+      try {
+        await adoptFn({ data: { instanceName: "DIVULGA LINKS", channelId } });
+      } catch {
+        /* silencioso: mantém as demais instâncias disponíveis */
+      } finally {
+        await reload();
       }
     })();
   }, [reload, adoptFn, channelId]);
@@ -201,6 +196,14 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
     if (!name) return;
     try {
       setBusy("create");
+      if (name.toUpperCase() === "DIVULGA LINKS") {
+        await adoptFn({ data: { instanceName: "DIVULGA LINKS", channelId } });
+        setModalOpen(false);
+        setNewName("");
+        toast.success("Instância existente conectada");
+        await reload();
+        return;
+      }
       const created = await createFn({ data: { name, channelId } });
       setModalOpen(false);
       setNewName("");
