@@ -13,12 +13,18 @@ export interface SiteConfigDTO {
   themeColor: string;
   useForAmazonMl: boolean;
   useForAll: boolean;
+  platforms: string[];
+  sortOrder: "recent" | "best" | "random";
+  productLimit: number;
 }
+
+const ALLOWED_PLATFORMS = ["shopee", "mercadolivre", "amazon", "aliexpress", "magalu"];
 
 function slugFromChannel(channelName: string, channelId: string): string {
   const base = sanitizeSlug(channelName);
-  if (base.length >= 3) return base;
-  return `g${channelId.replace(/-/g, "").slice(0, 10)}`;
+  const suffix = channelId.replace(/-/g, "").slice(0, 12);
+  if (base.length >= 3) return `${base}-${suffix}`;
+  return `g-${suffix}`;
 }
 
 function sanitizeSlug(input: string): string {
@@ -28,7 +34,7 @@ function sanitizeSlug(input: string): string {
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9-]+/g, "-")
     .replace(/^-+|-+$/g, "")
-    .slice(0, 40);
+    .slice(0, 80);
 }
 
 const channelIdInput = z.object({ channelId: z.string().uuid() });
@@ -38,7 +44,6 @@ export const getSiteConfig = createServerFn({ method: "GET" })
   .inputValidator((input: { channelId: string }) => channelIdInput.parse(input))
   .handler(async ({ data, context }): Promise<SiteConfigDTO> => {
     const { supabase, userId } = context;
-    // Ensure channel belongs to user
     const { data: ch, error: chErr } = await supabase
       .from("channels")
       .select("id, name")
@@ -53,6 +58,7 @@ export const getSiteConfig = createServerFn({ method: "GET" })
       .eq("channel_id", data.channelId)
       .maybeSingle();
     if (row) {
+      const r = row as Record<string, unknown>;
       return {
         channelId: data.channelId,
         slug: row.slug,
@@ -63,6 +69,9 @@ export const getSiteConfig = createServerFn({ method: "GET" })
         themeColor: row.theme_color,
         useForAmazonMl: row.use_for_amazon_ml,
         useForAll: row.use_for_all,
+        platforms: (r.platforms as string[] | null) ?? ["shopee", "mercadolivre", "amazon"],
+        sortOrder: ((r.sort_order as string | null) ?? "recent") as "recent" | "best" | "random",
+        productLimit: (r.product_limit as number | null) ?? 60,
       };
     }
     return {
@@ -75,14 +84,15 @@ export const getSiteConfig = createServerFn({ method: "GET" })
       themeColor: "#3B82F6",
       useForAmazonMl: false,
       useForAll: false,
+      platforms: ["shopee", "mercadolivre", "amazon"],
+      sortOrder: "recent",
+      productLimit: 60,
     };
   });
 
 export const saveSiteConfig = createServerFn({ method: "POST" })
   .middleware([apiClient, requireSupabaseAuth])
-  .inputValidator((input: Partial<SiteConfigDTO> & { channelId: string }) =>
-    input,
-  )
+  .inputValidator((input: Partial<SiteConfigDTO> & { channelId: string }) => input)
   .handler(async ({ data, context }): Promise<SiteConfigDTO> => {
     const { supabase, userId } = context;
     if (!data.channelId) throw new Error("channelId obrigatório.");
@@ -99,7 +109,6 @@ export const saveSiteConfig = createServerFn({ method: "POST" })
     const slug = sanitizeSlug(rawSlug) || slugFromChannel(ch.name ?? "", data.channelId);
     if (slug.length < 3) throw new Error("Slug deve ter ao menos 3 caracteres.");
 
-    // Conflict check: slug used by a different channel
     const { data: conflict } = await supabase
       .from("site_configs")
       .select("channel_id")
@@ -114,6 +123,14 @@ export const saveSiteConfig = createServerFn({ method: "POST" })
     const gaTag = (data.gaTag ?? "").trim().slice(0, 40) || null;
     const logoUrl = (data.logoUrl ?? "").trim() || null;
 
+    const platforms = Array.isArray(data.platforms)
+      ? data.platforms.filter((p) => ALLOWED_PLATFORMS.includes(p))
+      : ["shopee", "mercadolivre", "amazon"];
+    const sortOrder: "recent" | "best" | "random" =
+      data.sortOrder === "best" || data.sortOrder === "random" ? data.sortOrder : "recent";
+    const rawLimit = Number(data.productLimit ?? 60);
+    const productLimit = Math.min(200, Math.max(1, Number.isFinite(rawLimit) ? Math.floor(rawLimit) : 60));
+
     const payload = {
       user_id: userId,
       channel_id: data.channelId,
@@ -125,6 +142,9 @@ export const saveSiteConfig = createServerFn({ method: "POST" })
       theme_color: themeColor,
       use_for_amazon_ml: !!data.useForAmazonMl,
       use_for_all: !!data.useForAll,
+      platforms,
+      sort_order: sortOrder,
+      product_limit: productLimit,
     };
 
     const { error } = await supabase
@@ -142,5 +162,8 @@ export const saveSiteConfig = createServerFn({ method: "POST" })
       themeColor,
       useForAmazonMl: !!data.useForAmazonMl,
       useForAll: !!data.useForAll,
+      platforms,
+      sortOrder,
+      productLimit,
     };
   });
