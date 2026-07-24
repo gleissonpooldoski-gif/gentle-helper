@@ -20,6 +20,7 @@ import { Route as ApiMlCallbackRouteImport } from './routes/api/ml/callback'
 import { Route as ApiPublicWhatsappWebhookRouteImport } from './routes/api/public/whatsapp/webhook'
 import { Route as ApiPublicWhatsappDiagnosticRouteImport } from './routes/api/public/whatsapp/diagnostic'
 import { Route as ApiPublicWhatsappConnectRouteImport } from './routes/api/public/whatsapp/connect'
+import { Route as ApiPublicHooksAutomationTickRouteImport } from './routes/api/public/hooks/automation-tick'
 import { Route as ApiPublicChannelsWhatsappSessionStatusRouteImport } from './routes/api/public/channels/whatsapp/session-status'
 import { Route as ApiPublicChannelsWhatsappConnectRouteImport } from './routes/api/public/channels/whatsapp/connect'
 
@@ -82,6 +83,12 @@ const ApiPublicWhatsappConnectRoute =
     path: '/api/public/whatsapp/connect',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicHooksAutomationTickRoute =
+  ApiPublicHooksAutomationTickRouteImport.update({
+    id: '/api/public/hooks/automation-tick',
+    path: '/api/public/hooks/automation-tick',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicChannelsWhatsappSessionStatusRoute =
   ApiPublicChannelsWhatsappSessionStatusRouteImport.update({
     id: '/api/public/channels/whatsapp/session-status',
@@ -104,6 +111,7 @@ export interface FileRoutesByFullPath {
   '/api/ml/callback': typeof ApiMlCallbackRoute
   '/api/ml/probe': typeof ApiMlProbeRoute
   '/canais/$id/editar': typeof CanaisIdEditarRoute
+  '/api/public/hooks/automation-tick': typeof ApiPublicHooksAutomationTickRoute
   '/api/public/whatsapp/connect': typeof ApiPublicWhatsappConnectRoute
   '/api/public/whatsapp/diagnostic': typeof ApiPublicWhatsappDiagnosticRoute
   '/api/public/whatsapp/webhook': typeof ApiPublicWhatsappWebhookRoute
@@ -119,6 +127,7 @@ export interface FileRoutesByTo {
   '/api/ml/callback': typeof ApiMlCallbackRoute
   '/api/ml/probe': typeof ApiMlProbeRoute
   '/canais/$id/editar': typeof CanaisIdEditarRoute
+  '/api/public/hooks/automation-tick': typeof ApiPublicHooksAutomationTickRoute
   '/api/public/whatsapp/connect': typeof ApiPublicWhatsappConnectRoute
   '/api/public/whatsapp/diagnostic': typeof ApiPublicWhatsappDiagnosticRoute
   '/api/public/whatsapp/webhook': typeof ApiPublicWhatsappWebhookRoute
@@ -135,6 +144,7 @@ export interface FileRoutesById {
   '/api/ml/callback': typeof ApiMlCallbackRoute
   '/api/ml/probe': typeof ApiMlProbeRoute
   '/canais/$id/editar': typeof CanaisIdEditarRoute
+  '/api/public/hooks/automation-tick': typeof ApiPublicHooksAutomationTickRoute
   '/api/public/whatsapp/connect': typeof ApiPublicWhatsappConnectRoute
   '/api/public/whatsapp/diagnostic': typeof ApiPublicWhatsappDiagnosticRoute
   '/api/public/whatsapp/webhook': typeof ApiPublicWhatsappWebhookRoute
@@ -152,6 +162,7 @@ export interface FileRouteTypes {
     | '/api/ml/callback'
     | '/api/ml/probe'
     | '/canais/$id/editar'
+    | '/api/public/hooks/automation-tick'
     | '/api/public/whatsapp/connect'
     | '/api/public/whatsapp/diagnostic'
     | '/api/public/whatsapp/webhook'
@@ -167,6 +178,7 @@ export interface FileRouteTypes {
     | '/api/ml/callback'
     | '/api/ml/probe'
     | '/canais/$id/editar'
+    | '/api/public/hooks/automation-tick'
     | '/api/public/whatsapp/connect'
     | '/api/public/whatsapp/diagnostic'
     | '/api/public/whatsapp/webhook'
@@ -182,6 +194,7 @@ export interface FileRouteTypes {
     | '/api/ml/callback'
     | '/api/ml/probe'
     | '/canais/$id/editar'
+    | '/api/public/hooks/automation-tick'
     | '/api/public/whatsapp/connect'
     | '/api/public/whatsapp/diagnostic'
     | '/api/public/whatsapp/webhook'
@@ -198,6 +211,7 @@ export interface RootRouteChildren {
   ApiMlCallbackRoute: typeof ApiMlCallbackRoute
   ApiMlProbeRoute: typeof ApiMlProbeRoute
   CanaisIdEditarRoute: typeof CanaisIdEditarRoute
+  ApiPublicHooksAutomationTickRoute: typeof ApiPublicHooksAutomationTickRoute
   ApiPublicWhatsappConnectRoute: typeof ApiPublicWhatsappConnectRoute
   ApiPublicWhatsappDiagnosticRoute: typeof ApiPublicWhatsappDiagnosticRoute
   ApiPublicWhatsappWebhookRoute: typeof ApiPublicWhatsappWebhookRoute
@@ -284,6 +298,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicWhatsappConnectRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/automation-tick': {
+      id: '/api/public/hooks/automation-tick'
+      path: '/api/public/hooks/automation-tick'
+      fullPath: '/api/public/hooks/automation-tick'
+      preLoaderRoute: typeof ApiPublicHooksAutomationTickRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/channels/whatsapp/session-status': {
       id: '/api/public/channels/whatsapp/session-status'
       path: '/api/public/channels/whatsapp/session-status'
@@ -310,6 +331,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMlCallbackRoute: ApiMlCallbackRoute,
   ApiMlProbeRoute: ApiMlProbeRoute,
   CanaisIdEditarRoute: CanaisIdEditarRoute,
+  ApiPublicHooksAutomationTickRoute: ApiPublicHooksAutomationTickRoute,
   ApiPublicWhatsappConnectRoute: ApiPublicWhatsappConnectRoute,
   ApiPublicWhatsappDiagnosticRoute: ApiPublicWhatsappDiagnosticRoute,
   ApiPublicWhatsappWebhookRoute: ApiPublicWhatsappWebhookRoute,
