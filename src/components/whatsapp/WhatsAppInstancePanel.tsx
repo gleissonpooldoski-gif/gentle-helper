@@ -53,12 +53,32 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
   const disconnectFn = useServerFn(disconnectWhatsAppInstance);
   const deleteFn = useServerFn(deleteWhatsAppInstance);
 
+  const adoptFn = useServerFn(adoptEvolutionInstance);
+  const groupsFn = useServerFn(fetchWhatsAppGroups);
+  const saveGroupsFn = useServerFn(saveWhatsAppGroupSelection);
+  const sendTextFn = useServerFn(sendWhatsAppText);
+  const sendCampaignFn = useServerFn(sendWhatsAppCampaign);
+
   const [items, setItems] = useState<WhatsAppInstanceDTO[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const [qrModal, setQrModal] = useState<WhatsAppInstanceDTO | null>(null);
+  const [adoptOpen, setAdoptOpen] = useState(false);
+  const [adoptName, setAdoptName] = useState("");
+  const [groupsModal, setGroupsModal] = useState<{
+    inst: WhatsAppInstanceDTO;
+    groups: WhatsAppGroupDTO[];
+    loading: boolean;
+    filter: string;
+  } | null>(null);
+  const [sendModal, setSendModal] = useState<{
+    inst: WhatsAppInstanceDTO;
+    text: string;
+    jid: string;
+    mode: "test" | "campaign";
+  } | null>(null);
 
   const reload = useCallback(async () => {
     try {
