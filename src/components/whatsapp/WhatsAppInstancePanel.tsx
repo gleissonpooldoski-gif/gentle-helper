@@ -211,6 +211,89 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
     }
   };
 
+  const handleAdopt = async () => {
+    const name = adoptName.trim();
+    if (!name) return;
+    try {
+      setBusy("adopt");
+      await adoptFn({ data: { instanceName: name, channelId } });
+      toast.success("Instância importada");
+      setAdoptOpen(false);
+      setAdoptName("");
+      await reload();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao importar");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const openGroups = async (i: WhatsAppInstanceDTO) => {
+    setGroupsModal({ inst: i, groups: [], loading: true, filter: "" });
+    try {
+      const gs = await groupsFn({ data: { id: i.id } });
+      setGroupsModal((m) => (m ? { ...m, groups: gs, loading: false } : m));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao buscar grupos");
+      setGroupsModal(null);
+    }
+  };
+
+  const toggleGroup = (jid: string) => {
+    setGroupsModal((m) =>
+      m
+        ? {
+            ...m,
+            groups: m.groups.map((g) => (g.jid === jid ? { ...g, selected: !g.selected } : g)),
+          }
+        : m,
+    );
+  };
+
+  const saveGroups = async () => {
+    if (!groupsModal) return;
+    try {
+      setBusy("groups:save");
+      const chosen = groupsModal.groups
+        .filter((g) => g.selected)
+        .map((g) => ({ jid: g.jid, name: g.name }));
+      await saveGroupsFn({ data: { id: groupsModal.inst.id, groups: chosen } });
+      toast.success(`${chosen.length} grupo(s) salvo(s)`);
+      setGroupsModal(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao salvar");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleSend = async () => {
+    if (!sendModal) return;
+    try {
+      setBusy("send");
+      if (sendModal.mode === "test") {
+        if (!sendModal.jid.trim()) {
+          toast.error("Informe número ou JID de destino");
+          return;
+        }
+        await sendTextFn({
+          data: { id: sendModal.inst.id, jid: sendModal.jid.trim(), text: sendModal.text },
+        });
+        toast.success("Mensagem enviada");
+      } else {
+        const res = await sendCampaignFn({
+          data: { id: sendModal.inst.id, text: sendModal.text },
+        });
+        toast.success(`Campanha: ${res.sent} enviada(s), ${res.failed} falha(s)`);
+      }
+      setSendModal(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao enviar");
+    } finally {
+      setBusy(null);
+    }
+  };
+
   return (
     <div className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm">
       <div className="flex items-center justify-between border-b border-border/70 bg-gradient-to-r from-emerald-600 to-emerald-700 px-5 py-4 text-white">
