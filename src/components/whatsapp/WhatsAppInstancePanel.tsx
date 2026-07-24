@@ -144,17 +144,39 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
     return () => cleanup?.();
   }, []);
 
+  // Timeout para gerar QR (30s) — evita loading infinito
+  const [qrTimedOut, setQrTimedOut] = useState(false);
+  const qrOpenedAtRef = useRef<number | null>(null);
+
   // Se o QR modal está aberto, faz polling do status
   useEffect(() => {
-    if (!qrModal) return;
+    if (!qrModal) {
+      qrOpenedAtRef.current = null;
+      setQrTimedOut(false);
+      return;
+    }
+    if (qrOpenedAtRef.current == null) qrOpenedAtRef.current = Date.now();
+    // Se já está conectado ao abrir, não faz polling.
+    if (qrModal.status === "connected") return;
+
     let cancelled = false;
     const tick = async () => {
       try {
         const upd = await refreshFn({ data: { id: qrModal.id } });
         if (cancelled) return;
+        // eslint-disable-next-line no-console
+        console.log("Evolution status", upd.status, "QR?", !!upd.qrCode);
         setQrModal(upd);
         if (upd.status === "connected") {
           toast.success("WhatsApp conectado!");
+          return;
+        }
+        if (
+          !upd.qrCode &&
+          qrOpenedAtRef.current &&
+          Date.now() - qrOpenedAtRef.current > 30_000
+        ) {
+          setQrTimedOut(true);
         }
       } catch {
         /* ignore transient */
@@ -165,7 +187,7 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
       cancelled = true;
       clearInterval(id);
     };
-  }, [qrModal?.id, refreshFn]);
+  }, [qrModal?.id, qrModal?.status, refreshFn]);
 
   // Mantém dados do modal sincronizados com a lista
   useEffect(() => {
@@ -192,8 +214,15 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
   };
 
   const handleReconnect = async (i: WhatsAppInstanceDTO) => {
+    // Se já está conectado, não pede QR novo.
+    if (i.status === "connected") {
+      toast.success("WhatsApp já conectado");
+      return;
+    }
     try {
       setBusy(`rec:${i.id}`);
+      setQrTimedOut(false);
+      qrOpenedAtRef.current = Date.now();
       const upd = await reconnectFn({ data: { id: i.id } });
       setQrModal(upd);
     } catch (err) {
@@ -515,6 +544,19 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
                   ) : qrModal.qrCode ? (
                     <div className="flex h-[260px] w-[260px] items-center justify-center break-all p-4 text-center font-mono text-xs">
                       {qrModal.qrCode}
+                    </div>
+                  ) : qrTimedOut ? (
+                    <div className="flex h-[260px] w-[260px] flex-col items-center justify-center gap-3 p-4 text-center">
+                      <p className="text-xs text-muted-foreground">
+                        Não foi possível gerar QR Code.
+                      </p>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleReconnect(qrModal)}
+                      >
+                        <RefreshCw className="mr-1 h-4 w-4" /> Tentar novamente
+                      </Button>
                     </div>
                   ) : (
                     <div className="flex h-[260px] w-[260px] flex-col items-center justify-center gap-2 text-muted-foreground">
