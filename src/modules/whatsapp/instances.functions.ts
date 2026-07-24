@@ -332,6 +332,8 @@ export const adoptEvolutionInstance = createServerFn({ method: "POST" })
       qr_code: null,
       last_seen_at: st.status === "connected" ? new Date().toISOString() : null,
     };
+    console.log("[WA][adopt whatsapp_instances]", payload);
+
 
     if (existing) {
       const { data: upd, error } = await (supabase as any)
