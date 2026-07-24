@@ -1,7 +1,7 @@
 /**
  * Cliente HTTP centralizado para a Evolution API.
- * A URL base fica salva em `public.evolution_settings` (fallback: env).
- * Cache curto em memória para evitar hit no banco a cada request.
+ * A URL base fica salva em `public.evolution_settings`.
+ * Ela é relida em cada verificação para túneis temporários nunca usarem URL antiga.
  */
 
 export interface EvolutionClientConfig {
@@ -9,30 +9,27 @@ export interface EvolutionClientConfig {
   apiKey: string;
 }
 
-const CACHE_TTL_MS = 10_000;
-let _cache: { at: number; baseUrl: string } | null = null;
-
 async function resolveBaseUrl(): Promise<string> {
-  if (_cache && Date.now() - _cache.at < CACHE_TTL_MS) return _cache.baseUrl;
-  let fromDb = "";
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data } = await supabaseAdmin
+    const { data, error } = await supabaseAdmin
       .from("evolution_settings" as any)
       .select("base_url")
       .eq("id", "global")
       .maybeSingle();
-    fromDb = String((data as any)?.base_url ?? "").trim();
-  } catch {
-    /* ignore, fallback to env */
+    if (error) throw new Error(error.message);
+    return String((data as any)?.base_url ?? "").trim().replace(/\/+$/, "");
+  } catch (error) {
+    throw new Error(
+      `Não foi possível carregar a URL salva da Evolution API: ${
+        error instanceof Error ? error.message : "erro no banco"
+      }`,
+    );
   }
-  const baseUrl = (fromDb || process.env.EVOLUTION_API_URL || "").replace(/\/+$/, "");
-  _cache = { at: Date.now(), baseUrl };
-  return baseUrl;
 }
 
 export function invalidateEvolutionConfigCache() {
-  _cache = null;
+  // Mantida por compatibilidade. A configuração não usa mais cache em memória.
 }
 
 export async function getEvolutionConfig(): Promise<EvolutionClientConfig> {
@@ -46,7 +43,7 @@ export async function getEvolutionConfig(): Promise<EvolutionClientConfig> {
   return { baseUrl, apiKey };
 }
 
-const TUNNEL_OFFLINE_MSG = "Tunnel offline. Atualize a URL da Evolution API.";
+const TUNNEL_OFFLINE_MSG = "Tunnel Cloudflare offline. Atualize a URL da Evolution API.";
 
 export function isTunnelOfflineStatus(status: number): boolean {
   // Cloudflare edge: 530 (origin down / 1016 no DNS), 522/523/524 tunnel/timeout

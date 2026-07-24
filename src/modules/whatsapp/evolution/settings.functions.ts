@@ -72,22 +72,19 @@ export const testEvolutionConnection = createServerFn({ method: "POST" })
   .inputValidator((data: { baseUrl?: string }) => ({
     baseUrl: data?.baseUrl ? String(data.baseUrl).trim().replace(/\/+$/, "") : "",
   }))
-  .handler(async ({ data }): Promise<EvolutionTestResult> => {
+  .handler(async ({ data, context }): Promise<EvolutionTestResult> => {
     invalidateEvolutionConfigCache();
     let baseUrl = data.baseUrl;
     if (!baseUrl) {
-      try {
-        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-        const { data: row } = await supabaseAdmin
-          .from("evolution_settings" as any)
-          .select("base_url")
-          .eq("id", "global")
-          .maybeSingle();
-        baseUrl = String((row as any)?.base_url ?? "").trim();
-        if (!baseUrl) baseUrl = (process.env.EVOLUTION_API_URL || "").trim();
-      } catch {
-        baseUrl = (process.env.EVOLUTION_API_URL || "").trim();
+      const { data: row, error } = await (context.supabase as any)
+        .from("evolution_settings")
+        .select("base_url")
+        .eq("id", "global")
+        .maybeSingle();
+      if (error) {
+        return { ok: false, status: null, message: `Falha ao carregar URL salva: ${error.message}`, baseUrl: "" };
       }
+      baseUrl = String(row?.base_url ?? "").trim();
     }
     baseUrl = baseUrl.replace(/\/+$/, "");
     if (!baseUrl) return { ok: false, status: null, message: "URL não configurada", baseUrl: "" };
@@ -101,7 +98,39 @@ export const testEvolutionConnection = createServerFn({ method: "POST" })
       });
       const text = await res.text();
       if (res.ok) {
-        return { ok: true, status: res.status, message: "Evolution API conectada", baseUrl };
+        const instanceRes = await fetch(
+          `${baseUrl}/instance/connectionState/${encodeURIComponent("DIVULGA LINKS")}`,
+          {
+            headers: apiKey ? { apikey: apiKey } : undefined,
+            signal: controller.signal,
+          },
+        );
+        const instanceText = await instanceRes.text();
+        if (instanceRes.status === 401 || instanceRes.status === 403) {
+          return { ok: false, status: instanceRes.status, message: "Erro de autenticação na Evolution API (apikey inválida).", baseUrl };
+        }
+        if (instanceRes.status === 530 || /error code: ?1016|error code: ?1033/i.test(instanceText)) {
+          return { ok: false, status: instanceRes.status, message: "Tunnel Cloudflare offline. Atualize a URL da Evolution API.", baseUrl };
+        }
+        if (!instanceRes.ok) {
+          return { ok: false, status: instanceRes.status, message: `Falha ao consultar a instância DIVULGA LINKS: HTTP ${instanceRes.status}`, baseUrl };
+        }
+        let state = "";
+        try {
+          const instanceJson = JSON.parse(instanceText);
+          state = String(instanceJson?.instance?.state ?? instanceJson?.state ?? instanceJson?.status ?? "").toLowerCase();
+        } catch {
+          state = instanceText.trim().toLowerCase();
+        }
+        if (state === "open" || state === "connected") {
+          return { ok: true, status: res.status, message: "Evolution API conectada.", baseUrl };
+        }
+        return {
+          ok: false,
+          status: instanceRes.status,
+          message: `Instância DIVULGA LINKS desconectada${state ? ` (${state})` : ""}.`,
+          baseUrl,
+        };
       }
       if (res.status === 530 || res.status === 522 || res.status === 523 || res.status === 524) {
         return {
