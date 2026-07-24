@@ -406,12 +406,9 @@ export const saveWhatsAppGroupSelection = createServerFn({ method: "POST" })
   .inputValidator((data: {
     id: string;
     channelId: string;
-    channelId: string;
     groups: Array<{ jid: string; name?: string }>;
   }) => {
     if (!data?.id) throw new Error("id obrigatório");
-    const channelId = String(data.channelId ?? "").trim();
-    if (!channelId) throw new Error("channelId obrigatório");
     const channelId = toUuidOrNull(data?.channelId);
     if (!channelId) throw new Error("channelId inválido");
     if (!Array.isArray(data.groups)) throw new Error("groups obrigatório");
@@ -488,6 +485,7 @@ export const sendWhatsAppProduct = createServerFn({ method: "POST" })
   .middleware([apiClient, requireSupabaseAuth])
   .inputValidator((data: {
     id: string;
+    channelId: string;
     jids?: string[];        // se ausente, usa grupos selecionados
     productId?: string;     // opcional — carrega do banco quando fornecido
     product?: {
@@ -503,6 +501,8 @@ export const sendWhatsAppProduct = createServerFn({ method: "POST" })
     };
   }) => {
     if (!data?.id) throw new Error("id obrigatório");
+    const channelId = toUuidOrNull(data.channelId);
+    if (!channelId) throw new Error("channelId inválido");
     const jids = Array.isArray(data.jids) ? data.jids.map((j) => String(j)) : null;
     if (data.productId) return { id: String(data.id), channelId, jids, productId: String(data.productId), product: null };
     const p = data.product;

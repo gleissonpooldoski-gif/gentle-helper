@@ -171,10 +171,10 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
     for (const cand of shuffled) {
       const result = await validateProduct(cand);
       if (result.availability === "active") {
-        await persistValidation(admin, cand.id, result);
+        await persistValidation(admin, cand.id, cfg.channel_id, result);
         return cand;
       }
-      await persistValidation(admin, cand.id, result);
+      await persistValidation(admin, cand.id, cfg.channel_id, result);
       if (result.availability !== "error") {
         await admin.from("automation_group_sends").upsert({
           user_id: cfg.user_id,
