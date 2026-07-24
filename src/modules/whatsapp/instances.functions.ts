@@ -387,20 +387,21 @@ export const fetchWhatsAppGroups = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const row = await loadInstance(supabase, userId, data.id);
 
-    // Somente grupos autorizados pelo usuário na etapa de configuração
-    // (monitored_groups para este canal). A Evolution é usada apenas para
-    // enriquecer nome/participantes/foto — nunca para definir destinos.
+    // Somente grupos autorizados para ESTA instância (isolamento por instância).
+    // A Evolution é usada apenas para enriquecer nome/participantes/foto —
+    // nunca para definir destinos.
     const { data: allowed } = await (supabase as any)
       .from("monitored_groups")
       .select("group_jid, group_name")
       .eq("user_id", userId)
-      .eq("channel_id", data.channelId)
+      .eq("instance_id", row.id)
       .eq("is_active", true);
 
     const allowedList: Array<{ group_jid: string; group_name: string | null }> =
       allowed ?? [];
     if (allowedList.length === 0) return [];
     const allowedJids = new Set(allowedList.map((a) => a.group_jid));
+
 
     let evoMap = new Map<
       string,
