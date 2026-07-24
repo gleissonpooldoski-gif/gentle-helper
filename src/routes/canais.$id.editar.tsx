@@ -27,6 +27,8 @@ import {
   unlinkChannelSession,
   type WASessionDTO,
 } from "@/modules/channels/whatsapp/sessions.functions";
+import { WhatsAppInstancePanel } from "@/components/whatsapp/WhatsAppInstancePanel";
+
 
 import {
   AlertTriangle,
