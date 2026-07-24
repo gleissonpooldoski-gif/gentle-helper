@@ -125,8 +125,10 @@ function EditChannelPage() {
   const { id } = Route.useParams();
   const getChannelFn = useServerFn(getChannel);
   const updateChannelFn = useServerFn(updateChannel);
+  const getFlowSummaryFn = useServerFn(getChannelFlowSummary);
   const [channel, setChannel] = useState<ChannelDTO | null>(null);
   const [channelError, setChannelError] = useState<string | null>(null);
+  const [flowSummary, setFlowSummary] = useState<ChannelFlowSummaryDTO | null>(null);
   const [tab, setTab] = useState("geral");
   const [keepLink, setKeepLink] = useState(true);
   const [neverExpires, setNeverExpires] = useState(true);
@@ -139,11 +141,20 @@ function EditChannelPage() {
     "Mercado Livre",
   ]);
 
+  const refreshFlowSummary = useCallback(() => {
+    void getFlowSummaryFn({ data: { channelId: id } })
+      .then(setFlowSummary)
+      .catch(() => {
+        /* mantém último snapshot */
+      });
+  }, [getFlowSummaryFn, id]);
+
   useEffect(() => {
     console.info("Editando canal:", id);
     let cancelled = false;
     setChannel(null);
     setChannelError(null);
+    setFlowSummary(null);
     void getChannelFn({ data: { channelId: id } })
       .then((next) => {
         if (!cancelled) {
@@ -154,10 +165,14 @@ function EditChannelPage() {
       .catch((error) => {
         if (!cancelled) setChannelError(error instanceof Error ? error.message : "Falha ao carregar canal");
       });
+    refreshFlowSummary();
+    // Refresh periódico leve — captura validações do worker e novas importações.
+    const t = setInterval(refreshFlowSummary, 30_000);
     return () => {
       cancelled = true;
+      clearInterval(t);
     };
-  }, [id, getChannelFn]);
+  }, [id, getChannelFn, refreshFlowSummary]);
 
   const handleUpdateChannel = async () => {
     try {
