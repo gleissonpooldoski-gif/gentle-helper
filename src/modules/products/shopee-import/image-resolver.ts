@@ -51,8 +51,9 @@ const PLACEHOLDER_PATTERNS: RegExp[] = [
 ];
 
 /** Only accept URLs served by known Shopee product-image CDNs. */
+// Accept any number of subdomains (e.g. down-br.img.susercontent.com).
 const VALID_CDN_HOST_RE =
-  /^https?:\/\/(?:[a-z0-9-]+\.)?(?:susercontent\.com|cf\.shopee\.[a-z.]+|shopeemobile\.com)\//i;
+  /^https?:\/\/(?:[a-z0-9-]+\.)*(?:susercontent\.com|cf\.shopee\.[a-z.]+|shopeemobile\.com)\//i;
 
 export type ImageLookup = { itemId: string; productUrl: string; offerUrl?: string | null };
 
@@ -103,7 +104,7 @@ function findMetaImage(html: string): string | null {
 /** Broad CDN URL scan (fallback for HTML that doesn't emit OG tags). */
 function findCdnUrl(html: string): string | null {
   const re =
-    /https?:\/\/(?:[a-z0-9-]+\.)?(?:susercontent\.com|cf\.shopee\.[a-z.]+|shopeemobile\.com)\/file\/[a-z0-9_-]+(?:_tn)?/gi;
+    /https?:\/\/(?:[a-z0-9-]+\.)*(?:susercontent\.com|cf\.shopee\.[a-z.]+|shopeemobile\.com)\/file\/[a-z0-9_-]+(?:_tn)?/gi;
   const matches = html.match(re);
   if (!matches) return null;
   for (const url of matches) if (isValidProductImage(url)) return url;
