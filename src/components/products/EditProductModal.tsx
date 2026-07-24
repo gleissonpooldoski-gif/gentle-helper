@@ -23,10 +23,12 @@ export type EditProductTarget =
 
 type Props = {
   open: boolean;
+  channelId: string;
   target: EditProductTarget | null;
   onClose: () => void;
   onSaved: (product: EditableProductDTO) => void;
 };
+
 
 const AVAILABILITY_LABELS: Record<string, string> = {
   active: "Ativo",
