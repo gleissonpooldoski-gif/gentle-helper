@@ -2401,9 +2401,11 @@ function WhatsAppGroupsPanel() {
 
           <Button
             size="lg"
+            onClick={() => void onSave()}
+            disabled={saving || subTab !== "grupos"}
             className="gap-2 rounded-full bg-primary px-8 shadow-[0_10px_30px_-12px_oklch(0.62_0.19_256/0.6)] hover:bg-primary/90"
           >
-            <Save className="h-4 w-4" /> Salvar configurações
+            <Save className="h-4 w-4" /> {saving ? "Salvando…" : "Salvar configurações"}
           </Button>
         </div>
       </div>
