@@ -2,6 +2,14 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { apiClient } from "@/lib/api-client";
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function toUuidOrNull(v: unknown): string | null {
+  if (!v) return null;
+  const s = String(v).trim();
+  return UUID_RE.test(s) ? s : null;
+}
+
+
 export type WhatsAppSessionStatus = "pending" | "connected" | "disconnected";
 
 export interface WhatsAppSessionDTO {
