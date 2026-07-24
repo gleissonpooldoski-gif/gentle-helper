@@ -32,6 +32,7 @@ import { SendToGroupsModal, type SendProduct } from "@/components/whatsapp/SendT
 import { getPostLayout, savePostLayout } from "@/modules/posts/layout.functions";
 import { DEFAULT_POST_LAYOUT, type PostLayout } from "@/modules/posts/render";
 import { AutomationPanel } from "@/components/automation/AutomationPanel";
+import { GroupAutomationList } from "@/components/automation/GroupAutomationList";
 
 
 import {
