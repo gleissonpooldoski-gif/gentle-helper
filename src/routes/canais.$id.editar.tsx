@@ -2970,6 +2970,7 @@ function ShopeePanel() {
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
   const [staticHidden, setStaticHidden] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [sendProduct, setSendProduct] = useState<SendProduct | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const importBatchFn = useServerFn(importShopeeBatch);
   const listPendingFn = useServerFn(listPendingShopeeImages);
