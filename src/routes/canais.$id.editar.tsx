@@ -2872,6 +2872,11 @@ function MercadoLivrePanel() {
           </div>
         </div>
       </div>
+      <SendToGroupsModal
+        open={sendProduct !== null}
+        onClose={() => setSendProduct(null)}
+        product={sendProduct}
+      />
     </div>
   );
 }
