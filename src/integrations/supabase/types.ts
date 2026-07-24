@@ -777,8 +777,10 @@ export type Database = {
       }
       site_configs: {
         Row: {
+          channel_id: string
           created_at: string
           ga_tag: string | null
+          id: string
           logo_url: string | null
           slug: string
           subtitle: string
@@ -790,8 +792,10 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          channel_id: string
           created_at?: string
           ga_tag?: string | null
+          id?: string
           logo_url?: string | null
           slug: string
           subtitle?: string
@@ -803,8 +807,10 @@ export type Database = {
           user_id: string
         }
         Update: {
+          channel_id?: string
           created_at?: string
           ga_tag?: string | null
+          id?: string
           logo_url?: string | null
           slug?: string
           subtitle?: string
@@ -815,7 +821,15 @@ export type Database = {
           use_for_amazon_ml?: boolean
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "site_configs_channel_fk"
+            columns: ["channel_id"]
+            isOneToOne: true
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       users: {
         Row: {
