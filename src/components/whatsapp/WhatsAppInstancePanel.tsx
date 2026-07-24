@@ -50,6 +50,7 @@ function normalizeQrSource(qrCode: string | null): string | null {
 const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
   creating: { label: "Criando…", cls: "bg-amber-100 text-amber-800" },
   awaiting_qr: { label: "Aguardando QR", cls: "bg-blue-100 text-blue-800" },
+  connecting: { label: "Conectando…", cls: "bg-amber-100 text-amber-800" },
   connected: { label: "Conectado", cls: "bg-emerald-100 text-emerald-800" },
   disconnected: { label: "Desconectado", cls: "bg-muted text-muted-foreground" },
   error: { label: "Erro", cls: "bg-red-100 text-red-800" },
