@@ -673,10 +673,42 @@ function TemplateBlock({
 /* -------- Layout Post tab -------- */
 
 function LayoutPostPanel() {
+  const getLayoutFn = useServerFn(getPostLayout);
+  const saveLayoutFn = useServerFn(savePostLayout);
+
   const [waPreview, setWaPreview] = useState(true);
-  const [upper, setUpper] = useState(true);
-  const [hideSales, setHideSales] = useState(false);
-  const [hideOriginal, setHideOriginal] = useState(false);
+  const [layout, setLayout] = useState<PostLayout>(DEFAULT_POST_LAYOUT);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const l = await getLayoutFn({});
+        setLayout(l);
+      } catch (err) {
+        console.warn("[layout] load failed:", err);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [getLayoutFn]);
+
+  const update = <K extends keyof PostLayout>(k: K, v: PostLayout[K]) =>
+    setLayout((prev) => ({ ...prev, [k]: v }));
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const saved = await saveLayoutFn({ data: layout });
+      setLayout(saved);
+      toast.success("Layout salvo. Instagram, Facebook, YouTube e WhatsApp usarão este template.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao salvar layout");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
@@ -694,20 +726,22 @@ function LayoutPostPanel() {
           <LayoutField
             label="Cabeçalho Geral"
             hint="Esse texto será exibido acima do título do produto"
-            defaultValue="🚨 OFERTA RELÂMPAGO!!"
+            value={layout.header}
+            onChange={(v) => update("header", v)}
           />
 
           <LayoutField
             label="Texto do Título"
             hint="Use as tags para formatar. Ex: 🔥🔥 <b>{title}</b> 🔥🔥"
-            defaultValue="🔥🔥 <b>{title}</b> 🔥🔥"
+            value={layout.title_template}
+            onChange={(v) => update("title_template", v)}
           />
 
           <div className="grid grid-cols-1 gap-2 rounded-xl border border-border/70 bg-muted/30 p-3 sm:grid-cols-2">
-            <Checkbox checked={upper} onChange={setUpper} label="TÍTULO EM MAIÚSCULO" small />
+            <Checkbox checked={layout.upper_title} onChange={(v) => update("upper_title", v)} label="TÍTULO EM MAIÚSCULO" small />
             <Checkbox
-              checked={hideSales}
-              onChange={setHideSales}
+              checked={layout.hide_sales}
+              onChange={(v) => update("hide_sales", v)}
               label="OCULTAR TEXTO DE VENDAS"
               small
             />
@@ -715,54 +749,65 @@ function LayoutPostPanel() {
 
           <LayoutField
             label="Texto de Vendas"
-            defaultValue="🛒 <i>{vendas} pedidos</i> 🛒"
-            disabled={hideSales}
+            value={layout.sales_template}
+            onChange={(v) => update("sales_template", v)}
+            disabled={layout.hide_sales}
           />
 
           <LayoutField
             label="Texto da Descrição"
-            defaultValue="<pre>{description}</pre>"
+            value={layout.description_template}
+            onChange={(v) => update("description_template", v)}
             rows={2}
           />
 
           <div className="rounded-xl border border-border/70 bg-muted/30 p-3">
             <Checkbox
-              checked={hideOriginal}
-              onChange={setHideOriginal}
+              checked={layout.hide_original}
+              onChange={(v) => update("hide_original", v)}
               label="OCULTAR VALOR ORIGINAL"
               small
             />
           </div>
           <LayoutField
             label="Texto do Preço Original"
-            defaultValue="❌❌ <s>{price_original}</s> ❌❌"
-            disabled={hideOriginal}
+            value={layout.original_price_template}
+            onChange={(v) => update("original_price_template", v)}
+            disabled={layout.hide_original}
           />
 
           <LayoutField
             label="Texto do Parcelamento"
-            defaultValue="💳💳 {parcelamento} 💳💳"
+            value={layout.installment_template}
+            onChange={(v) => update("installment_template", v)}
           />
           <LayoutField
             label="Texto do Preço Atual"
-            defaultValue="💵💵 <b>{price}</b> 💵💵"
+            value={layout.price_template}
+            onChange={(v) => update("price_template", v)}
           />
           <LayoutField
             label="Texto do Link de Afiliado"
-            defaultValue="🔗🔗 {link} 🔗🔗"
+            value={layout.link_template}
+            onChange={(v) => update("link_template", v)}
           />
 
           <LayoutField
             label="Rodapé Geral"
             hint="Exibido ao final de todos os posts"
-            defaultValue="✨ Aproveite! Ofertas por tempo limitado."
+            value={layout.footer}
+            onChange={(v) => update("footer", v)}
             rows={2}
           />
 
           <div className="flex justify-end pt-2">
-            <Button className="h-10 rounded-lg bg-primary px-6 hover:bg-primary/90">
+            <Button
+              onClick={handleSave}
+              disabled={saving || loading}
+              className="h-10 rounded-lg bg-primary px-6 hover:bg-primary/90"
+            >
               <Save className="mr-1.5 h-4 w-4" />
-              Salvar layout
+              {saving ? "Salvando..." : "Salvar layout"}
             </Button>
           </div>
         </SectionCard>
