@@ -291,3 +291,26 @@ export const listChannelDashboards = createServerFn({ method: "GET" })
       } satisfies ChannelDashboardDTO;
     });
   });
+
+export interface ChannelProductCountsDTO {
+  shopee: number;
+  mercadolivre: number;
+}
+
+export const getChannelProductCounts = createServerFn({ method: "POST" })
+  .middleware([apiClient, requireSupabaseAuth])
+  .inputValidator((data: { channelId: string }) => ({ channelId: parseChannelId(data?.channelId) }))
+  .handler(async ({ data, context }): Promise<ChannelProductCountsDTO> => {
+    const countFor = (platform: string) =>
+      context.supabase
+        .from("products")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", context.userId)
+        .eq("channel_id", data.channelId)
+        .eq("availability", "active")
+        .eq("platform", platform);
+    const [shopee, ml] = await Promise.all([countFor("shopee"), countFor("mercadolivre")]);
+    if (shopee.error) throw new Error(shopee.error.message);
+    if (ml.error) throw new Error(ml.error.message);
+    return { shopee: shopee.count ?? 0, mercadolivre: ml.count ?? 0 };
+  });

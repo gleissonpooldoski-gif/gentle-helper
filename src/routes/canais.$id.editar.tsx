@@ -33,7 +33,7 @@ import { SendToGroupsModal, type SendProduct } from "@/components/whatsapp/SendT
 import { getPostLayout, savePostLayout } from "@/modules/posts/layout.functions";
 import { DEFAULT_POST_LAYOUT, type PostLayout } from "@/modules/posts/render";
 import { GroupAutomationList } from "@/components/automation/GroupAutomationList";
-import { getChannel, updateChannel, type ChannelDTO } from "@/modules/channels/channels.functions";
+import { getChannel, updateChannel, getChannelProductCounts, type ChannelDTO, type ChannelProductCountsDTO } from "@/modules/channels/channels.functions";
 import { getChannelFlowSummary, type ChannelFlowSummaryDTO } from "@/modules/automation/automation.functions";
 import { getManualPost, saveManualPost, type ManualPostDTO } from "@/modules/posts/manual-post.functions";
 import { ensureAffiliateLink, buildMLAffiliateUrl } from "@/lib/affiliate-linker";
@@ -118,8 +118,8 @@ const TABS = [
   { id: "wa-grupos", label: "WhatsApp - GRUPOS/CANAIS", tone: "success" as const },
   { id: "wa-monitor", label: "WA - Monitorar Grupos" },
   { id: "amazon", label: "Amazon" },
-  { id: "ml", label: "Mercado Livre", count: 272 },
-  { id: "shopee", label: "Shopee", count: 799 },
+  { id: "ml", label: "Mercado Livre" },
+  { id: "shopee", label: "Shopee" },
 ];
 
 const STORES = [
@@ -136,9 +136,11 @@ function EditChannelPage() {
   const getManualPostFn = useServerFn(getManualPost);
   const saveManualPostFn = useServerFn(saveManualPost);
   const buildMLAffiliateUrlFn = useServerFn(buildMLAffiliateUrl);
+  const getProductCountsFn = useServerFn(getChannelProductCounts);
   const [channel, setChannel] = useState<ChannelDTO | null>(null);
   const [channelError, setChannelError] = useState<string | null>(null);
   const [flowSummary, setFlowSummary] = useState<ChannelFlowSummaryDTO | null>(null);
+  const [productCounts, setProductCounts] = useState<ChannelProductCountsDTO>({ shopee: 0, mercadolivre: 0 });
   const [tab, setTab] = useState("geral");
   const [keepLink, setKeepLink] = useState(true);
   const [neverExpires, setNeverExpires] = useState(true);
@@ -171,6 +173,28 @@ function EditChannelPage() {
         /* mantém último snapshot */
       });
   }, [getFlowSummaryFn, id]);
+
+  const refreshProductCounts = useCallback(() => {
+    void getProductCountsFn({ data: { channelId: id } })
+      .then(setProductCounts)
+      .catch(() => {
+        /* mantém último snapshot */
+      });
+  }, [getProductCountsFn, id]);
+
+  useEffect(() => {
+    refreshProductCounts();
+  }, [refreshProductCounts, tab]);
+
+  useEffect(() => {
+    const onFocus = () => refreshProductCounts();
+    window.addEventListener("focus", onFocus);
+    const t = window.setInterval(refreshProductCounts, 30_000);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      window.clearInterval(t);
+    };
+  }, [refreshProductCounts]);
 
   useEffect(() => {
     console.info("Editando canal:", id);
@@ -352,6 +376,8 @@ function EditChannelPage() {
             <div className="flex min-w-max items-center gap-1">
               {TABS.map((t) => {
                 const active = tab === t.id;
+                const count =
+                  t.id === "shopee" ? productCounts.shopee : t.id === "ml" ? productCounts.mercadolivre : undefined;
                 return (
                   <button
                     key={t.id}
@@ -370,14 +396,14 @@ function EditChannelPage() {
                       <Check className="h-3 w-3 text-[color:var(--color-success)]" strokeWidth={3} />
                     )}
                     <span>{t.label}</span>
-                    {typeof t.count === "number" && (
+                    {typeof count === "number" && (
                       <span
                         className={cn(
                           "rounded-md px-1.5 py-0.5 text-[10px] font-bold",
                           active ? "bg-white/20" : "bg-muted text-muted-foreground",
                         )}
                       >
-                        {t.count}
+                        {count}
                       </span>
                     )}
                   </button>
@@ -401,9 +427,9 @@ function EditChannelPage() {
           ) : tab === "wa-monitor" ? (
             <WhatsAppMonitorPanel channelId={id} />
           ) : tab === "ml" ? (
-            <MercadoLivrePanel />
+            <MercadoLivrePanel onCountsChanged={refreshProductCounts} />
           ) : tab === "shopee" ? (
-            <ShopeePanel />
+            <ShopeePanel onCountsChanged={refreshProductCounts} />
           ) : (
 
 
@@ -2645,7 +2671,7 @@ function channelProductToML(row: ChannelProductDTO): MLProduct {
   };
 }
 
-function MercadoLivrePanel() {
+function MercadoLivrePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {}) {
   const { id: channelId } = Route.useParams();
 
   const [autoAffiliate, setAutoAffiliate] = useState(true);
@@ -2682,7 +2708,8 @@ function MercadoLivrePanel() {
   const reloadProducts = useCallback(async () => {
     const rows = await listProductsFn({ data: { channelId, platform: "mercadolivre" } });
     setChannelProducts(rows.map(channelProductToML));
-  }, [channelId, listProductsFn]);
+    onCountsChanged?.();
+  }, [channelId, listProductsFn, onCountsChanged]);
 
   useEffect(() => {
     void reloadProducts().catch((err) => {
@@ -3085,7 +3112,7 @@ function MercadoLivrePanel() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h3 className="text-[15px] font-semibold">Produtos cadastrados</h3>
-              <p className="text-[12px] text-muted-foreground">272 produtos vinculados a este canal</p>
+              <p className="text-[12px] text-muted-foreground">{channelProducts.length} produtos vinculados a este canal</p>
             </div>
             <div className="flex items-center gap-2">
               <Button variant="outline" size="sm" className="h-9 gap-1.5 rounded-full">
@@ -3360,7 +3387,7 @@ const SHOPEE_PRODUCTS: ShopeeProduct[] = [
   { id: "s12", title: "Kit 100 Elásticos de Cabelo Invisibobble Sortidos", emoji: "🎀", color: "oklch(0.9 0.06 320)", format: "FEED", price: "R$ 7,90", original: "R$ 19,90", discount: 60, when: "3 dias atrás" },
 ];
 
-function ShopeePanel() {
+function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {}) {
   const { id: channelId } = Route.useParams();
 
   const [tags, setTags] = useState<ShopeeTag[]>(SHOPEE_TAGS);
@@ -3419,7 +3446,8 @@ function ShopeePanel() {
     const rows = await listProductsFn({ data: { channelId, platform: "shopee" } });
     setImportedProducts(rows.map(rowToStoredProduct));
     setDeletedIds(new Set());
-  }, [channelId, listProductsFn]);
+    onCountsChanged?.();
+  }, [channelId, listProductsFn, onCountsChanged]);
 
   useEffect(() => {
     void reloadProducts().catch((err) => {
@@ -3606,7 +3634,7 @@ function ShopeePanel() {
         </div>
         <div>
           <h3 className="text-[15px] font-semibold">Shopee — Produtos & Configurações</h3>
-          <p className="text-[12.5px] text-white/85">799 produtos vinculados · gerencie categorias, textos padrão e importe em massa.</p>
+          <p className="text-[12.5px] text-white/85">{importedProducts.length} produtos vinculados · gerencie categorias, textos padrão e importe em massa.</p>
         </div>
       </div>
 
@@ -3825,7 +3853,7 @@ function ShopeePanel() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h3 className="text-[15px] font-semibold">Produtos cadastrados</h3>
-              <p className="text-[12px] text-muted-foreground">799 produtos vinculados a este canal</p>
+              <p className="text-[12px] text-muted-foreground">{importedProducts.length} produtos vinculados a este canal</p>
             </div>
             <div className="flex items-center gap-2">
               <Button variant="outline" size="sm" className="h-9 gap-1.5 rounded-full">
