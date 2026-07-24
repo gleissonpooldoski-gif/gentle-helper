@@ -69,12 +69,11 @@ export function EvolutionSettingsCard() {
   );
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    void load().then(() => handleTest(undefined, true));
+  }, [load, handleTest]);
 
   // Auto-verificação: no mount, a cada 30s e ao voltar o foco/rede
   useEffect(() => {
-    void handleTest(undefined, true);
     const interval = setInterval(() => {
       void handleTest(undefined, true);
     }, 30_000);
