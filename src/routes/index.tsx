@@ -23,7 +23,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { AppSidebar } from "@/components/app-sidebar";
-import { listChannelDashboards, type ChannelDashboardDTO } from "@/modules/channels/channels.functions";
+import { listChannelDashboards, deleteChannel, type ChannelDashboardDTO } from "@/modules/channels/channels.functions";
+import { CreateChannelModal } from "@/components/channels/CreateChannelModal";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -108,8 +110,17 @@ const LIMIT = 5;
 
 function ChannelsPage() {
   const listChannelsFn = useServerFn(listChannelDashboards);
+  const deleteChannelFn = useServerFn(deleteChannel);
   const [channels, setChannels] = useState<Channel[]>([]);
   const [query, setQuery] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
+
+  const reload = () => {
+    void listChannelsFn()
+      .then((rows) => setChannels(rows.map(toChannel)))
+      .catch(() => setChannels([]));
+  };
+
   useEffect(() => {
     let cancelled = false;
     void listChannelsFn()
@@ -123,10 +134,26 @@ function ChannelsPage() {
       cancelled = true;
     };
   }, [listChannelsFn]);
+
   const filtered = useMemo(
     () => channels.filter((c) => c.name.toLowerCase().includes(query.trim().toLowerCase())),
     [channels, query],
   );
+
+  const handleDelete = async (id: string, name: string) => {
+    if (!window.confirm(`Excluir o grupo "${name}"? Esta ação é permanente.`)) return;
+    try {
+      await deleteChannelFn({ data: { channelId: id } });
+      setChannels((prev) => prev.filter((c) => c.id !== id));
+      toast.success("Grupo excluído.");
+    } catch (err) {
+      toast.error("Falha ao excluir o grupo.", {
+        description: err instanceof Error ? err.message : undefined,
+      });
+    }
+  };
+
+  const atLimit = channels.length >= LIMIT;
 
   return (
     <div className="min-h-screen bg-background font-sans text-foreground antialiased lg:flex">
@@ -134,7 +161,17 @@ function ChannelsPage() {
 
       <div className="flex-1 lg:min-w-0">
         <main className="mx-auto w-full max-w-[1400px] px-4 pb-24 pt-10 sm:px-6 lg:px-10">
-          <PageHeader activeCount={channels.length} limit={LIMIT} />
+          <PageHeader
+            activeCount={channels.length}
+            limit={LIMIT}
+            onAdd={() => {
+              if (atLimit) {
+                toast.error(`Limite de ${LIMIT} grupos atingido.`);
+                return;
+              }
+              setCreateOpen(true);
+            }}
+          />
 
           <div className="mt-8 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 sm:flex sm:items-center sm:justify-between">
             <div className="relative w-full sm:w-80">
@@ -153,12 +190,29 @@ function ChannelsPage() {
 
           <section className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
             {filtered.map((c) => (
-              <ChannelCard key={c.id} channel={c} />
+              <ChannelCard key={c.id} channel={c} onDelete={() => handleDelete(c.id, c.name)} />
             ))}
-            <AddChannelTile />
+            <AddChannelTile
+              onClick={() => {
+                if (atLimit) {
+                  toast.error(`Limite de ${LIMIT} grupos atingido.`);
+                  return;
+                }
+                setCreateOpen(true);
+              }}
+            />
           </section>
         </main>
       </div>
+
+      <CreateChannelModal
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onCreated={() => {
+          setCreateOpen(false);
+          reload();
+        }}
+      />
     </div>
   );
 }
