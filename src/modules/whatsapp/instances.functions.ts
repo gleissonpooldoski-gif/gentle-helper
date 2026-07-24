@@ -267,3 +267,214 @@ export const deleteWhatsAppInstance = createServerFn({ method: "POST" })
     }
     return { ok: true };
   });
+
+/** Importa/registra localmente uma instância que JÁ existe na Evolution API. */
+export const adoptEvolutionInstance = createServerFn({ method: "POST" })
+  .middleware([apiClient, requireSupabaseAuth])
+  .inputValidator((data: { instanceName: string; channelId?: string | null }) => {
+    const instanceName = String(data?.instanceName ?? "").trim();
+    if (!instanceName) throw new Error("instanceName obrigatório");
+    return {
+      instanceName,
+      channelId: data?.channelId ? String(data.channelId) : null,
+    };
+  })
+  .handler(async ({ data, context }): Promise<WhatsAppInstanceDTO> => {
+    const { supabase, userId } = context;
+    const { getWhatsAppProvider } = await import("./index.server");
+    const provider = getWhatsAppProvider("evolution");
+    const st = await provider.getStatus(data.instanceName);
+
+    const { data: existing } = await (supabase as any)
+      .from("whatsapp_instances")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("instance_name", data.instanceName)
+      .maybeSingle();
+
+    const payload = {
+      user_id: userId,
+      channel_id: data.channelId,
+      provider: "evolution",
+      instance_name: data.instanceName,
+      status: st.status,
+      phone: st.phone,
+      qr_code: null,
+      last_seen_at: st.status === "connected" ? new Date().toISOString() : null,
+    };
+
+    if (existing) {
+      const { data: upd, error } = await (supabase as any)
+        .from("whatsapp_instances")
+        .update(payload)
+        .eq("id", existing.id)
+        .select("*")
+        .single();
+      if (error) throw new Error(error.message);
+      return rowToDTO(upd);
+    }
+    const { data: ins, error } = await (supabase as any)
+      .from("whatsapp_instances")
+      .insert(payload)
+      .select("*")
+      .single();
+    if (error) throw new Error(error.message);
+    return rowToDTO(ins);
+  });
+
+async function loadInstance(supabase: any, userId: string, id: string) {
+  const { data: row, error } = await supabase
+    .from("whatsapp_instances")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!row) throw new Error("Instância não encontrada");
+  return row;
+}
+
+export interface WhatsAppGroupDTO {
+  jid: string;
+  name: string;
+  participants: number | null;
+  pictureUrl: string | null;
+  selected: boolean;
+}
+
+/** Busca grupos da instância e marca os já selecionados. */
+export const fetchWhatsAppGroups = createServerFn({ method: "POST" })
+  .middleware([apiClient, requireSupabaseAuth])
+  .inputValidator((data: { id: string }) => {
+    if (!data?.id) throw new Error("id obrigatório");
+    return { id: String(data.id) };
+  })
+  .handler(async ({ data, context }): Promise<WhatsAppGroupDTO[]> => {
+    const { supabase, userId } = context;
+    const row = await loadInstance(supabase, userId, data.id);
+    const { getWhatsAppProvider } = await import("./index.server");
+    const groups = await getWhatsAppProvider(row.provider).fetchGroups(row.instance_name);
+
+    const { data: sel } = await (supabase as any)
+      .from("whatsapp_group_selections")
+      .select("group_jid")
+      .eq("user_id", userId)
+      .eq("instance_id", row.id);
+    const selectedSet = new Set<string>((sel ?? []).map((s: any) => s.group_jid));
+
+    return groups.map((g) => ({ ...g, selected: selectedSet.has(g.jid) }));
+  });
+
+/** Salva a lista de grupos selecionados (substitui). */
+export const saveWhatsAppGroupSelection = createServerFn({ method: "POST" })
+  .middleware([apiClient, requireSupabaseAuth])
+  .inputValidator((data: {
+    id: string;
+    groups: Array<{ jid: string; name?: string }>;
+  }) => {
+    if (!data?.id) throw new Error("id obrigatório");
+    if (!Array.isArray(data.groups)) throw new Error("groups obrigatório");
+    return {
+      id: String(data.id),
+      groups: data.groups.map((g) => ({
+        jid: String(g.jid),
+        name: g.name ? String(g.name) : null,
+      })),
+    };
+  })
+  .handler(async ({ data, context }): Promise<{ ok: true; count: number }> => {
+    const { supabase, userId } = context;
+    const row = await loadInstance(supabase, userId, data.id);
+
+    await (supabase as any)
+      .from("whatsapp_group_selections")
+      .delete()
+      .eq("user_id", userId)
+      .eq("instance_id", row.id);
+
+    if (data.groups.length > 0) {
+      const rows = data.groups.map((g) => ({
+        user_id: userId,
+        instance_id: row.id,
+        channel_id: row.channel_id,
+        group_jid: g.jid,
+        group_name: g.name,
+      }));
+      const { error } = await (supabase as any)
+        .from("whatsapp_group_selections")
+        .insert(rows);
+      if (error) throw new Error(error.message);
+    }
+    return { ok: true, count: data.groups.length };
+  });
+
+/** Envia texto para um JID (grupo ou número). */
+export const sendWhatsAppText = createServerFn({ method: "POST" })
+  .middleware([apiClient, requireSupabaseAuth])
+  .inputValidator((data: { id: string; jid: string; text: string }) => {
+    if (!data?.id) throw new Error("id obrigatório");
+    const jid = String(data?.jid ?? "").trim();
+    const text = String(data?.text ?? "").trim();
+    if (!jid) throw new Error("Destinatário obrigatório");
+    if (!text) throw new Error("Mensagem vazia");
+    if (text.length > 4000) throw new Error("Mensagem muito longa");
+    return { id: String(data.id), jid, text };
+  })
+  .handler(async ({ data, context }): Promise<{ ok: true; messageId?: string }> => {
+    const { supabase, userId } = context;
+    const row = await loadInstance(supabase, userId, data.id);
+    if (row.status !== "connected") throw new Error("Instância não conectada");
+    const { getWhatsAppProvider } = await import("./index.server");
+    const res = await getWhatsAppProvider(row.provider).sendText(
+      row.instance_name,
+      data.jid,
+      data.text,
+    );
+    return { ok: true, messageId: res.id };
+  });
+
+/** Dispara mensagem para todos os grupos selecionados. */
+export const sendWhatsAppCampaign = createServerFn({ method: "POST" })
+  .middleware([apiClient, requireSupabaseAuth])
+  .inputValidator((data: { id: string; text: string }) => {
+    if (!data?.id) throw new Error("id obrigatório");
+    const text = String(data?.text ?? "").trim();
+    if (!text) throw new Error("Mensagem vazia");
+    return { id: String(data.id), text };
+  })
+  .handler(async ({ data, context }): Promise<{
+    sent: number;
+    failed: number;
+    errors: Array<{ jid: string; error: string }>;
+  }> => {
+    const { supabase, userId } = context;
+    const row = await loadInstance(supabase, userId, data.id);
+    if (row.status !== "connected") throw new Error("Instância não conectada");
+
+    const { data: sel } = await (supabase as any)
+      .from("whatsapp_group_selections")
+      .select("group_jid")
+      .eq("user_id", userId)
+      .eq("instance_id", row.id);
+    const targets: string[] = (sel ?? []).map((s: any) => s.group_jid);
+    if (targets.length === 0) throw new Error("Nenhum grupo selecionado");
+
+    const { getWhatsAppProvider } = await import("./index.server");
+    const provider = getWhatsAppProvider(row.provider);
+
+    let sent = 0;
+    let failed = 0;
+    const errors: Array<{ jid: string; error: string }> = [];
+    for (const jid of targets) {
+      try {
+        await provider.sendText(row.instance_name, jid, data.text);
+        sent++;
+        // Pequeno delay entre envios (anti-flood)
+        await new Promise((r) => setTimeout(r, 800));
+      } catch (err) {
+        failed++;
+        errors.push({ jid, error: err instanceof Error ? err.message : String(err) });
+      }
+    }
+    return { sent, failed, errors };
+  });
