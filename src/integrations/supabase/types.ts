@@ -403,6 +403,48 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_instances: {
+        Row: {
+          channel_id: string | null
+          created_at: string
+          id: string
+          instance_name: string
+          last_seen_at: string | null
+          phone: string | null
+          provider: string
+          qr_code: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          channel_id?: string | null
+          created_at?: string
+          id?: string
+          instance_name: string
+          last_seen_at?: string | null
+          phone?: string | null
+          provider?: string
+          qr_code?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          channel_id?: string | null
+          created_at?: string
+          id?: string
+          instance_name?: string
+          last_seen_at?: string | null
+          phone?: string | null
+          provider?: string
+          qr_code?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       whatsapp_sessions: {
         Row: {
           browser_id: string | null
