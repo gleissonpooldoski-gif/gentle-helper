@@ -8,7 +8,7 @@ import { getSiteConfig, saveSiteConfig, type SiteConfigDTO } from "@/modules/sit
 const MAX_LOGO_SIZE = 500;
 const PUBLIC_HOST = "https://dvlinks.com.br";
 
-export function SiteConfigPanel() {
+export function SiteConfigPanel({ channelId }: { channelId: string }) {
   const fetchCfg = useServerFn(getSiteConfig);
   const saveCfg = useServerFn(saveSiteConfig);
 
@@ -20,11 +20,12 @@ export function SiteConfigPanel() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    fetchCfg()
+    setLoading(true);
+    fetchCfg({ data: { channelId } })
       .then((c) => setCfg(c))
       .catch((e) => toast.error(e instanceof Error ? e.message : "Erro ao carregar"))
       .finally(() => setLoading(false));
-  }, [fetchCfg]);
+  }, [fetchCfg, channelId]);
 
   function patch(part: Partial<SiteConfigDTO>) {
     setCfg((prev) => (prev ? { ...prev, ...part } : prev));
