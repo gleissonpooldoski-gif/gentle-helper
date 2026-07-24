@@ -10,15 +10,19 @@ import { scrapeShopeeImage, isRealProductImage } from "./image-resolver";
 
 export const listPendingShopeeImages = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const { data, error } = await context.supabase
+  .inputValidator((input: unknown) =>
+    z.object({ channelId: z.string().uuid() }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { data: rows, error } = await context.supabase
       .from("products")
       .select("id, item_id, raw_link, affiliate_link, image_url")
       .eq("user_id", context.userId)
+      .eq("channel_id", data.channelId)
       .eq("platform", "shopee")
       .not("raw_link", "is", null);
     if (error) throw new Error(error.message);
-    return (data ?? [])
+    return (rows ?? [])
       .filter((r) => !!r.raw_link)
       .filter((r) => !isRealProductImage(r.image_url))
       .map((r) => ({
@@ -28,6 +32,7 @@ export const listPendingShopeeImages = createServerFn({ method: "POST" })
         offerUrl: r.affiliate_link,
       }));
   });
+
 
 export const enrichShopeeImageOne = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

@@ -2536,6 +2536,8 @@ function formatBRL(v: number | null): string {
 }
 
 function MercadoLivrePanel() {
+  const { id: channelId } = Route.useParams();
+
   const [autoAffiliate, setAutoAffiliate] = useState(true);
   const [bestSellers, setBestSellers] = useState(false);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
@@ -2573,7 +2575,7 @@ function MercadoLivrePanel() {
     }
     setAddingLink(true);
     try {
-      const res = await addByLinkFn({ data: { link } });
+      const res = await addByLinkFn({ data: { channelId, link } });
       const label = res.inserted > 0 ? "Produto adicionado" : "Produto atualizado";
       toast.success(label, {
         description: `${res.product.title.slice(0, 60)}${res.product.title.length > 60 ? "…" : ""}`,
@@ -2649,7 +2651,7 @@ function MercadoLivrePanel() {
   const handleAddOne = async (id: string) => {
     setAddingIds((s) => new Set(s).add(id));
     try {
-      const res = await addByIdsFn({ data: { ids: [id] } });
+      const res = await addByIdsFn({ data: { channelId, ids: [id] } });
       if (res.inserted + res.updated > 0) {
         setAddedIds((s) => new Set(s).add(id));
         toast.success(res.inserted > 0 ? "Produto adicionado" : "Produto atualizado");
@@ -3209,6 +3211,8 @@ const SHOPEE_PRODUCTS: ShopeeProduct[] = [
 ];
 
 function ShopeePanel() {
+  const { id: channelId } = Route.useParams();
+
   const [tags, setTags] = useState<ShopeeTag[]>(SHOPEE_TAGS);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [importedProducts, setImportedProducts] = useState<ShopeeProduct[]>([]);

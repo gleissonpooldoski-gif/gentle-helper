@@ -1,11 +1,13 @@
 /**
  * Maps a parsed Shopee CSV row into a `products` table upsert payload.
  * Offer Link is preserved untouched (already commissioned by Shopee).
+ * Cada produto pertence a um `channel_id` (grupo) — isolamento por grupo.
  */
 import type { ShopeeCsvRow } from "./csv.processor";
 
 export type ShopeeProductUpsert = {
   user_id: string;
+  channel_id: string | null;
   platform: "shopee";
   item_id: string;
   title: string;
@@ -20,9 +22,14 @@ export type ShopeeProductUpsert = {
   image_url: string | null;
 };
 
-export function mapRowToProduct(userId: string, row: ShopeeCsvRow): ShopeeProductUpsert {
+export function mapRowToProduct(
+  userId: string,
+  channelId: string | null,
+  row: ShopeeCsvRow,
+): ShopeeProductUpsert {
   return {
     user_id: userId,
+    channel_id: channelId,
     platform: "shopee",
     item_id: row.itemId,
     title: row.itemName,

@@ -1,7 +1,6 @@
 /**
  * Server-function controllers for the Shopee bulk-import module.
- * The client parses the CSV, then calls `importShopeeBatch` in chunks
- * so that the UI can show progress ("3500 / 10000 produtos").
+ * Cada import é isolado por `channelId` (grupo).
  */
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
@@ -23,6 +22,7 @@ const RowSchema = z.object({
 });
 
 const InputSchema = z.object({
+  channelId: z.string().uuid(),
   rows: z.array(RowSchema).min(1).max(500),
 });
 
@@ -33,6 +33,7 @@ export const importShopeeBatch = createServerFn({ method: "POST" })
     const outcome = await importBatch(
       context.supabase,
       context.userId,
+      data.channelId,
       data.rows as ShopeeCsvRow[],
     );
     return outcome;
