@@ -275,17 +275,21 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
   // Renderiza legenda
   const { loadLayoutFor } = await import("@/modules/posts/layout.functions");
   const { renderPost } = await import("@/modules/posts/render");
+  const { loadSiteConfig, wrapLinkWithSite } = await import("@/modules/site/site-link");
   const layout = await loadLayoutFor(admin, cfg.user_id, cfg.channel_id);
+  const siteCfg = await loadSiteConfig(admin as never, cfg.user_id);
+  const wrappedLink = wrapLinkWithSite(product.affiliate_link ?? product.raw_link, siteCfg);
   const productDetail = {
     title: product.title,
     description: null,
     price: product.promo_price,
     price_original: product.original_price,
     vendas: product.sales,
-    link: product.affiliate_link,
+    link: wrappedLink,
     image: product.image_url,
   };
   const caption = renderPost(layout, productDetail, "whatsapp");
+
 
   let anySent = false;
   for (const g of groups) {
