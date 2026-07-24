@@ -2292,8 +2292,14 @@ function WhatsAppGroupsPanel() {
             </button>
           </div>
 
-          <Button variant="outline" size="sm" className="gap-1.5 rounded-lg">
-            <RefreshCw className="h-3.5 w-3.5" /> Atualizar
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5 rounded-lg"
+            onClick={() => void reload("refresh")}
+            disabled={refreshing || loading}
+          >
+            <RefreshCw className={cn("h-3.5 w-3.5", refreshing && "animate-spin")} /> Atualizar
           </Button>
         </div>
 
