@@ -2306,6 +2306,7 @@ function MercadoLivrePanel() {
   const [autoAffiliate, setAutoAffiliate] = useState(true);
   const [bestSellers, setBestSellers] = useState(false);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const [sendProduct, setSendProduct] = useState<SendProduct | null>(null);
   const allChecked = ML_PRODUCTS.every((p) => selected[p.id]);
 
   // === Add by link ===
