@@ -35,6 +35,7 @@ import { GroupAutomationList } from "@/components/automation/GroupAutomationList
 import { getChannel, updateChannel, type ChannelDTO } from "@/modules/channels/channels.functions";
 import { getChannelFlowSummary, type ChannelFlowSummaryDTO } from "@/modules/automation/automation.functions";
 import { getManualPost, saveManualPost, type ManualPostDTO } from "@/modules/posts/manual-post.functions";
+import { ensureAffiliateLink, buildMLAffiliateUrl } from "@/lib/affiliate-linker";
 
 
 import {
@@ -129,6 +130,7 @@ function EditChannelPage() {
   const getFlowSummaryFn = useServerFn(getChannelFlowSummary);
   const getManualPostFn = useServerFn(getManualPost);
   const saveManualPostFn = useServerFn(saveManualPost);
+  const buildMLAffiliateUrlFn = useServerFn(buildMLAffiliateUrl);
   const [channel, setChannel] = useState<ChannelDTO | null>(null);
   const [channelError, setChannelError] = useState<string | null>(null);
   const [flowSummary, setFlowSummary] = useState<ChannelFlowSummaryDTO | null>(null);
@@ -237,6 +239,61 @@ function EditChannelPage() {
       toast.success(scheduledNow ? "Canal atualizado. Post agendado." : "Canal atualizado.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Falha ao atualizar canal");
+    }
+  };
+
+  const handleSaveManualPost = async () => {
+    if (!manualPost) return;
+    if (!neverExpires && (!manualPost.scheduledDate || !manualPost.scheduledTime)) {
+      toast.error("Informe data e horário do agendamento ou marque NÃO EXPIRA.");
+      return;
+    }
+    setManualSaving(true);
+    try {
+      let finalLink = manualPost.productLink?.trim() ?? "";
+      if (finalLink) {
+        const result = await ensureAffiliateLink(finalLink, (input) =>
+          buildMLAffiliateUrlFn({ data: input }),
+        );
+        if (result.missing) {
+          toast.error(result.missing);
+          setManualSaving(false);
+          return;
+        }
+        finalLink = result.url;
+        if (result.tagged) {
+          setManualPost((prev) => (prev ? { ...prev, productLink: finalLink } : prev));
+          toast.info("Link de afiliado aplicado automaticamente.");
+        }
+      }
+      const saved = await saveManualPostFn({
+        data: {
+          channelId: id,
+          productLink: finalLink,
+          keepLink,
+          headerMode: manualPost.headerMode,
+          customHeader: manualPost.customHeader,
+          shopeeVideoLink: manualPost.shopeeVideoLink,
+          priceOriginal: manualPost.priceOriginal,
+          priceCurrent: manualPost.priceCurrent,
+          priceSuffix: manualPost.priceSuffix,
+          priceInstallment: manualPost.priceInstallment,
+          description: manualPost.description,
+          neverExpires,
+          scheduledDate: manualPost.scheduledDate,
+          scheduledTime: manualPost.scheduledTime,
+          couponType: manualPost.couponType,
+          couponValue: manualPost.couponValue,
+          couponMinValue: manualPost.couponMinValue,
+          couponCode: manualPost.couponCode,
+        },
+      });
+      setManualPost(saved);
+      toast.success(saved.status === "scheduled" ? "Post salvo e agendado." : "Post salvo com sucesso.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Falha ao salvar post.");
+    } finally {
+      setManualSaving(false);
     }
   };
 
@@ -497,6 +554,18 @@ function EditChannelPage() {
                       onChange={(e) => patchManual("scheduledTime", e.target.value || null)}
                     />
                   </div>
+                </div>
+
+                <div className="flex justify-end pt-2">
+                  <Button
+                    type="button"
+                    onClick={handleSaveManualPost}
+                    disabled={manualSaving || !manualPost}
+                    className="gap-2"
+                  >
+                    <Save className="h-4 w-4" />
+                    {manualSaving ? "Salvando..." : "Salvar"}
+                  </Button>
                 </div>
               </SectionCard>
 
