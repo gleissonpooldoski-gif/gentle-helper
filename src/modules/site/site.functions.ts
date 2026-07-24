@@ -5,6 +5,7 @@ import { apiClient } from "@/lib/api-client";
 export interface SiteConfigDTO {
   slug: string;
   title: string;
+  subtitle: string;
   logoUrl: string | null;
   gaTag: string | null;
   themeColor: string;
@@ -15,6 +16,7 @@ export interface SiteConfigDTO {
 const DEFAULT_CONFIG = (slug: string): SiteConfigDTO => ({
   slug,
   title: "Meu Site DvLinks",
+  subtitle: "",
   logoUrl: null,
   gaTag: null,
   themeColor: "#3B82F6",
@@ -51,6 +53,7 @@ export const getSiteConfig = createServerFn({ method: "GET" })
       return {
         slug: data.slug,
         title: data.title,
+        subtitle: (data as { subtitle?: string }).subtitle ?? "",
         logoUrl: data.logo_url,
         gaTag: data.ga_tag,
         themeColor: data.theme_color,
@@ -81,6 +84,7 @@ export const saveSiteConfig = createServerFn({ method: "POST" })
 
     const themeColor = /^#[0-9a-fA-F]{6}$/.test(data.themeColor ?? "") ? data.themeColor! : "#3B82F6";
     const title = (data.title ?? "").trim().slice(0, 120) || "Meu Site DvLinks";
+    const subtitle = (data.subtitle ?? "").trim().slice(0, 160);
     const gaTag = (data.gaTag ?? "").trim().slice(0, 40) || null;
     const logoUrl = (data.logoUrl ?? "").trim() || null;
 
@@ -88,6 +92,7 @@ export const saveSiteConfig = createServerFn({ method: "POST" })
       user_id: userId,
       slug,
       title,
+      subtitle,
       logo_url: logoUrl,
       ga_tag: gaTag,
       theme_color: themeColor,
@@ -103,6 +108,7 @@ export const saveSiteConfig = createServerFn({ method: "POST" })
     return {
       slug,
       title,
+      subtitle,
       logoUrl,
       gaTag,
       themeColor,
