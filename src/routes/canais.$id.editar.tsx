@@ -34,6 +34,7 @@ import { DEFAULT_POST_LAYOUT, type PostLayout } from "@/modules/posts/render";
 import { GroupAutomationList } from "@/components/automation/GroupAutomationList";
 import { getChannel, updateChannel, type ChannelDTO } from "@/modules/channels/channels.functions";
 import { getChannelFlowSummary, type ChannelFlowSummaryDTO } from "@/modules/automation/automation.functions";
+import { getManualPost, saveManualPost, type ManualPostDTO } from "@/modules/posts/manual-post.functions";
 
 
 import {
@@ -126,6 +127,8 @@ function EditChannelPage() {
   const getChannelFn = useServerFn(getChannel);
   const updateChannelFn = useServerFn(updateChannel);
   const getFlowSummaryFn = useServerFn(getChannelFlowSummary);
+  const getManualPostFn = useServerFn(getManualPost);
+  const saveManualPostFn = useServerFn(saveManualPost);
   const [channel, setChannel] = useState<ChannelDTO | null>(null);
   const [channelError, setChannelError] = useState<string | null>(null);
   const [flowSummary, setFlowSummary] = useState<ChannelFlowSummaryDTO | null>(null);
@@ -141,6 +144,19 @@ function EditChannelPage() {
     "Mercado Livre",
   ]);
 
+  // -------- Post manual: rascunho persistido por canal --------
+  const [manualPost, setManualPost] = useState<ManualPostDTO | null>(null);
+  const [manualSaving, setManualSaving] = useState(false);
+  const patchManual = useCallback(<K extends keyof ManualPostDTO>(k: K, v: ManualPostDTO[K]) => {
+    setManualPost((prev) => (prev ? { ...prev, [k]: v } : prev));
+  }, []);
+  // Sincroniza dois checkboxes que já existiam com o rascunho.
+  useEffect(() => {
+    if (!manualPost) return;
+    setKeepLink(manualPost.keepLink);
+    setNeverExpires(manualPost.neverExpires);
+  }, [manualPost?.id]);
+
   const refreshFlowSummary = useCallback(() => {
     void getFlowSummaryFn({ data: { channelId: id } })
       .then(setFlowSummary)
@@ -155,6 +171,7 @@ function EditChannelPage() {
     setChannel(null);
     setChannelError(null);
     setFlowSummary(null);
+    setManualPost(null);
     void getChannelFn({ data: { channelId: id } })
       .then((next) => {
         if (!cancelled) {
@@ -165,6 +182,13 @@ function EditChannelPage() {
       .catch((error) => {
         if (!cancelled) setChannelError(error instanceof Error ? error.message : "Falha ao carregar canal");
       });
+    void getManualPostFn({ data: { channelId: id } })
+      .then((mp) => {
+        if (!cancelled) setManualPost(mp);
+      })
+      .catch(() => {
+        /* rascunho inexistente — mantém formulário utilizável */
+      });
     refreshFlowSummary();
     // Refresh periódico leve — captura validações do worker e novas importações.
     const t = setInterval(refreshFlowSummary, 30_000);
@@ -172,13 +196,45 @@ function EditChannelPage() {
       cancelled = true;
       clearInterval(t);
     };
-  }, [id, getChannelFn, refreshFlowSummary]);
+  }, [id, getChannelFn, getManualPostFn, refreshFlowSummary]);
 
   const handleUpdateChannel = async () => {
     try {
-      const next = await updateChannelFn({ data: { channelId: id, autoPost } });
-      setChannel(next);
-      toast.success("Canal atualizado");
+      const nextChannel = await updateChannelFn({ data: { channelId: id, autoPost } });
+      setChannel(nextChannel);
+      let scheduledNow = false;
+      if (manualPost) {
+        setManualSaving(true);
+        try {
+          const saved = await saveManualPostFn({
+            data: {
+              channelId: id,
+              productLink: manualPost.productLink,
+              keepLink,
+              headerMode: manualPost.headerMode,
+              customHeader: manualPost.customHeader,
+              shopeeVideoLink: manualPost.shopeeVideoLink,
+              priceOriginal: manualPost.priceOriginal,
+              priceCurrent: manualPost.priceCurrent,
+              priceSuffix: manualPost.priceSuffix,
+              priceInstallment: manualPost.priceInstallment,
+              description: manualPost.description,
+              neverExpires,
+              scheduledDate: manualPost.scheduledDate,
+              scheduledTime: manualPost.scheduledTime,
+              couponType: manualPost.couponType,
+              couponValue: manualPost.couponValue,
+              couponMinValue: manualPost.couponMinValue,
+              couponCode: manualPost.couponCode,
+            },
+          });
+          setManualPost(saved);
+          scheduledNow = saved.status === "scheduled";
+        } finally {
+          setManualSaving(false);
+        }
+      }
+      toast.success(scheduledNow ? "Canal atualizado. Post agendado." : "Canal atualizado.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Falha ao atualizar canal");
     }
@@ -222,7 +278,7 @@ function EditChannelPage() {
               size="lg"
               className="rounded-full bg-primary px-6 shadow-[0_10px_30px_-12px_oklch(0.62_0.19_256/0.6)] hover:bg-primary/90"
               onClick={handleUpdateChannel}
-              disabled={!channel}
+              disabled={!channel || manualSaving}
             >
               <Save className="mr-1.5 h-4 w-4" />
               Atualizar
@@ -298,7 +354,12 @@ function EditChannelPage() {
               {/* Product link + metadata */}
               <SectionCard title="Link do produto" icon={<Info className="h-4 w-4" />}>
                 <Field label="Link do Produto">
-                  <Input placeholder="https://..." className="h-10" />
+                  <Input
+                    placeholder="https://..."
+                    className="h-10"
+                    value={manualPost?.productLink ?? ""}
+                    onChange={(e) => patchManual("productLink", e.target.value)}
+                  />
                 </Field>
 
                 <Alert tone="warning">
@@ -308,21 +369,52 @@ function EditChannelPage() {
 
                 <Checkbox
                   checked={keepLink}
-                  onChange={setKeepLink}
+                  onChange={(v) => {
+                    setKeepLink(v);
+                    patchManual("keepLink", v);
+                  }}
                   label="Manter esse link no post."
                 />
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <Field label="Cabeçalho Dinâmico">
-                    <SelectShell>Padrão do canal</SelectShell>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        patchManual(
+                          "headerMode",
+                          manualPost?.headerMode === "custom" ? "default" : "custom",
+                        )
+                      }
+                      className="flex h-10 w-full items-center justify-between rounded-lg border border-border bg-background px-3 text-sm text-foreground hover:border-primary/40"
+                    >
+                      <span>
+                        {manualPost?.headerMode === "custom" ? "Cabeçalho personalizado" : "Padrão do canal"}
+                      </span>
+                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                    </button>
                   </Field>
                   <Field label="Ou digite um novo cabeçalho">
-                    <Input placeholder="Novo cabeçalho..." className="h-10" />
+                    <Input
+                      placeholder="Novo cabeçalho..."
+                      className="h-10"
+                      value={manualPost?.customHeader ?? ""}
+                      onChange={(e) => {
+                        patchManual("customHeader", e.target.value);
+                        if (e.target.value) patchManual("headerMode", "custom");
+                        else patchManual("headerMode", "default");
+                      }}
+                    />
                   </Field>
                 </div>
 
                 <Field label="Link Shopee Video">
-                  <Input placeholder="Ex: https://br.shp.ee/ejolle5..." className="h-10" />
+                  <Input
+                    placeholder="Ex: https://br.shp.ee/ejolle5..."
+                    className="h-10"
+                    value={manualPost?.shopeeVideoLink ?? ""}
+                    onChange={(e) => patchManual("shopeeVideoLink", e.target.value)}
+                  />
                 </Field>
                 <Alert tone="info">
                   Substitui o link original em dispositivos móveis para abrir
@@ -331,16 +423,36 @@ function EditChannelPage() {
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <Field label="Preço original">
-                    <Input placeholder="R$ 0,00" className="h-10" />
+                    <Input
+                      placeholder="R$ 0,00"
+                      className="h-10"
+                      value={manualPost?.priceOriginal ?? ""}
+                      onChange={(e) => patchManual("priceOriginal", e.target.value)}
+                    />
                   </Field>
                   <Field label="Preço atual">
-                    <Input placeholder="R$ 0,00" className="h-10" />
+                    <Input
+                      placeholder="R$ 0,00"
+                      className="h-10"
+                      value={manualPost?.priceCurrent ?? ""}
+                      onChange={(e) => patchManual("priceCurrent", e.target.value)}
+                    />
                   </Field>
                   <Field label="Sufixo do preço">
-                    <Input placeholder="ex: no Pix" className="h-10" />
+                    <Input
+                      placeholder="ex: no Pix"
+                      className="h-10"
+                      value={manualPost?.priceSuffix ?? ""}
+                      onChange={(e) => patchManual("priceSuffix", e.target.value)}
+                    />
                   </Field>
                   <Field label="Preço parcelado">
-                    <Input placeholder="10x de R$ 0,99" className="h-10" />
+                    <Input
+                      placeholder="10x de R$ 0,99"
+                      className="h-10"
+                      value={manualPost?.priceInstallment ?? ""}
+                      onChange={(e) => patchManual("priceInstallment", e.target.value)}
+                    />
                   </Field>
                 </div>
 
@@ -349,6 +461,8 @@ function EditChannelPage() {
                     rows={3}
                     className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
                     placeholder="Descreva a oferta..."
+                    value={manualPost?.description ?? ""}
+                    onChange={(e) => patchManual("description", e.target.value)}
                   />
                 </Field>
 
@@ -358,15 +472,30 @@ function EditChannelPage() {
                   </p>
                   <Checkbox
                     checked={neverExpires}
-                    onChange={setNeverExpires}
+                    onChange={(v) => {
+                      setNeverExpires(v);
+                      patchManual("neverExpires", v);
+                    }}
                     label="NÃO EXPIRA"
                   />
                   <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <div className="relative">
-                      <Input type="date" className="h-10 pr-9" disabled={neverExpires} />
+                      <Input
+                        type="date"
+                        className="h-10 pr-9"
+                        disabled={neverExpires}
+                        value={manualPost?.scheduledDate ?? ""}
+                        onChange={(e) => patchManual("scheduledDate", e.target.value || null)}
+                      />
                       <Calendar className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     </div>
-                    <Input type="time" className="h-10" disabled={neverExpires} />
+                    <Input
+                      type="time"
+                      className="h-10"
+                      disabled={neverExpires}
+                      value={manualPost?.scheduledTime ?? ""}
+                      onChange={(e) => patchManual("scheduledTime", e.target.value || null)}
+                    />
                   </div>
                 </div>
               </SectionCard>
@@ -375,31 +504,56 @@ function EditChannelPage() {
               <SectionCard title="Cupons" icon={<Ticket className="h-4 w-4" />}>
                 <Field label="Tipo de Cupom">
                   <div className="grid grid-cols-3 gap-2">
-                    {["R$ Fixo", "% Desconto", "Frete Grátis"].map((t, i) => (
-                      <button
-                        key={t}
-                        type="button"
-                        className={cn(
-                          "rounded-lg border px-3 py-2 text-sm font-medium transition-all",
-                          i === 1
-                            ? "border-primary bg-primary/10 text-primary"
-                            : "border-border bg-background text-foreground/75 hover:border-primary/40",
-                        )}
-                      >
-                        {t}
-                      </button>
-                    ))}
+                    {(
+                      [
+                        { label: "R$ Fixo", value: "fixed" as const },
+                        { label: "% Desconto", value: "percent" as const },
+                        { label: "Frete Grátis", value: "freight" as const },
+                      ]
+                    ).map((opt) => {
+                      const active = (manualPost?.couponType ?? "percent") === opt.value;
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => patchManual("couponType", opt.value)}
+                          className={cn(
+                            "rounded-lg border px-3 py-2 text-sm font-medium transition-all",
+                            active
+                              ? "border-primary bg-primary/10 text-primary"
+                              : "border-border bg-background text-foreground/75 hover:border-primary/40",
+                          )}
+                        >
+                          {opt.label}
+                        </button>
+                      );
+                    })}
                   </div>
                 </Field>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                   <Field label="Valor do desconto">
-                    <Input placeholder="0" className="h-10" />
+                    <Input
+                      placeholder="0"
+                      className="h-10"
+                      value={manualPost?.couponValue ?? ""}
+                      onChange={(e) => patchManual("couponValue", e.target.value)}
+                    />
                   </Field>
                   <Field label="Valor mínimo">
-                    <Input placeholder="R$ 0,00" className="h-10" />
+                    <Input
+                      placeholder="R$ 0,00"
+                      className="h-10"
+                      value={manualPost?.couponMinValue ?? ""}
+                      onChange={(e) => patchManual("couponMinValue", e.target.value)}
+                    />
                   </Field>
                   <Field label="Código do cupom">
-                    <Input placeholder="PROMO10" className="h-10 font-mono uppercase" />
+                    <Input
+                      placeholder="PROMO10"
+                      className="h-10 font-mono uppercase"
+                      value={manualPost?.couponCode ?? ""}
+                      onChange={(e) => patchManual("couponCode", e.target.value.toUpperCase())}
+                    />
                   </Field>
                 </div>
               </SectionCard>
