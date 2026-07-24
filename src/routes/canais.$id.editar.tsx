@@ -2671,7 +2671,7 @@ function channelProductToML(row: ChannelProductDTO): MLProduct {
   };
 }
 
-function MercadoLivrePanel() {
+function MercadoLivrePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {}) {
   const { id: channelId } = Route.useParams();
 
   const [autoAffiliate, setAutoAffiliate] = useState(true);
