@@ -199,7 +199,7 @@ function PublicSitePage() {
   const filtered = useMemo(() => {
     const t = q.trim().toLowerCase();
     if (!t) return site.products;
-    return site.products.filter((p) => p.title.toLowerCase().includes(t));
+    return site.products.filter((p: PublicProduct) => p.title.toLowerCase().includes(t));
   }, [q, site.products]);
 
   return (
@@ -240,7 +240,7 @@ function PublicSitePage() {
           <p className="text-center text-gray-500">Nenhum produto encontrado.</p>
         ) : (
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-            {filtered.map((p) => (
+            {filtered.map((p: PublicProduct) => (
               <article
                 key={p.id}
                 className="group flex flex-col overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-black/5 transition hover:shadow-md"
