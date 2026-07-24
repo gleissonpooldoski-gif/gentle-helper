@@ -26,6 +26,8 @@ export function EvolutionSettingsCard() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [test, setTest] = useState<TestState>({ kind: "idle" });
+  const [lastCheckedAt, setLastCheckedAt] = useState<Date | null>(null);
+  const prevOkRef = useRef<boolean | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -39,9 +41,53 @@ export function EvolutionSettingsCard() {
     }
   }, [getFn]);
 
+  const handleTest = useCallback(
+    async (urlOverride?: string, silent = false) => {
+      if (!silent) setTest({ kind: "testing" });
+      try {
+        const r = await testFn({ data: { baseUrl: urlOverride ?? "" } });
+        const next: TestState = r.ok
+          ? { kind: "ok", message: "Evolution API conectada." }
+          : { kind: "error", message: r.message };
+        setTest(next);
+        setLastCheckedAt(new Date());
+        const prev = prevOkRef.current;
+        if (prev !== null && prev !== r.ok) {
+          if (r.ok) toast.success("Evolution API conectada.");
+          else toast.error(r.message);
+        }
+        prevOkRef.current = r.ok;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Falha no teste";
+        setTest({ kind: "error", message });
+        setLastCheckedAt(new Date());
+        if (prevOkRef.current !== false) toast.error(message);
+        prevOkRef.current = false;
+      }
+    },
+    [testFn],
+  );
+
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Auto-verificação: no mount, a cada 30s e ao voltar o foco/rede
+  useEffect(() => {
+    void handleTest(undefined, true);
+    const interval = setInterval(() => {
+      void handleTest(undefined, true);
+    }, 30_000);
+    const onFocus = () => void handleTest(undefined, true);
+    const onOnline = () => void handleTest(undefined, true);
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("online", onOnline);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("online", onOnline);
+    };
+  }, [handleTest]);
 
   const handleSave = async () => {
     try {
@@ -50,7 +96,7 @@ export function EvolutionSettingsCard() {
       setBaseUrl(s.baseUrl);
       setUpdatedAt(s.updatedAt);
       toast.success("URL salva");
-      // Auto-testa após salvar
+      prevOkRef.current = null;
       void handleTest(s.baseUrl);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Falha ao salvar");
@@ -59,18 +105,6 @@ export function EvolutionSettingsCard() {
     }
   };
 
-  const handleTest = async (urlOverride?: string) => {
-    setTest({ kind: "testing" });
-    try {
-      const r = await testFn({ data: { baseUrl: urlOverride ?? baseUrl } });
-      setTest(r.ok ? { kind: "ok", message: r.message } : { kind: "error", message: r.message });
-    } catch (err) {
-      setTest({
-        kind: "error",
-        message: err instanceof Error ? err.message : "Falha no teste",
-      });
-    }
-  };
 
   const badge =
     test.kind === "ok"
