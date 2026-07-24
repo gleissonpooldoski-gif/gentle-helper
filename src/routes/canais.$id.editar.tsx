@@ -837,7 +837,7 @@ function TemplateBlock({
 
 /* -------- Layout Post tab -------- */
 
-function LayoutPostPanel() {
+function LayoutPostPanel({ channelId }: { channelId: string }) {
   const getLayoutFn = useServerFn(getPostLayout);
   const saveLayoutFn = useServerFn(savePostLayout);
 
@@ -847,9 +847,10 @@ function LayoutPostPanel() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    setLoading(true);
     (async () => {
       try {
-        const l = await getLayoutFn({});
+        const l = await getLayoutFn({ data: { channelId } });
         setLayout(l);
       } catch (err) {
         console.warn("[layout] load failed:", err);
@@ -857,7 +858,7 @@ function LayoutPostPanel() {
         setLoading(false);
       }
     })();
-  }, [getLayoutFn]);
+  }, [getLayoutFn, channelId]);
 
   const update = <K extends keyof PostLayout>(k: K, v: PostLayout[K]) =>
     setLayout((prev) => ({ ...prev, [k]: v }));
