@@ -69,17 +69,33 @@ interface Channel {
   accent: string; // subtle gradient hint
 }
 
-function toChannel(row: ChannelDTO): Channel {
+const PLATFORM_COLORS: Record<string, string> = {
+  Shopee: "oklch(0.72 0.16 40)",
+  "Mercado Livre": "oklch(0.78 0.15 90)",
+  Magalu: "oklch(0.62 0.19 20)",
+  Amazon: "oklch(0.68 0.14 60)",
+};
+
+function colorFor(label: string): string {
+  return PLATFORM_COLORS[label] ?? "oklch(0.62 0.19 256)";
+}
+
+function toChannel(row: ChannelDashboardDTO): Channel {
+  const dist = row.productsByPlatform.length > 0
+    ? row.productsByPlatform.map((p) => ({ label: p.platform, value: p.count, color: colorFor(p.platform) }))
+    : [];
   return {
     id: row.id,
     name: row.name,
     telegramId: row.externalId ?? row.id,
-    autoPost: row.autoPost,
-    products: 0,
+    autoPost: row.automationActive,
+    products: row.productsTotal,
     intervalMin: row.intervalMin,
     random: row.randomOrder,
-    socials: { telegram: "connected", whatsapp: "connected", instagram: "disconnected", storyAuto: "disabled" },
-    distribution: [],
+    socials: row.socials,
+    distribution: dist,
+    sentLast30d: row.sentLast30d,
+    sentByPlatformLast30d: row.sentByPlatformLast30d,
     accent: "from-primary/5 to-transparent",
   };
 }
