@@ -162,13 +162,25 @@ export const saveMonitorGroups = createServerFn({ method: "POST" })
       );
     }
 
-    // Remove SOMENTE os vínculos das instâncias deste canal (nunca toca em outras).
-    await (supabase as any)
-      .from("monitored_groups")
-      .delete()
-      .eq("user_id", userId)
-      .eq("channel_id", data.channelId)
-      .in("instance_id", instanceIds);
+    const keepJids = data.groups.map((g) => g.jid);
+
+    // Remove vínculos das instâncias deste canal que não estão mais na seleção.
+    {
+      let del = (supabase as any)
+        .from("monitored_groups")
+        .delete()
+        .eq("user_id", userId)
+        .eq("channel_id", data.channelId)
+        .in("instance_id", instanceIds);
+      if (keepJids.length > 0) {
+        del = del.not(
+          "group_jid",
+          "in",
+          `(${keepJids.map((j) => `"${j}"`).join(",")})`,
+        );
+      }
+      await del;
+    }
 
     if (data.groups.length > 0) {
       const rows: any[] = [];
@@ -187,7 +199,7 @@ export const saveMonitorGroups = createServerFn({ method: "POST" })
       }
       const { error } = await (supabase as any)
         .from("monitored_groups")
-        .insert(rows);
+        .upsert(rows, { onConflict: "user_id,instance_id,group_jid" });
       if (error) throw new Error(error.message);
     }
 
