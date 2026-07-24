@@ -38,6 +38,8 @@ import { getManualPost, saveManualPost, type ManualPostDTO } from "@/modules/pos
 import { ensureAffiliateLink, buildMLAffiliateUrl } from "@/lib/affiliate-linker";
 import { EditProductModal, type EditProductTarget } from "@/components/products/EditProductModal";
 import { listChannelProducts, type ChannelProductDTO } from "@/modules/products/channel-products.functions";
+import { listMonitorGroups, saveMonitorGroups, type MonitorGroupDTO } from "@/modules/monitor/monitor.functions";
+
 
 
 import {
@@ -394,7 +396,7 @@ function EditChannelPage() {
           ) : tab === "wa-grupos" ? (
             <WhatsAppGroupsPanel />
           ) : tab === "wa-monitor" ? (
-            <WhatsAppMonitorPanel />
+            <WhatsAppMonitorPanel channelId={id} />
           ) : tab === "ml" ? (
             <MercadoLivrePanel />
           ) : tab === "shopee" ? (
@@ -2321,37 +2323,82 @@ function WhatsAppGroupsPanel() {
 
 /* -------- WhatsApp Monitor tab -------- */
 
-const WA_MONITOR_GROUPS = [
-  "(grupo sem nome)",
-  "#2 PROMOS DA CONFEITARIA",
-  "AGN compra vende e aluga",
-  "Ajudar o Hernandes",
-  "Casas",
-  "Conjunto chvm",
-  "MUNDO FITNESS PROMO 🛍️🏋️",
-  "Mariah Modas 💗",
-  "PROGRAMA LUTA POR MORADIA",
-  "PROGRAMA LUTA POR MORADIA #2",
-  "PROGRAMA LUTA POR MORADIA #3",
-  "Programa Luta por Moradia 2",
-  "SEGREDOS DAS MAMÃES | #1",
-  "🍭 • LÍVIA KIDS • 🍭",
-];
-
 const MAX_MONITOR = 5;
 
-function WhatsAppMonitorPanel() {
-  const [selected, setSelected] = useState<string[]>([]);
+function WhatsAppMonitorPanel({ channelId }: { channelId: string }) {
+  const listFn = useServerFn(listMonitorGroups);
+  const saveFn = useServerFn(saveMonitorGroups);
 
-  const toggle = (name: string) => {
+  const [groups, setGroups] = useState<MonitorGroupDTO[]>([]);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const reload = useCallback(
+    async (mode: "initial" | "refresh") => {
+      if (mode === "refresh") setRefreshing(true);
+      else setLoading(true);
+      try {
+        const rows = await listFn({ data: { channelId } });
+        setGroups(rows);
+        setSelected((prev) => {
+          // Preserva o que o usuário já marcou nesta sessão + o que veio salvo
+          // do servidor. Remove apenas o que não existe mais na conta.
+          const validJids = new Set(rows.map((r) => r.jid));
+          const next = new Set<string>();
+          for (const jid of prev) if (validJids.has(jid)) next.add(jid);
+          for (const r of rows) if (r.selected) next.add(r.jid);
+          return next;
+        });
+        if (mode === "refresh") {
+          toast.success(`Lista atualizada — ${rows.length} grupo(s)`);
+        }
+      } catch (err) {
+        toast.error(
+          err instanceof Error ? err.message : "Falha ao carregar grupos",
+        );
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [listFn, channelId],
+  );
+
+  useEffect(() => {
+    void reload("initial");
+  }, [reload]);
+
+  const toggle = (jid: string) => {
     setSelected((prev) => {
-      if (prev.includes(name)) return prev.filter((n) => n !== name);
-      if (prev.length >= MAX_MONITOR) return prev;
-      return [...prev, name];
+      const next = new Set(prev);
+      if (next.has(jid)) {
+        next.delete(jid);
+      } else {
+        if (next.size >= MAX_MONITOR) return prev;
+        next.add(jid);
+      }
+      return next;
     });
   };
 
-  const count = selected.length;
+  const onSave = async () => {
+    setSaving(true);
+    try {
+      const picked = groups
+        .filter((g) => selected.has(g.jid))
+        .map((g) => ({ jid: g.jid, name: g.name, platform: g.platform }));
+      await saveFn({ data: { channelId, groups: picked } });
+      toast.success("Grupos monitorados salvos");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao salvar");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const count = selected.size;
   const atLimit = count >= MAX_MONITOR;
 
   return (
@@ -2397,50 +2444,80 @@ function WhatsAppMonitorPanel() {
             grupos selecionados
           </span>
 
-          <Button variant="outline" size="sm" className="gap-1.5 rounded-lg">
-            <RefreshCw className="h-3.5 w-3.5" /> Atualizar lista de grupos
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5 rounded-lg"
+            onClick={() => void reload("refresh")}
+            disabled={refreshing || loading}
+          >
+            <RefreshCw
+              className={cn("h-3.5 w-3.5", refreshing && "animate-spin")}
+            />{" "}
+            Atualizar lista de grupos
           </Button>
         </div>
 
         {/* Grid */}
         <div className="grid grid-cols-1 gap-3 p-6 sm:grid-cols-2 lg:grid-cols-3">
-          {WA_MONITOR_GROUPS.map((name) => {
-            const checked = selected.includes(name);
-            const disabled = !checked && atLimit;
-            return (
-              <label
-                key={name}
-                className={cn(
-                  "group flex cursor-pointer items-center gap-3 rounded-xl border bg-background p-3.5 transition-all",
-                  checked
-                    ? "border-[oklch(0.68_0.15_235)] bg-[oklch(0.98_0.03_240)] shadow-[0_6px_18px_-12px_oklch(0.55_0.18_245/0.6)]"
-                    : "border-border/70 hover:border-border hover:bg-muted/40",
-                  disabled && "cursor-not-allowed opacity-50 hover:bg-background",
-                )}
-              >
-                <span
+          {loading ? (
+            <div className="col-span-full py-10 text-center text-sm text-muted-foreground">
+              Carregando grupos…
+            </div>
+          ) : groups.length === 0 ? (
+            <div className="col-span-full py-10 text-center text-sm text-muted-foreground">
+              Nenhum grupo encontrado. Conecte uma instância de WhatsApp neste
+              canal e clique em <b>Atualizar lista de grupos</b>.
+            </div>
+          ) : (
+            groups.map((g) => {
+              const checked = selected.has(g.jid);
+              const disabled = !checked && atLimit;
+              return (
+                <label
+                  key={g.jid}
                   className={cn(
-                    "grid h-5 w-5 shrink-0 place-items-center rounded-md border-2 transition-all",
+                    "group flex cursor-pointer items-center gap-3 rounded-xl border bg-background p-3.5 transition-all",
                     checked
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "border-border bg-white",
+                      ? "border-[oklch(0.68_0.15_235)] bg-[oklch(0.98_0.03_240)] shadow-[0_6px_18px_-12px_oklch(0.55_0.18_245/0.6)]"
+                      : "border-border/70 hover:border-border hover:bg-muted/40",
+                    disabled && "cursor-not-allowed opacity-50 hover:bg-background",
                   )}
                 >
-                  {checked && <Check className="h-3 w-3" strokeWidth={3.5} />}
-                </span>
-                <input
-                  type="checkbox"
-                  className="sr-only"
-                  checked={checked}
-                  onChange={() => !disabled && toggle(name)}
-                />
-                <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[oklch(0.9_0.05_155)] to-[oklch(0.82_0.09_150)] font-display text-[12px] font-bold text-[oklch(0.35_0.15_155)]">
-                  {name.replace(/[^A-Za-zÀ-ÿ]/g, "").slice(0, 2).toUpperCase() || "?"}
-                </div>
-                <span className="truncate text-[13px] font-medium text-foreground">{name}</span>
-              </label>
-            );
-          })}
+                  <span
+                    className={cn(
+                      "grid h-5 w-5 shrink-0 place-items-center rounded-md border-2 transition-all",
+                      checked
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border bg-white",
+                    )}
+                  >
+                    {checked && <Check className="h-3 w-3" strokeWidth={3.5} />}
+                  </span>
+                  <input
+                    type="checkbox"
+                    className="sr-only"
+                    checked={checked}
+                    onChange={() => !disabled && toggle(g.jid)}
+                  />
+                  {g.pictureUrl ? (
+                    <img
+                      src={g.pictureUrl}
+                      alt=""
+                      className="h-9 w-9 shrink-0 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[oklch(0.9_0.05_155)] to-[oklch(0.82_0.09_150)] font-display text-[12px] font-bold text-[oklch(0.35_0.15_155)]">
+                      {g.name.replace(/[^A-Za-zÀ-ÿ]/g, "").slice(0, 2).toUpperCase() || "?"}
+                    </div>
+                  )}
+                  <span className="truncate text-[13px] font-medium text-foreground">
+                    {g.name}
+                  </span>
+                </label>
+              );
+            })
+          )}
         </div>
 
         {/* Footer */}
@@ -2452,15 +2529,19 @@ function WhatsAppMonitorPanel() {
           </p>
           <Button
             size="lg"
+            onClick={() => void onSave()}
+            disabled={saving}
             className="gap-2 rounded-full bg-primary px-8 shadow-[0_10px_30px_-12px_oklch(0.62_0.19_256/0.6)] hover:bg-primary/90"
           >
-            <Save className="h-4 w-4" /> Salvar grupos monitorados
+            <Save className="h-4 w-4" />{" "}
+            {saving ? "Salvando…" : "Salvar grupos monitorados"}
           </Button>
         </div>
       </div>
     </div>
   );
 }
+
 
 /* -------- Mercado Livre tab -------- */
 
