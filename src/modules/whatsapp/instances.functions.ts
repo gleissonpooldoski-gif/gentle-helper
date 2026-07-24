@@ -467,35 +467,107 @@ export const sendWhatsAppText = createServerFn({ method: "POST" })
     return { ok: true, messageId: res.id };
   });
 
-/** Envia mensagem formatada de produto/oferta para um grupo (ou lista de grupos). */
+/**
+ * Envia mensagem de produto/oferta usando EXATAMENTE o mesmo conteúdo
+ * gerado pelo Post/Layout do SaaS (Instagram/Facebook/YouTube/WhatsApp
+ * compartilham o mesmo template). Envia como mídia via
+ * `POST /message/sendMedia/{instance}` — imagem obrigatória.
+ */
 export const sendWhatsAppProduct = createServerFn({ method: "POST" })
   .middleware([apiClient, requireSupabaseAuth])
   .inputValidator((data: {
     id: string;
     jids?: string[];        // se ausente, usa grupos selecionados
-    product: { name: string; price?: string | number | null; link: string; image?: string | null };
+    productId?: string;     // opcional — carrega do banco quando fornecido
+    product?: {
+      title?: string;
+      name?: string;
+      description?: string | null;
+      price?: string | number | null;
+      price_original?: string | number | null;
+      parcelamento?: string | null;
+      vendas?: number | string | null;
+      link: string;
+      image?: string | null;
+    };
   }) => {
     if (!data?.id) throw new Error("id obrigatório");
-    const name = String(data?.product?.name ?? "").trim();
-    const link = String(data?.product?.link ?? "").trim();
-    if (!name) throw new Error("Nome do produto obrigatório");
+    const jids = Array.isArray(data.jids) ? data.jids.map((j) => String(j)) : null;
+    if (data.productId) return { id: String(data.id), jids, productId: String(data.productId), product: null };
+    const p = data.product;
+    if (!p) throw new Error("Informe productId ou product");
+    const title = String(p.title ?? p.name ?? "").trim();
+    const link = String(p.link ?? "").trim();
+    if (!title) throw new Error("Nome do produto obrigatório");
     if (!link) throw new Error("Link do produto obrigatório");
     return {
       id: String(data.id),
-      jids: Array.isArray(data.jids) ? data.jids.map((j) => String(j)) : null,
+      jids,
+      productId: null,
       product: {
-        name,
-        price: data.product.price != null ? String(data.product.price) : null,
+        title,
+        description: p.description ?? null,
+        price: p.price ?? null,
+        price_original: p.price_original ?? null,
+        parcelamento: p.parcelamento ?? null,
+        vendas: p.vendas ?? null,
         link,
-        image: data.product.image ? String(data.product.image) : null,
+        image: p.image ?? null,
       },
     };
   })
-  .handler(async ({ data, context }): Promise<{ sent: number; failed: number }> => {
+  .handler(async ({ data, context }): Promise<{
+    sent: number;
+    failed: number;
+    errors: Array<{ jid: string; error: string }>;
+  }> => {
     const { supabase, userId } = context;
     const row = await loadInstance(supabase, userId, data.id);
-    if (row.status !== "connected") throw new Error("Instância não conectada");
 
+    const { getWhatsAppProvider } = await import("./index.server");
+    const provider = getWhatsAppProvider(row.provider);
+
+    // Antes de enviar: validar state=open na Evolution.
+    const live = await provider.getStatus(row.instance_name);
+    if (live.status !== "connected") {
+      throw new Error("Instância não conectada (state != open)");
+    }
+
+    // Carrega produto do banco quando productId foi enviado.
+    let product = data.product as any;
+    let productId: string | null = data.productId ?? null;
+    if (!product && productId) {
+      const { data: prod, error } = await (supabase as any)
+        .from("products")
+        .select("*")
+        .eq("user_id", userId)
+        .eq("id", productId)
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      if (!prod) throw new Error("Produto não encontrado");
+      product = {
+        title: prod.title,
+        description: null,
+        price: prod.promo_price,
+        price_original: prod.original_price,
+        parcelamento: null,
+        vendas: prod.sales,
+        link: prod.affiliate_link,
+        image: prod.image_url,
+      };
+    }
+    if (!product) throw new Error("Produto ausente");
+    if (!product.image) {
+      throw new Error("Produto sem imagem. Rode o enriquecimento de imagens antes de enviar.");
+    }
+
+    // Renderiza usando o MESMO layout persistido no SaaS.
+    const { loadLayoutFor } = await import("@/modules/posts/layout.functions");
+    const { renderPost } = await import("@/modules/posts/render");
+    const layout = await loadLayoutFor(supabase, userId);
+    const caption = renderPost(layout, product, "whatsapp");
+
+    // Destinos: JIDs informados ou seleção salva.
     let targets = data.jids ?? [];
     if (targets.length === 0) {
       const { data: sel } = await (supabase as any)
@@ -507,29 +579,47 @@ export const sendWhatsAppProduct = createServerFn({ method: "POST" })
     }
     if (targets.length === 0) throw new Error("Nenhum grupo selecionado");
 
-    const p = data.product;
-    const priceLine = p.price ? `\n💰 Preço:\n${p.price}\n` : "\n";
-    const text =
-      `🔥 OFERTA ENCONTRADA\n\n` +
-      `Produto:\n${p.name}\n` +
-      priceLine +
-      `\n🛒 Comprar:\n${p.link}`;
-
-    const { getWhatsAppProvider } = await import("./index.server");
-    const provider = getWhatsAppProvider(row.provider);
-
     let sent = 0;
     let failed = 0;
+    const errors: Array<{ jid: string; error: string }> = [];
+
     for (const jid of targets) {
+      let messageId: string | undefined;
+      let status: "sent" | "failed" = "sent";
+      let errorMsg: string | null = null;
       try {
-        await provider.sendText(row.instance_name, jid, text);
+        const res = await provider.sendMedia(row.instance_name, jid, {
+          mediaUrl: product.image,
+          caption,
+        });
+        messageId = res.id;
         sent++;
         await new Promise((r) => setTimeout(r, 800));
-      } catch {
+      } catch (err) {
+        status = "failed";
         failed++;
+        errorMsg = err instanceof Error ? err.message : String(err);
+        errors.push({ jid, error: errorMsg });
+      }
+
+      // Histórico do envio
+      try {
+        await (supabase as any).from("whatsapp_send_history").insert({
+          user_id: userId,
+          instance_id: row.id,
+          product_id: productId,
+          jid,
+          caption,
+          media_url: product.image,
+          status,
+          error: errorMsg,
+          message_id: messageId ?? null,
+        });
+      } catch (histErr) {
+        console.warn("[WA] history insert failed:", histErr);
       }
     }
-    return { sent, failed };
+    return { sent, failed, errors };
   });
 
 /** Dispara mensagem para todos os grupos selecionados. */
