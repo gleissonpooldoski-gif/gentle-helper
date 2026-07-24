@@ -76,6 +76,11 @@ export function AutomationPanel({ channelId, groupId = null, groupName = null, t
   const startFn = useServerFn(startAutomation);
   const stopFn = useServerFn(stopAutomation);
   const histFn = useServerFn(listCampaignHistory);
+  const listQueueFn = useServerFn(listAutomationProducts);
+  const listAvailFn = useServerFn(listAvailableProducts);
+  const addProdFn = useServerFn(addAutomationProducts);
+  const removeProdFn = useServerFn(removeAutomationProduct);
+  const clearQueueFn = useServerFn(clearAutomationQueue);
 
   const scope = { channelId, groupId, groupName };
 
@@ -89,6 +94,13 @@ export function AutomationPanel({ channelId, groupId = null, groupName = null, t
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState(false);
   const [history, setHistory] = useState<CampaignHistoryDTO[]>([]);
+  const [queue, setQueue] = useState<AutomationQueueItemDTO[]>([]);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [available, setAvailable] = useState<AvailableProductDTO[]>([]);
+  const [availLoading, setAvailLoading] = useState(false);
+  const [availSearch, setAvailSearch] = useState("");
+  const [picked, setPicked] = useState<Record<string, boolean>>({});
+  const [addingProducts, setAddingProducts] = useState(false);
 
   const applyCfg = (c: AutomationConfigDTO) => {
     setCfg(c);
@@ -101,12 +113,14 @@ export function AutomationPanel({ channelId, groupId = null, groupName = null, t
 
   const refresh = async () => {
     try {
-      const [c, h] = await Promise.all([
+      const [c, h, q] = await Promise.all([
         getFn({ data: scope }),
         histFn({ data: { ...scope, limit: 5 } }),
+        listQueueFn({ data: scope }),
       ]);
       setCfg(c);
       setHistory(h);
+      setQueue(q);
     } catch (err) {
       console.error(err);
     }
@@ -116,6 +130,7 @@ export function AutomationPanel({ channelId, groupId = null, groupName = null, t
     let cancelled = false;
     setCfg(null);
     setHistory([]);
+    setQueue([]);
     setHoraInicio("07:00");
     setHoraFim("22:00");
     setIntervalo(15);
@@ -127,9 +142,13 @@ export function AutomationPanel({ channelId, groupId = null, groupName = null, t
         const c = await getFn({ data: scope });
         if (cancelled) return;
         applyCfg(c);
-        const h = await histFn({ data: { ...scope, limit: 5 } });
+        const [h, q] = await Promise.all([
+          histFn({ data: { ...scope, limit: 5 } }),
+          listQueueFn({ data: scope }),
+        ]);
         if (cancelled) return;
         setHistory(h);
+        setQueue(q);
       } catch (err) {
         if (!cancelled) toast.error(err instanceof Error ? err.message : "Falha ao carregar automação");
       } finally {
@@ -143,6 +162,74 @@ export function AutomationPanel({ channelId, groupId = null, groupName = null, t
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channelId, groupId]);
+
+  const openPicker = async () => {
+    setPickerOpen(true);
+    setPicked({});
+    setAvailSearch("");
+    setAvailLoading(true);
+    try {
+      const list = await listAvailFn({ data: { ...scope, platforms: lojas } });
+      setAvailable(list);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao carregar produtos");
+    } finally {
+      setAvailLoading(false);
+    }
+  };
+
+  const runSearch = async (term: string) => {
+    setAvailSearch(term);
+    setAvailLoading(true);
+    try {
+      const list = await listAvailFn({
+        data: { ...scope, platforms: lojas, search: term },
+      });
+      setAvailable(list);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao buscar");
+    } finally {
+      setAvailLoading(false);
+    }
+  };
+
+  const handleAddSelected = async () => {
+    const ids = Object.entries(picked).filter(([, v]) => v).map(([k]) => k);
+    if (ids.length === 0) return;
+    setAddingProducts(true);
+    try {
+      const q = await addProdFn({ data: { ...scope, productIds: ids } });
+      setQueue(q);
+      toast.success(`${ids.length} produto(s) adicionado(s)`);
+      setPickerOpen(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao adicionar");
+    } finally {
+      setAddingProducts(false);
+    }
+  };
+
+  const handleRemove = async (queueItemId: string) => {
+    try {
+      await removeProdFn({ data: { ...scope, queueItemId } });
+      setQueue((prev) => prev.filter((x) => x.id !== queueItemId));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao remover");
+    }
+  };
+
+  const handleClearQueue = async () => {
+    if (!confirm("Remover todos os produtos da fila deste grupo?")) return;
+    try {
+      await clearQueueFn({ data: scope });
+      setQueue([]);
+      toast.success("Fila esvaziada");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao limpar");
+    }
+  };
+
+
 
 
   const toggleLoja = (slug: string) => {
