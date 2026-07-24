@@ -494,6 +494,69 @@ export function AutomationPanel({ channelId, groupId = null, groupName = null, t
           )}
         </>
       )}
+
+      <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-base">Adicionar produtos a este grupo</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Input
+              placeholder="Buscar por título…"
+              value={availSearch}
+              onChange={(e) => runSearch(e.target.value)}
+              className="h-9"
+            />
+            <div className="max-h-72 overflow-y-auto rounded-lg border border-border/60">
+              {availLoading ? (
+                <div className="flex items-center justify-center gap-2 p-6 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Carregando…
+                </div>
+              ) : available.length === 0 ? (
+                <div className="p-6 text-center text-[12px] text-muted-foreground">
+                  Nenhum produto disponível. Importe produtos ou ajuste o filtro de lojas.
+                </div>
+              ) : (
+                <ul className="divide-y divide-border/60">
+                  {available.map((p) => (
+                    <li key={p.id} className="flex items-center gap-2 p-2">
+                      <input
+                        type="checkbox"
+                        checked={!!picked[p.id]}
+                        onChange={(e) => setPicked((prev) => ({ ...prev, [p.id]: e.target.checked }))}
+                        className="h-4 w-4 rounded border-border"
+                      />
+                      {p.imageUrl ? (
+                        <img src={p.imageUrl} alt="" className="h-9 w-9 shrink-0 rounded object-cover" />
+                      ) : (
+                        <div className="h-9 w-9 shrink-0 rounded bg-muted" />
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[12px] font-medium">{p.title}</p>
+                        <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{p.platform}</p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => setPickerOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              onClick={handleAddSelected}
+              disabled={addingProducts || Object.values(picked).every((v) => !v)}
+            >
+              {addingProducts ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Plus className="mr-1.5 h-4 w-4" />}
+              Adicionar selecionados
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
+
