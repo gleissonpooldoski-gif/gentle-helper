@@ -2540,6 +2540,7 @@ function MercadoLivrePanel() {
   const [bestSellers, setBestSellers] = useState(false);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [sendProduct, setSendProduct] = useState<SendProduct | null>(null);
+  const [editTarget, setEditTarget] = useState<EditProductTarget | null>(null);
   const allChecked = ML_PRODUCTS.every((p) => selected[p.id]);
 
   // === Add by link ===
@@ -3082,7 +3083,14 @@ function MercadoLivrePanel() {
                   >
                     <MessageCircle className="h-3 w-3" /> Grupos
                   </Button>
-                  <Button size="sm" variant="outline" className="h-8 gap-1 rounded-md px-1.5 text-[11px]">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      setEditTarget({ kind: "byItem", platform: "mercadolivre", itemId: p.id })
+                    }
+                    className="h-8 gap-1 rounded-md px-1.5 text-[11px]"
+                  >
                     <Edit3 className="h-3 w-3" /> Editar
                   </Button>
                   <Button size="sm" variant="outline" className="h-8 gap-1 rounded-md px-1.5 text-[11px]">
@@ -3110,6 +3118,12 @@ function MercadoLivrePanel() {
         onClose={() => setSendProduct(null)}
         product={sendProduct}
         channelId={Route.useParams().id}
+      />
+      <EditProductModal
+        open={editTarget !== null}
+        target={editTarget}
+        onClose={() => setEditTarget(null)}
+        onSaved={() => setEditTarget(null)}
       />
     </div>
   );
