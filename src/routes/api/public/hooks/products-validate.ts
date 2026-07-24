@@ -23,7 +23,8 @@ export const Route = createFileRoute("/api/public/hooks/products-validate")({
         // Prioriza os que nunca foram validados; depois os mais antigos.
         const { data: rows, error } = await supabaseAdmin
           .from("products")
-          .select("id, platform, affiliate_link, raw_link, image_url, availability, last_validated_at")
+          .select("id, channel_id, platform, affiliate_link, raw_link, image_url, availability, last_validated_at")
+          .not("channel_id", "is", null)
           .or(`last_validated_at.is.null,last_validated_at.lt.${staleBefore}`)
           .order("last_validated_at", { ascending: true, nullsFirst: true })
           .limit(limit);
@@ -32,7 +33,8 @@ export const Route = createFileRoute("/api/public/hooks/products-validate")({
         const results = { active: 0, inactive: 0, out_of_stock: 0, error: 0 };
         for (const p of rows ?? []) {
           const r = await validateProduct(p);
-          await persistValidation(supabaseAdmin, p.id, r);
+          if (!p.channel_id) continue;
+          await persistValidation(supabaseAdmin, p.id, p.channel_id, r);
           results[r.availability] += 1;
         }
         return Response.json({ ok: true, processed: rows?.length ?? 0, results });

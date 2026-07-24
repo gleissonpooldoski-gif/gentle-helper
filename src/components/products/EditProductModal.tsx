@@ -109,7 +109,7 @@ export function EditProductModal({ open, channelId, target, onClose, onSaved }: 
     return () => {
       cancelled = true;
     };
-  }, [open, target, getFn, onClose]);
+  }, [open, target, channelId, getFn, onClose]);
 
   const handleSave = async () => {
     if (!product) return;
@@ -121,6 +121,7 @@ export function EditProductModal({ open, channelId, target, onClose, onSaved }: 
     try {
       const updated = await saveFn({
         data: {
+          channelId,
           id: product.id,
           title: title.trim(),
           image_url: imageUrl.trim() || null,

@@ -39,6 +39,7 @@ export const enrichShopeeImageOne = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) =>
     z
       .object({
+        channelId: z.string().uuid(),
         id: z.string().min(1),
         itemId: z.string().nullish(),
         productUrl: z.string().min(1),
@@ -55,7 +56,8 @@ export const enrichShopeeImageOne = createServerFn({ method: "POST" })
       .from("products")
       .update({ image_url: image })
       .eq("id", data.id)
-      .eq("user_id", context.userId);
+      .eq("user_id", context.userId)
+      .eq("channel_id", data.channelId);
     if (error) return { id: data.id, itemId: data.itemId ?? null, found: false as const };
     return { id: data.id, itemId: data.itemId ?? null, found: true as const, image };
   });
