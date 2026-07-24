@@ -54,12 +54,21 @@ function StatusBadge({ status }: { status: AutomationConfigDTO["status"] }) {
   );
 }
 
-export function AutomationPanel({ channelId }: { channelId: string }) {
+export interface AutomationPanelProps {
+  channelId: string;
+  groupId?: string | null;
+  groupName?: string | null;
+  title?: string;
+}
+
+export function AutomationPanel({ channelId, groupId = null, groupName = null, title }: AutomationPanelProps) {
   const getFn = useServerFn(getAutomationConfig);
   const saveFn = useServerFn(saveAutomationConfig);
   const startFn = useServerFn(startAutomation);
   const stopFn = useServerFn(stopAutomation);
   const histFn = useServerFn(listCampaignHistory);
+
+  const scope = { channelId, groupId, groupName };
 
   const [cfg, setCfg] = useState<AutomationConfigDTO | null>(null);
   const [horaInicio, setHoraInicio] = useState("07:00");
@@ -84,8 +93,8 @@ export function AutomationPanel({ channelId }: { channelId: string }) {
   const refresh = async () => {
     try {
       const [c, h] = await Promise.all([
-        getFn({ data: { channelId } }),
-        histFn({ data: { channelId, limit: 5 } }),
+        getFn({ data: scope }),
+        histFn({ data: { ...scope, limit: 5 } }),
       ]);
       setCfg(c);
       setHistory(h);
@@ -95,23 +104,30 @@ export function AutomationPanel({ channelId }: { channelId: string }) {
   };
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       setLoading(true);
       try {
-        const c = await getFn({ data: { channelId } });
+        const c = await getFn({ data: scope });
+        if (cancelled) return;
         applyCfg(c);
-        const h = await histFn({ data: { channelId, limit: 5 } });
+        const h = await histFn({ data: { ...scope, limit: 5 } });
+        if (cancelled) return;
         setHistory(h);
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Falha ao carregar automação");
+        if (!cancelled) toast.error(err instanceof Error ? err.message : "Falha ao carregar automação");
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     })();
     const t = setInterval(refresh, 15000);
-    return () => clearInterval(t);
+    return () => {
+      cancelled = true;
+      clearInterval(t);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [channelId]);
+  }, [channelId, groupId]);
+
 
   const toggleLoja = (slug: string) => {
     setLojas((p) => (p.includes(slug) ? p.filter((x) => x !== slug) : [...p, slug]));
