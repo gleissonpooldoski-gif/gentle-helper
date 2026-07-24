@@ -3406,7 +3406,7 @@ function ShopeePanel() {
 
       for (let i = 0; i < rows.length; i += BATCH) {
         const chunk = rows.slice(i, i + BATCH);
-        const outcome = await importBatchFn({ data: { rows: chunk } });
+        const outcome = await importBatchFn({ data: { channelId, rows: chunk } });
         inserted += outcome.inserted;
         updated += outcome.updated;
         setProgress({ done: Math.min(i + chunk.length, rows.length), total: rows.length });
