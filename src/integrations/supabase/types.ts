@@ -337,6 +337,7 @@ export type Database = {
           interval_min: number
           name: string
           random_order: boolean
+          reports_last_sync_at: string | null
           updated_at: string
           user_id: string
         }
@@ -348,6 +349,7 @@ export type Database = {
           interval_min?: number
           name: string
           random_order?: boolean
+          reports_last_sync_at?: string | null
           updated_at?: string
           user_id: string
         }
@@ -359,6 +361,7 @@ export type Database = {
           interval_min?: number
           name?: string
           random_order?: boolean
+          reports_last_sync_at?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -795,6 +798,89 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      shopee_conversions: {
+        Row: {
+          buyer_type: string
+          category: string | null
+          channel_id: string | null
+          commission: number
+          commission_pct: number
+          created_at: string
+          device: string
+          id: string
+          order_date: string
+          order_id: string
+          platform: string
+          product_id: string | null
+          product_image: string | null
+          product_name: string
+          qty: number
+          raw: Json | null
+          status: string
+          store_name: string | null
+          synced_at: string
+          updated_at: string
+          user_id: string
+          value: number
+        }
+        Insert: {
+          buyer_type?: string
+          category?: string | null
+          channel_id?: string | null
+          commission?: number
+          commission_pct?: number
+          created_at?: string
+          device?: string
+          id?: string
+          order_date?: string
+          order_id: string
+          platform?: string
+          product_id?: string | null
+          product_image?: string | null
+          product_name: string
+          qty?: number
+          raw?: Json | null
+          status?: string
+          store_name?: string | null
+          synced_at?: string
+          updated_at?: string
+          user_id: string
+          value?: number
+        }
+        Update: {
+          buyer_type?: string
+          category?: string | null
+          channel_id?: string | null
+          commission?: number
+          commission_pct?: number
+          created_at?: string
+          device?: string
+          id?: string
+          order_date?: string
+          order_id?: string
+          platform?: string
+          product_id?: string | null
+          product_image?: string | null
+          product_name?: string
+          qty?: number
+          raw?: Json | null
+          status?: string
+          store_name?: string | null
+          synced_at?: string
+          updated_at?: string
+          user_id?: string
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shopee_conversions_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       site_configs: {
         Row: {
