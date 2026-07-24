@@ -37,6 +37,15 @@ interface Props {
   channelId?: string;
 }
 
+type QrFlowState = "checking" | "connected" | "waiting_qr" | "error";
+
+function normalizeQrSource(qrCode: string | null): string | null {
+  if (!qrCode) return null;
+  const value = qrCode.trim();
+  if (!value) return null;
+  return value.startsWith("data:") ? value : `data:image/png;base64,${value}`;
+}
+
 const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
   creating: { label: "Criando…", cls: "bg-amber-100 text-amber-800" },
   awaiting_qr: { label: "Aguardando QR", cls: "bg-blue-100 text-blue-800" },
@@ -65,6 +74,7 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
   const [modalOpen, setModalOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const [qrModal, setQrModal] = useState<WhatsAppInstanceDTO | null>(null);
+  const [qrFlowState, setQrFlowState] = useState<QrFlowState>("checking");
   const [adoptOpen, setAdoptOpen] = useState(false);
   const [adoptName, setAdoptName] = useState("");
   const [groupsModal, setGroupsModal] = useState<{
@@ -139,50 +149,51 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
     return () => cleanup?.();
   }, []);
 
-  // Timeout para gerar QR (30s) — evita loading infinito
-  const [qrTimedOut, setQrTimedOut] = useState(false);
-  const qrOpenedAtRef = useRef<number | null>(null);
+  const openQrModal = (instance: WhatsAppInstanceDTO) => {
+    setQrFlowState("checking");
+    setQrModal(instance);
+  };
 
-  // Se o QR modal está aberto, faz polling do status
+  // Ao abrir, consulta connectionState primeiro. O servidor só solicita QR
+  // quando o estado remoto não é open. O fluxo encerra em no máximo 30s.
   useEffect(() => {
-    if (!qrModal) {
-      qrOpenedAtRef.current = null;
-      setQrTimedOut(false);
-      return;
-    }
-    if (qrOpenedAtRef.current == null) qrOpenedAtRef.current = Date.now();
-    // Se já está conectado ao abrir, não faz polling.
-    if (qrModal.status === "connected") return;
+    if (!qrModal) return;
 
     let cancelled = false;
-    const tick = async () => {
+    let pollingId: ReturnType<typeof setInterval> | undefined;
+    const timeoutId = setTimeout(() => {
+      if (!cancelled) setQrFlowState("error");
+      if (pollingId) clearInterval(pollingId);
+    }, 30_000);
+
+    const checkStatus = async () => {
       try {
         const upd = await refreshFn({ data: { id: qrModal.id } });
         if (cancelled) return;
-        // eslint-disable-next-line no-console
-        console.log("Evolution status", upd.status, "QR?", !!upd.qrCode);
         setQrModal(upd);
         if (upd.status === "connected") {
+          setQrFlowState("connected");
+          clearTimeout(timeoutId);
+          if (pollingId) clearInterval(pollingId);
           toast.success("WhatsApp conectado!");
           return;
         }
-        if (
-          !upd.qrCode &&
-          qrOpenedAtRef.current &&
-          Date.now() - qrOpenedAtRef.current > 30_000
-        ) {
-          setQrTimedOut(true);
-        }
+        setQrFlowState("waiting_qr");
       } catch {
-        /* ignore transient */
+        if (!cancelled) setQrFlowState("error");
+        clearTimeout(timeoutId);
+        if (pollingId) clearInterval(pollingId);
       }
     };
-    const id = setInterval(tick, 3500);
+
+    void checkStatus();
+    pollingId = setInterval(checkStatus, 3500);
     return () => {
       cancelled = true;
-      clearInterval(id);
+      clearTimeout(timeoutId);
+      if (pollingId) clearInterval(pollingId);
     };
-  }, [qrModal?.id, qrModal?.status, refreshFn]);
+  }, [qrModal?.id, refreshFn]);
 
   // Mantém dados do modal sincronizados com a lista
   useEffect(() => {
@@ -207,7 +218,7 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
       const created = await createFn({ data: { name, channelId } });
       setModalOpen(false);
       setNewName("");
-      setQrModal(created);
+      openQrModal(created);
       await reload();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Falha ao criar");
@@ -224,10 +235,8 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
     }
     try {
       setBusy(`rec:${i.id}`);
-      setQrTimedOut(false);
-      qrOpenedAtRef.current = Date.now();
       const upd = await reconnectFn({ data: { id: i.id } });
-      setQrModal(upd);
+      openQrModal(upd);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Falha ao reconectar");
     } finally {
@@ -403,7 +412,7 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
                       {s.label}
                     </span>
                     {i.status === "awaiting_qr" && (
-                      <Button size="sm" variant="outline" onClick={() => setQrModal(i)}>
+                      <Button size="sm" variant="outline" onClick={() => openQrModal(i)}>
                         <QrCode className="mr-1 h-4 w-4" /> Ver QR
                       </Button>
                     )}
@@ -528,30 +537,22 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
             <div className="space-y-4 px-5 py-6">
               <div className="flex flex-col items-center gap-3">
                 <div className="rounded-xl border border-border bg-white p-3 shadow-sm">
-                  {qrModal.status === "connected" ? (
+                  {qrFlowState === "connected" ? (
                     <div className="flex h-[260px] w-[260px] flex-col items-center justify-center gap-2 text-emerald-600">
                       <CheckCircle2 className="h-12 w-12" />
-                      <p className="text-sm font-semibold">Conectado</p>
+                      <p className="text-sm font-semibold">🟢 WhatsApp conectado</p>
                     </div>
-                  ) : qrModal.qrCode && /^(data:image|[A-Za-z0-9+/=]{100,})/.test(qrModal.qrCode) ? (
+                  ) : qrFlowState === "waiting_qr" && normalizeQrSource(qrModal.qrCode) ? (
                     <img
-                      src={
-                        qrModal.qrCode.startsWith("data:")
-                          ? qrModal.qrCode
-                          : `data:image/png;base64,${qrModal.qrCode}`
-                      }
+                      src={normalizeQrSource(qrModal.qrCode) ?? undefined}
                       alt="QR Code WhatsApp"
                       width={260}
                       height={260}
                     />
-                  ) : qrModal.qrCode ? (
-                    <div className="flex h-[260px] w-[260px] items-center justify-center break-all p-4 text-center font-mono text-xs">
-                      {qrModal.qrCode}
-                    </div>
-                  ) : qrTimedOut ? (
+                  ) : qrFlowState === "error" ? (
                     <div className="flex h-[260px] w-[260px] flex-col items-center justify-center gap-3 p-4 text-center">
                       <p className="text-xs text-muted-foreground">
-                        Não foi possível gerar QR Code.
+                        Não foi possível gerar QR Code. Tentar novamente.
                       </p>
                       <Button
                         size="sm"
@@ -561,14 +562,15 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
                         <RefreshCw className="mr-1 h-4 w-4" /> Tentar novamente
                       </Button>
                     </div>
+                  ) : qrFlowState === "checking" ? (
+                    <div className="flex h-[260px] w-[260px] flex-col items-center justify-center gap-2 text-muted-foreground">
+                      <Loader2 className="h-6 w-6 animate-spin" />
+                      <p className="text-xs">Verificando conexão…</p>
+                    </div>
                   ) : (
                     <div className="flex h-[260px] w-[260px] flex-col items-center justify-center gap-2 text-muted-foreground">
                       <Loader2 className="h-6 w-6 animate-spin" />
-                      <p className="text-xs">
-                        {qrModal.status === "creating"
-                          ? "Criando instância…"
-                          : "Aguardando QR Code…"}
-                      </p>
+                      <p className="text-xs">Aguardando QR Code…</p>
                     </div>
                   )}
                 </div>
@@ -579,7 +581,7 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
                 >
                   {(STATUS_LABEL[qrModal.status] ?? STATUS_LABEL.disconnected).label}
                 </span>
-                {qrModal.status !== "connected" && (
+                {qrFlowState === "waiting_qr" && qrModal.qrCode && (
                   <p className="text-center text-xs text-muted-foreground">
                     Abra o WhatsApp no celular → Aparelhos conectados → Conectar um aparelho e
                     escaneie o QR Code acima.
@@ -605,7 +607,7 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
                 className="flex-1 bg-emerald-600 hover:bg-emerald-700"
                 onClick={() => setQrModal(null)}
               >
-                {qrModal.status === "connected" ? "Concluir" : "Fechar"}
+                {qrFlowState === "connected" ? "Concluir" : "Fechar"}
               </Button>
             </div>
           </div>
