@@ -427,9 +427,9 @@ function EditChannelPage() {
           ) : tab === "wa-monitor" ? (
             <WhatsAppMonitorPanel channelId={id} />
           ) : tab === "ml" ? (
-            <MercadoLivrePanel />
+            <MercadoLivrePanel onCountsChanged={refreshProductCounts} />
           ) : tab === "shopee" ? (
-            <ShopeePanel />
+            <ShopeePanel onCountsChanged={refreshProductCounts} />
           ) : (
 
 
