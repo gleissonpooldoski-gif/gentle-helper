@@ -36,6 +36,7 @@ import { getChannel, updateChannel, type ChannelDTO } from "@/modules/channels/c
 import { getChannelFlowSummary, type ChannelFlowSummaryDTO } from "@/modules/automation/automation.functions";
 import { getManualPost, saveManualPost, type ManualPostDTO } from "@/modules/posts/manual-post.functions";
 import { ensureAffiliateLink, buildMLAffiliateUrl } from "@/lib/affiliate-linker";
+import { EditProductModal, type EditProductTarget } from "@/components/products/EditProductModal";
 
 
 import {
