@@ -19,10 +19,7 @@ export const listPendingShopeeImages = createServerFn({ method: "POST" })
       .not("raw_link", "is", null);
     if (error) throw new Error(error.message);
     return (data ?? [])
-      .filter(
-        (r): r is { id: string; raw_link: string; affiliate_link: string | null; image_url: string | null } =>
-          !!r.raw_link,
-      )
+      .filter((r) => !!r.raw_link)
       // Consider both null image_url AND placeholder/invalid URLs as pending.
       .filter((r) => !isRealProductImage(r.image_url))
       .map((r) => ({
