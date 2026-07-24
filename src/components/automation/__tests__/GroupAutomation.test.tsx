@@ -119,10 +119,11 @@ async function openEditor(groupLabel: RegExp) {
 async function waitForPanel(expectedGroupName: string) {
   await waitFor(() => {
     expect(screen.getByText(new RegExp(expectedGroupName))).toBeInTheDocument();
-    // Fim do "Carregando…" — inputs renderizados
-    expect(screen.getByLabelText(/hora início|hora inicio/i)).toBeInTheDocument();
+    // Fim do "Carregando…" — botão Salvar renderizado
+    expect(screen.getByRole("button", { name: /salvar/i })).toBeInTheDocument();
   });
 }
+
 
 // -------------------- Tests --------------------
 
