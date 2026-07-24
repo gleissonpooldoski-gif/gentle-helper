@@ -545,6 +545,19 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
                     <div className="flex h-[260px] w-[260px] items-center justify-center break-all p-4 text-center font-mono text-xs">
                       {qrModal.qrCode}
                     </div>
+                  ) : qrTimedOut ? (
+                    <div className="flex h-[260px] w-[260px] flex-col items-center justify-center gap-3 p-4 text-center">
+                      <p className="text-xs text-muted-foreground">
+                        Não foi possível gerar QR Code.
+                      </p>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleReconnect(qrModal)}
+                      >
+                        <RefreshCw className="mr-1 h-4 w-4" /> Tentar novamente
+                      </Button>
+                    </div>
                   ) : (
                     <div className="flex h-[260px] w-[260px] flex-col items-center justify-center gap-2 text-muted-foreground">
                       <Loader2 className="h-6 w-6 animate-spin" />
