@@ -28,6 +28,7 @@ import {
   type WASessionDTO,
 } from "@/modules/channels/whatsapp/sessions.functions";
 import { WhatsAppInstancePanel } from "@/components/whatsapp/WhatsAppInstancePanel";
+import { SiteConfigPanel } from "@/components/site/SiteConfigPanel";
 import { SendToGroupsModal, type SendProduct } from "@/components/whatsapp/SendToGroupsModal";
 import { getPostLayout, savePostLayout } from "@/modules/posts/layout.functions";
 import { DEFAULT_POST_LAYOUT, type PostLayout } from "@/modules/posts/render";
@@ -387,6 +388,8 @@ function EditChannelPage() {
 
           {tab === "layout" ? (
             <LayoutPostPanel channelId={id} />
+          ) : tab === "site" ? (
+            <SiteConfigPanel />
           ) : tab === "instagram" ? (
             <InstagramPanel />
           ) : tab === "instasched" ? (

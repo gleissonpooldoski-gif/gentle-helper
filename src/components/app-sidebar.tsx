@@ -3,7 +3,6 @@ import { useState } from "react";
 import {
   BarChart3,
   CreditCard,
-  Globe,
   LayoutDashboard,
   Menu,
   Radio,
@@ -28,7 +27,6 @@ const MAIN: Item[] = [
 
 const CONFIG: Item[] = [
   { id: "afiliados", label: "Config Afiliados", icon: Settings, href: "/config-afiliados" },
-  { id: "site", label: "Site", icon: Globe, href: "/site" },
   { id: "canais", label: "Canais/Grupos", icon: Radio, href: "/" },
   { id: "relatorios", label: "Relatórios", icon: BarChart3, href: "/relatorios" },
 ];
