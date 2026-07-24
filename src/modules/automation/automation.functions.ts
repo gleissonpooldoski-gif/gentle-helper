@@ -143,16 +143,21 @@ async function ensureConfig(
   supabase: any,
   userId: string,
   channelId: string,
-  groupId: string | null,
-  groupName: string | null,
+  _groupId: string | null,
+  _groupName: string | null,
 ) {
+  // Distribuição por nicho: a automação pertence ao MÓDULO (canal), não a um
+  // grupo específico. Todos os grupos selecionados no canal compartilham a
+  // mesma base de produtos, janela, intervalo e proteção anti-repetição.
+  // O worker (tick) faz fan-out para cada grupo via whatsapp_group_selections
+  // filtrado por channel_id — o mesmo produto é enviado a todos os grupos.
   const { data: row, error } = await supabase
     .from("automation_configs")
     .upsert({
       user_id: userId,
       channel_id: channelId,
-      group_id: groupId,
-      group_name: groupName,
+      group_id: null,
+      group_name: null,
     }, { onConflict: "user_id,channel_id,group_scope" })
     .select("*")
     .single();
@@ -295,13 +300,15 @@ export const listCampaignHistory = createServerFn({ method: "POST" })
       .order("sent_at", { ascending: false })
       .limit(data.limit);
     if (data.channelId) {
-      let cfgQ = supabase
+      // A automação é do módulo (canal). Todos os grupos compartilham a mesma
+      // config; o histórico é filtrado por config_id do canal.
+      const { data: cfg } = await supabase
         .from("automation_configs")
         .select("id")
         .eq("user_id", userId)
-        .eq("channel_id", data.channelId);
-      cfgQ = data.groupId === null ? cfgQ.is("group_id", null) : cfgQ.eq("group_id", data.groupId);
-      const { data: cfg } = await cfgQ.maybeSingle();
+        .eq("channel_id", data.channelId)
+        .is("group_id", null)
+        .maybeSingle();
       if (cfg) q = q.eq("config_id", cfg.id);
       else return [];
     }
