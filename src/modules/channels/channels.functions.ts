@@ -73,6 +73,68 @@ export const updateChannel = createServerFn({ method: "POST" })
     return mapChannel(row);
   });
 
+const CHANNEL_LIMIT = 5;
+
+export const createChannel = createServerFn({ method: "POST" })
+  .middleware([apiClient, requireSupabaseAuth])
+  .inputValidator((data: {
+    name: string;
+    externalId?: string | null;
+    autoPost?: boolean;
+    intervalMin?: number;
+    randomOrder?: boolean;
+  }) => {
+    const name = String(data?.name ?? "").trim();
+    if (!name) throw new Error("Nome do grupo é obrigatório");
+    if (name.length > 120) throw new Error("Nome muito longo");
+    const externalId = data?.externalId ? String(data.externalId).trim().slice(0, 200) : null;
+    const intervalMin = Math.max(1, Math.min(1440, Math.floor(Number(data?.intervalMin ?? 30))));
+    return {
+      name,
+      externalId: externalId || null,
+      autoPost: !!data?.autoPost,
+      intervalMin,
+      randomOrder: !!data?.randomOrder,
+    };
+  })
+  .handler(async ({ data, context }): Promise<ChannelDTO> => {
+    const { count, error: countErr } = await context.supabase
+      .from("channels")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", context.userId);
+    if (countErr) throw new Error(countErr.message);
+    if ((count ?? 0) >= CHANNEL_LIMIT) {
+      throw new Error(`Limite de ${CHANNEL_LIMIT} grupos atingido.`);
+    }
+    const { data: row, error } = await context.supabase
+      .from("channels")
+      .insert({
+        user_id: context.userId,
+        name: data.name,
+        external_id: data.externalId,
+        auto_post: data.autoPost,
+        interval_min: data.intervalMin,
+        random_order: data.randomOrder,
+      } as never)
+      .select("id, name, external_id, auto_post, interval_min, random_order")
+      .single();
+    if (error) throw new Error(error.message);
+    return mapChannel(row);
+  });
+
+export const deleteChannel = createServerFn({ method: "POST" })
+  .middleware([apiClient, requireSupabaseAuth])
+  .inputValidator((data: { channelId: string }) => ({ channelId: parseChannelId(data?.channelId) }))
+  .handler(async ({ data, context }): Promise<{ deleted: boolean }> => {
+    const { error } = await context.supabase
+      .from("channels")
+      .delete()
+      .eq("user_id", context.userId)
+      .eq("id", data.channelId);
+    if (error) throw new Error(error.message);
+    return { deleted: true };
+  });
+
 export interface ChannelDashboardDTO extends ChannelDTO {
   productsTotal: number;
   productsByPlatform: { platform: string; count: number }[];
