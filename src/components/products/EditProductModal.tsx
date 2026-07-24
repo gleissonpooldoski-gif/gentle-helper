@@ -50,7 +50,7 @@ function formatPriceInput(v: number | null): string {
   return v.toFixed(2).replace(".", ",");
 }
 
-export function EditProductModal({ open, target, onClose, onSaved }: Props) {
+export function EditProductModal({ open, channelId, target, onClose, onSaved }: Props) {
   const getFn = useServerFn(getProductForEdit);
   const saveFn = useServerFn(updateProduct);
   const [loading, setLoading] = useState(false);
@@ -76,8 +76,9 @@ export function EditProductModal({ open, target, onClose, onSaved }: Props) {
     setLoading(true);
     const args =
       target.kind === "byId"
-        ? { data: { id: target.id } }
-        : { data: { platform: target.platform, itemId: target.itemId } };
+        ? { data: { channelId, id: target.id } }
+        : { data: { channelId, platform: target.platform, itemId: target.itemId } };
+
     getFn(args)
       .then((p) => {
         if (cancelled) return;
