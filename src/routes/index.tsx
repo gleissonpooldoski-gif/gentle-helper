@@ -534,6 +534,7 @@ function AddChannelTile({ onClick }: { onClick: () => void }) {
   return (
     <button
       type="button"
+      onClick={onClick}
       className="group flex min-h-[420px] flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-border bg-transparent px-6 py-10 text-center transition-all hover:border-primary/40 hover:bg-primary/[0.03]"
     >
       <span className="grid h-12 w-12 place-items-center rounded-full bg-primary/10 text-primary transition-transform group-hover:scale-110">
