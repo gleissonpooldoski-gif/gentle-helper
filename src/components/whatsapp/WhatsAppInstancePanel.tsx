@@ -144,17 +144,39 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
     return () => cleanup?.();
   }, []);
 
+  // Timeout para gerar QR (30s) — evita loading infinito
+  const [qrTimedOut, setQrTimedOut] = useState(false);
+  const qrOpenedAtRef = useRef<number | null>(null);
+
   // Se o QR modal está aberto, faz polling do status
   useEffect(() => {
-    if (!qrModal) return;
+    if (!qrModal) {
+      qrOpenedAtRef.current = null;
+      setQrTimedOut(false);
+      return;
+    }
+    if (qrOpenedAtRef.current == null) qrOpenedAtRef.current = Date.now();
+    // Se já está conectado ao abrir, não faz polling.
+    if (qrModal.status === "connected") return;
+
     let cancelled = false;
     const tick = async () => {
       try {
         const upd = await refreshFn({ data: { id: qrModal.id } });
         if (cancelled) return;
+        // eslint-disable-next-line no-console
+        console.log("Evolution status", upd.status, "QR?", !!upd.qrCode);
         setQrModal(upd);
         if (upd.status === "connected") {
           toast.success("WhatsApp conectado!");
+          return;
+        }
+        if (
+          !upd.qrCode &&
+          qrOpenedAtRef.current &&
+          Date.now() - qrOpenedAtRef.current > 30_000
+        ) {
+          setQrTimedOut(true);
         }
       } catch {
         /* ignore transient */
@@ -165,7 +187,7 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
       cancelled = true;
       clearInterval(id);
     };
-  }, [qrModal?.id, refreshFn]);
+  }, [qrModal?.id, qrModal?.status, refreshFn]);
 
   // Mantém dados do modal sincronizados com a lista
   useEffect(() => {
