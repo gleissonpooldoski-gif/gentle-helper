@@ -84,11 +84,6 @@ const mocks = vi.hoisted(() => {
     startAutomation: vi.fn(async ({ data }: any) => db.get(key(data.channelId, data.groupId))!),
     stopAutomation: vi.fn(async ({ data }: any) => db.get(key(data.channelId, data.groupId))!),
     listCampaignHistory: vi.fn(async () => []),
-    listAutomationProducts: vi.fn(async () => []),
-    listAvailableProducts: vi.fn(async () => []),
-    addAutomationProducts: vi.fn(async () => []),
-    removeAutomationProduct: vi.fn(async () => ({ ok: true })),
-    clearAutomationQueue: vi.fn(async () => ({ ok: true })),
   };
 });
 
@@ -110,12 +105,8 @@ vi.mock("@/modules/automation/automation.functions", () => ({
   startAutomation: mocks.startAutomation,
   stopAutomation: mocks.stopAutomation,
   listCampaignHistory: mocks.listCampaignHistory,
-  listAutomationProducts: mocks.listAutomationProducts,
-  listAvailableProducts: mocks.listAvailableProducts,
-  addAutomationProducts: mocks.addAutomationProducts,
-  removeAutomationProduct: mocks.removeAutomationProduct,
-  clearAutomationQueue: mocks.clearAutomationQueue,
 }));
+
 
 
 // -------------------- Setup --------------------
