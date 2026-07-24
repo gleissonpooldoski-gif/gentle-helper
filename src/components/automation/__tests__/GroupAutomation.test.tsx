@@ -26,12 +26,12 @@ vi.mock("sonner", () => ({
 // Emula o unique index (user_id, channel_id, coalesce(group_id,'')):
 // duas chamadas com mesmo escopo NUNCA criam duas linhas.
 type Row = AutomationConfigDTO;
-const db = new Map<string, Row>();
-const key = (channelId: string, groupId: string | null | undefined) =>
-  `${channelId}|${groupId ?? ""}`;
 
-function baseRow(channelId: string, groupId: string | null, groupName: string | null): Row {
-  return {
+const mocks = vi.hoisted(() => {
+  const db = new Map<string, any>();
+  const key = (channelId: string, groupId: string | null | undefined) =>
+    `${channelId}|${groupId ?? ""}`;
+  const baseRow = (channelId: string, groupId: string | null, groupName: string | null) => ({
     id: `row-${key(channelId, groupId)}`,
     channelId,
     groupId,
@@ -49,51 +49,63 @@ function baseRow(channelId: string, groupId: string | null, groupName: string | 
     lastProductName: null,
     queueSize: 0,
     currentProduct: null,
-  } as unknown as Row;
-}
+  });
 
-const listAutomationGroups = vi.fn(async ({ data }: any) => {
-  if (data.channelId !== "c1") return [];
-  return [
-    { groupId: "g1", groupName: "Grupo Um" },
-    { groupId: "g2", groupName: "Grupo Dois" },
-  ];
-});
-
-const getAutomationConfig = vi.fn(async ({ data }: any) => {
-  const k = key(data.channelId, data.groupId);
-  if (!db.has(k)) db.set(k, baseRow(data.channelId, data.groupId ?? null, data.groupName ?? null));
-  return db.get(k)!;
-});
-
-const saveAutomationConfig = vi.fn(async ({ data }: any) => {
-  const k = key(data.channelId, data.groupId);
-  // Upsert: sempre mesma linha para (channelId, groupId). Zero duplicação.
-  const prev = db.get(k) ?? baseRow(data.channelId, data.groupId ?? null, data.groupName ?? null);
-  const next: Row = {
-    ...prev,
-    horaInicio: data.horaInicio.slice(0, 5),
-    horaFim: data.horaFim.slice(0, 5),
-    intervaloMin: data.intervaloMin,
-    lojasAtivas: data.lojasAtivas,
-    postLoop: data.postLoop,
+  return {
+    db,
+    key,
+    listAutomationGroups: vi.fn(async ({ data }: any) => {
+      if (data.channelId !== "c1") return [];
+      return [
+        { groupId: "g1", groupName: "Grupo Um" },
+        { groupId: "g2", groupName: "Grupo Dois" },
+      ];
+    }),
+    getAutomationConfig: vi.fn(async ({ data }: any) => {
+      const k = key(data.channelId, data.groupId);
+      if (!db.has(k)) db.set(k, baseRow(data.channelId, data.groupId ?? null, data.groupName ?? null));
+      return db.get(k)!;
+    }),
+    saveAutomationConfig: vi.fn(async ({ data }: any) => {
+      const k = key(data.channelId, data.groupId);
+      const prev = db.get(k) ?? baseRow(data.channelId, data.groupId ?? null, data.groupName ?? null);
+      const next = {
+        ...prev,
+        horaInicio: String(data.horaInicio).slice(0, 5),
+        horaFim: String(data.horaFim).slice(0, 5),
+        intervaloMin: data.intervaloMin,
+        lojasAtivas: data.lojasAtivas,
+        postLoop: data.postLoop,
+      };
+      db.set(k, next);
+      return next;
+    }),
+    startAutomation: vi.fn(async ({ data }: any) => db.get(key(data.channelId, data.groupId))!),
+    stopAutomation: vi.fn(async ({ data }: any) => db.get(key(data.channelId, data.groupId))!),
+    listCampaignHistory: vi.fn(async () => []),
   };
-  db.set(k, next);
-  return next;
 });
 
-const startAutomation = vi.fn(async ({ data }: any) => db.get(key(data.channelId, data.groupId))!);
-const stopAutomation = vi.fn(async ({ data }: any) => db.get(key(data.channelId, data.groupId))!);
-const listCampaignHistory = vi.fn(async () => []);
-
-vi.mock("@/modules/automation/automation.functions", () => ({
+const {
+  db,
+  key,
   listAutomationGroups,
   getAutomationConfig,
   saveAutomationConfig,
   startAutomation,
   stopAutomation,
   listCampaignHistory,
+} = mocks;
+
+vi.mock("@/modules/automation/automation.functions", () => ({
+  listAutomationGroups: mocks.listAutomationGroups,
+  getAutomationConfig: mocks.getAutomationConfig,
+  saveAutomationConfig: mocks.saveAutomationConfig,
+  startAutomation: mocks.startAutomation,
+  stopAutomation: mocks.stopAutomation,
+  listCampaignHistory: mocks.listCampaignHistory,
 }));
+
 
 // -------------------- Setup --------------------
 
