@@ -866,9 +866,9 @@ function LayoutPostPanel({ channelId }: { channelId: string }) {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const saved = await saveLayoutFn({ data: layout });
+      const saved = await saveLayoutFn({ data: { ...layout, channelId } });
       setLayout(saved);
-      toast.success("Layout salvo. Instagram, Facebook, YouTube e WhatsApp usarão este template.");
+      toast.success("Layout deste canal salvo. Próximos envios do WhatsApp usarão este template.");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Falha ao salvar layout");
     } finally {
