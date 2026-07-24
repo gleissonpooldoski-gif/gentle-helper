@@ -54,7 +54,7 @@ function toUuidOrNull(v: unknown): string | null {
 export const listWhatsAppInstances = createServerFn({ method: "POST" })
   .middleware([apiClient, requireSupabaseAuth])
   .inputValidator((data: { channelId?: string } = {}) => ({
-    channelId: data?.channelId ? String(data.channelId) : null,
+    channelId: toUuidOrNull(data?.channelId),
   }))
   .handler(async ({ data, context }): Promise<WhatsAppInstanceDTO[]> => {
     const { supabase, userId } = context;
@@ -81,7 +81,7 @@ export const createWhatsAppInstance = createServerFn({ method: "POST" })
     }
     return {
       name,
-      channelId: data?.channelId ? String(data.channelId) : null,
+      channelId: toUuidOrNull(data?.channelId),
     };
   })
   .handler(async ({ data, context }): Promise<WhatsAppInstanceDTO> => {
@@ -283,7 +283,7 @@ export const adoptEvolutionInstance = createServerFn({ method: "POST" })
     if (!instanceName) throw new Error("instanceName obrigatório");
     return {
       instanceName,
-      channelId: data?.channelId ? String(data.channelId) : null,
+      channelId: toUuidOrNull(data?.channelId),
     };
   })
   .handler(async ({ data, context }): Promise<WhatsAppInstanceDTO> => {
