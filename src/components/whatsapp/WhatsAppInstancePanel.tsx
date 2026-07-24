@@ -32,6 +32,7 @@ import {
   type WhatsAppInstanceDTO,
   type WhatsAppGroupDTO,
 } from "@/modules/whatsapp/instances.functions";
+import { EvolutionSettingsCard } from "@/components/whatsapp/EvolutionSettingsCard";
 
 interface Props {
   channelId: string;
@@ -485,6 +486,7 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
       </div>
 
       <div className="p-5">
+        <EvolutionSettingsCard />
         {loading ? (
           <p className="text-sm text-muted-foreground">Carregando…</p>
         ) : items.length === 0 ? (
