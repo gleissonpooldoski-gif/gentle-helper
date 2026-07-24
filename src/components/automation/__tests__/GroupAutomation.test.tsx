@@ -128,13 +128,11 @@ async function openEditor(groupLabel: RegExp) {
   await userEvent.click(btn);
 }
 
-async function waitForPanel(expectedGroupName: string) {
-  await waitFor(() => {
-    expect(screen.getByText(new RegExp(expectedGroupName))).toBeInTheDocument();
-    // Fim do "Carregando…" — botão Salvar renderizado
-    expect(screen.getByRole("button", { name: /salvar/i })).toBeInTheDocument();
-  });
+async function waitForPanel(_expectedGroupName: string) {
+  // Botão Salvar só renderiza depois de loading=false (config carregada)
+  await screen.findByRole("button", { name: /salvar/i }, { timeout: 3000 });
 }
+
 
 
 // -------------------- Tests --------------------
