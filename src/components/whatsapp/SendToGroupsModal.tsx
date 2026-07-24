@@ -1,26 +1,20 @@
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Loader2, MessageCircle, Send, X, AlertTriangle, Check } from "lucide-react";
+import { Loader2, MessageCircle, Send, X, AlertTriangle, Check, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import {
-  adoptEvolutionInstance,
-  fetchWhatsAppGroups,
-  sendWhatsAppProduct,
-  type WhatsAppGroupDTO,
-  type WhatsAppInstanceDTO,
-} from "@/modules/whatsapp/instances.functions";
+import { sendWhatsAppProduct } from "@/modules/whatsapp/instances.functions";
+import { useWhatsAppGroups } from "@/hooks/use-whatsapp-groups";
 
 /**
  * Modal do botão verde "Grupos" do card de produto.
- * Fluxo obrigatório:
- * 1) Adota a instância padrão "DIVULGA LINKS" (idempotente).
- * 2) Bloqueia envio se state != open ("WhatsApp desconectado").
- * 3) Busca grupos via Evolution (fetchAllGroups).
- * 4) Envia produto por produto POR GRUPO, aguardando cada retorno.
- * 5) Legenda/imagem vêm do renderPost(layout) — nada é montado aqui.
- * 6) Histórico salvo em whatsapp_send_history pelo backend.
+ *
+ * Consome `useWhatsAppGroups(channelId)` — cache compartilhado da página.
+ * Assim, abrir outro modal (outro produto) sempre exibe a mesma lista real
+ * já carregada da Evolution, sem depender do estado local do primeiro modal.
+ * O botão "Atualizar" força um refresh global que atualiza todos os modais
+ * abertos simultaneamente.
  */
 
 const DEFAULT_INSTANCE_NAME = "DIVULGA LINKS";
@@ -41,48 +35,37 @@ interface Props {
 }
 
 export function SendToGroupsModal({ open, onClose, product, channelId }: Props) {
-  const adoptFn = useServerFn(adoptEvolutionInstance);
-  const fetchGroupsFn = useServerFn(fetchWhatsAppGroups);
   const sendFn = useServerFn(sendWhatsAppProduct);
+  const { instance, groups, loading, error, refresh } = useWhatsAppGroups(channelId, open);
 
-  const [instance, setInstance] = useState<WhatsAppInstanceDTO | null>(null);
-  const [groups, setGroups] = useState<WhatsAppGroupDTO[]>([]);
   const [checked, setChecked] = useState<Record<string, boolean>>({});
   const [filter, setFilter] = useState("");
-  const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<{ sent: number; failed: number } | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [presetKey, setPresetKey] = useState<string>("");
 
+  // Cada abertura do modal recomeça a marcação (preset = grupos com selected=true).
   useEffect(() => {
     if (!open) return;
     setResult(null);
-    setError(null);
-    setChecked({});
-    setLoading(true);
-    (async () => {
-      try {
-        const inst = await adoptFn({ data: { instanceName: DEFAULT_INSTANCE_NAME } });
-        setInstance(inst);
-        if (inst.status !== "connected") {
-          setError("WhatsApp desconectado");
-          setGroups([]);
-          return;
-        }
-        const gs = await fetchGroupsFn({ data: { id: inst.id, channelId } });
-        setGroups(gs);
-        const preset: Record<string, boolean> = {};
-        gs.forEach((g) => {
-          if (g.selected) preset[g.jid] = true;
-        });
-        setChecked(preset);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Falha ao carregar grupos");
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [open, channelId, adoptFn, fetchGroupsFn]);
+    const key = groups.map((g) => `${g.jid}:${g.selected ? 1 : 0}`).join("|");
+    if (key !== presetKey) {
+      const preset: Record<string, boolean> = {};
+      groups.forEach((g) => {
+        if (g.selected) preset[g.jid] = true;
+      });
+      setChecked(preset);
+      setPresetKey(key);
+    }
+  }, [open, groups, presetKey]);
+
+  // Ao fechar, reset do filtro para não vazar entre produtos.
+  useEffect(() => {
+    if (!open) {
+      setFilter("");
+      setPresetKey("");
+    }
+  }, [open]);
 
   if (!open) return null;
 
@@ -145,6 +128,8 @@ export function SendToGroupsModal({ open, onClose, product, channelId }: Props) 
     }
   };
 
+  const initialLoading = loading && groups.length === 0;
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
@@ -176,27 +161,43 @@ export function SendToGroupsModal({ open, onClose, product, channelId }: Props) 
           </button>
         </div>
 
-        {loading ? (
+        {initialLoading ? (
           <div className="flex flex-1 items-center justify-center py-16 text-[12.5px] text-muted-foreground">
             <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Carregando grupos...
           </div>
-        ) : error ? (
+        ) : error && groups.length === 0 ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 py-10 text-center">
             <AlertTriangle className="h-6 w-6 text-[oklch(0.6_0.19_50)]" />
             <p className="text-[13px] font-semibold text-foreground">{error}</p>
             <p className="text-[12px] text-muted-foreground">
               Conecte {DEFAULT_INSTANCE_NAME} no painel para liberar o envio.
             </p>
+            <Button variant="outline" size="sm" className="mt-2 gap-1.5" onClick={() => void refresh()}>
+              <RefreshCw className="h-3.5 w-3.5" /> Tentar novamente
+            </Button>
           </div>
         ) : (
           <>
             <div className="border-b border-border/70 px-5 py-3">
-              <input
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-                placeholder="Filtrar grupos..."
-                className="h-9 w-full rounded-md border border-input bg-background px-3 text-[12.5px] outline-none focus:border-primary"
-              />
+              <div className="flex items-center gap-2">
+                <input
+                  value={filter}
+                  onChange={(e) => setFilter(e.target.value)}
+                  placeholder="Filtrar grupos..."
+                  className="h-9 flex-1 rounded-md border border-input bg-background px-3 text-[12.5px] outline-none focus:border-primary"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 gap-1.5"
+                  onClick={() => void refresh()}
+                  disabled={loading}
+                  title="Atualizar grupos"
+                >
+                  <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
+                  Atualizar
+                </Button>
+              </div>
               <div className="mt-2 flex items-center justify-between text-[11.5px] text-muted-foreground">
                 <button
                   type="button"
