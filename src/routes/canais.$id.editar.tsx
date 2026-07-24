@@ -2102,42 +2102,83 @@ function ReelCard({ item }: { item: ReelItem }) {
 
 /* -------- WhatsApp Groups tab -------- */
 
-const WA_GROUPS = [
-  { id: "g1", name: "#4 SEGREDO DAS PROMOÇÕES 🛍️👜", members: 512, selected: true },
-  { id: "g2", name: "#2 PROMOS DA CONFEITARIA 🍰", members: 214, selected: true },
-  { id: "g3", name: "MUNDO FITNESS PROMO 💪", members: 187, selected: false },
-  { id: "g4", name: "Mariah Modas ✨", members: 96, selected: false },
-  { id: "g5", name: "SEGREDOS DAS MAMÃES 👶", members: 340, selected: true },
-  { id: "g6", name: "• LÍVIA KIDS •", members: 128, selected: false },
-  { id: "g7", name: "OFERTAS RELÂMPAGO ⚡", members: 780, selected: false },
-  { id: "g8", name: "Cupons Shopee 🧡", members: 462, selected: true },
-  { id: "g9", name: "Casa & Decoração 🏠", members: 156, selected: false },
-  { id: "g10", name: "Beleza em Alta 💄", members: 274, selected: false },
-  { id: "g11", name: "Tech Deals BR 💻", members: 611, selected: false },
-  { id: "g12", name: "PET LOVERS 🐾", members: 198, selected: false },
-  { id: "g13", name: "Livraria Segredo 📚", members: 89, selected: false },
-  { id: "g14", name: "MODA PLUS SIZE 👗", members: 305, selected: false },
-];
-
-const WA_CHANNELS = [
-  { id: "c1", name: "📢 Segredo News", members: 4210, selected: true },
-  { id: "c2", name: "📢 Ofertas Diárias", members: 2870, selected: false },
-  { id: "c3", name: "📢 Cupons Premium", members: 1120, selected: false },
-];
+type WaListItem = {
+  id: string;
+  name: string;
+  members: number | null;
+  selected: boolean;
+  pictureUrl: string | null;
+};
 
 function WhatsAppGroupsPanel() {
   const { id: channelId } = Route.useParams();
+  const listFn = useServerFn(listMonitorGroups);
+  const saveFn = useServerFn(saveMonitorGroups);
+
   const [subTab, setSubTab] = useState<"grupos" | "canais">("grupos");
   const [noImage, setNoImage] = useState(false);
-  const [groups, setGroups] = useState(WA_GROUPS);
-  const [channels, setChannels] = useState(WA_CHANNELS);
+  const [groups, setGroups] = useState<WaListItem[]>([]);
+  const [channels, setChannels] = useState<WaListItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const reload = useCallback(
+    async (mode: "initial" | "refresh") => {
+      if (mode === "refresh") setRefreshing(true);
+      else setLoading(true);
+      try {
+        const rows = await listFn({ data: { channelId } });
+        const mapped: WaListItem[] = rows.map((r) => ({
+          id: r.jid,
+          name: r.name,
+          members: r.participants,
+          selected: r.selected,
+          pictureUrl: r.pictureUrl,
+        }));
+        setGroups(mapped);
+        setChannels([]);
+        if (mode === "refresh") {
+          toast.success(`Lista atualizada — ${mapped.length} grupo(s)`);
+        }
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Falha ao carregar grupos");
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [listFn, channelId],
+  );
+
+  useEffect(() => {
+    void reload("initial");
+  }, [reload]);
 
   const list = subTab === "grupos" ? groups : channels;
   const setList = subTab === "grupos" ? setGroups : setChannels;
   const toggle = (id: string) =>
-    setList((prev: any) => prev.map((g: any) => (g.id === id ? { ...g, selected: !g.selected } : g)));
+    setList((prev) => prev.map((g) => (g.id === id ? { ...g, selected: !g.selected } : g)));
 
   const selectedCount = list.filter((g) => g.selected).length;
+
+  const onSave = async () => {
+    if (subTab !== "grupos") return;
+    setSaving(true);
+    try {
+      const picked = groups
+        .filter((g) => g.selected)
+        .slice(0, 5)
+        .map((g) => ({ jid: g.id, name: g.name, platform: "whatsapp" }));
+      await saveFn({ data: { channelId, groups: picked } });
+      toast.success("Grupos salvos");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao salvar");
+    } finally {
+      setSaving(false);
+    }
+  };
+
 
   return (
     <div className="mt-6 space-y-6">
@@ -2251,8 +2292,14 @@ function WhatsAppGroupsPanel() {
             </button>
           </div>
 
-          <Button variant="outline" size="sm" className="gap-1.5 rounded-lg">
-            <RefreshCw className="h-3.5 w-3.5" /> Atualizar
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5 rounded-lg"
+            onClick={() => void reload("refresh")}
+            disabled={refreshing || loading}
+          >
+            <RefreshCw className={cn("h-3.5 w-3.5", refreshing && "animate-spin")} /> Atualizar
           </Button>
         </div>
 
@@ -2275,45 +2322,59 @@ function WhatsAppGroupsPanel() {
         </div>
 
         <ul className="mt-2 divide-y divide-border/60 overflow-hidden rounded-xl border border-border/60 bg-background/40">
-          {list.map((g) => (
-            <li key={g.id}>
-              <label
-                className={cn(
-                  "flex cursor-pointer items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/50",
-                  g.selected && "bg-[oklch(0.98_0.03_150)]",
-                )}
-              >
-                <span
+          {loading ? (
+            <li className="px-4 py-6 text-center text-[12.5px] text-muted-foreground">Carregando grupos…</li>
+          ) : list.length === 0 ? (
+            <li className="px-4 py-6 text-center text-[12.5px] text-muted-foreground">
+              Nenhum grupo encontrado. Conecte o WhatsApp neste canal e clique em <b>Atualizar</b>.
+            </li>
+          ) : (
+            list.map((g) => (
+              <li key={g.id}>
+                <label
                   className={cn(
-                    "grid h-5 w-5 shrink-0 place-items-center rounded-md border-2 transition-all",
-                    g.selected
-                      ? "border-[oklch(0.55_0.2_155)] bg-[oklch(0.55_0.2_155)] text-white"
-                      : "border-border bg-white",
+                    "flex cursor-pointer items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/50",
+                    g.selected && "bg-[oklch(0.98_0.03_150)]",
                   )}
                 >
-                  {g.selected && <Check className="h-3 w-3" strokeWidth={3.5} />}
-                </span>
-                <input
-                  type="checkbox"
-                  className="sr-only"
-                  checked={g.selected}
-                  onChange={() => toggle(g.id)}
-                />
-                <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[oklch(0.9_0.05_155)] to-[oklch(0.82_0.09_150)] font-display text-[13px] font-bold text-[oklch(0.35_0.15_155)]">
-                  {g.name.replace(/[^A-Za-zÀ-ÿ]/g, "").slice(0, 2).toUpperCase()}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-[13.5px] font-semibold text-foreground">{g.name}</p>
-                  <p className="text-[11.5px] text-muted-foreground">{g.members} membros</p>
-                </div>
-                {g.selected && (
-                  <span className="rounded-full bg-[oklch(0.94_0.08_150)] px-2 py-0.5 text-[10px] font-bold uppercase text-[oklch(0.42_0.15_155)]">
-                    Ativo
+                  <span
+                    className={cn(
+                      "grid h-5 w-5 shrink-0 place-items-center rounded-md border-2 transition-all",
+                      g.selected
+                        ? "border-[oklch(0.55_0.2_155)] bg-[oklch(0.55_0.2_155)] text-white"
+                        : "border-border bg-white",
+                    )}
+                  >
+                    {g.selected && <Check className="h-3 w-3" strokeWidth={3.5} />}
                   </span>
-                )}
-              </label>
-            </li>
-          ))}
+                  <input
+                    type="checkbox"
+                    className="sr-only"
+                    checked={g.selected}
+                    onChange={() => toggle(g.id)}
+                  />
+                  {g.pictureUrl ? (
+                    <img src={g.pictureUrl} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover" />
+                  ) : (
+                    <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[oklch(0.9_0.05_155)] to-[oklch(0.82_0.09_150)] font-display text-[13px] font-bold text-[oklch(0.35_0.15_155)]">
+                      {g.name.replace(/[^A-Za-zÀ-ÿ]/g, "").slice(0, 2).toUpperCase() || "?"}
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[13.5px] font-semibold text-foreground">{g.name}</p>
+                    <p className="text-[11.5px] text-muted-foreground">
+                      {g.members != null ? `${g.members} membros` : "—"}
+                    </p>
+                  </div>
+                  {g.selected && (
+                    <span className="rounded-full bg-[oklch(0.94_0.08_150)] px-2 py-0.5 text-[10px] font-bold uppercase text-[oklch(0.42_0.15_155)]">
+                      Ativo
+                    </span>
+                  )}
+                </label>
+              </li>
+            ))
+          )}
         </ul>
 
         {/* Data saver + save */}
@@ -2340,9 +2401,11 @@ function WhatsAppGroupsPanel() {
 
           <Button
             size="lg"
+            onClick={() => void onSave()}
+            disabled={saving || subTab !== "grupos"}
             className="gap-2 rounded-full bg-primary px-8 shadow-[0_10px_30px_-12px_oklch(0.62_0.19_256/0.6)] hover:bg-primary/90"
           >
-            <Save className="h-4 w-4" /> Salvar configurações
+            <Save className="h-4 w-4" /> {saving ? "Salvando…" : "Salvar configurações"}
           </Button>
         </div>
       </div>
