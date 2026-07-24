@@ -68,6 +68,7 @@ async function countAvailableProducts(
     .select("id", { count: "exact", head: true })
     .eq("user_id", userId)
     .in("platform", lojas)
+    .eq("availability", "active")
     .not("affiliate_link", "is", null);
   return count ?? 0;
 }
