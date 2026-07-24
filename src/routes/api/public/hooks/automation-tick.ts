@@ -172,7 +172,10 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
 
   let product = await pickNext();
 
-  // Ciclo completo: se loop, limpa histórico do ciclo e recomeça; senão, done.
+  // Fim do ciclo:
+  // - Loop ON  → limpa histórico do ciclo e reinicia.
+  // - Loop OFF → encerra a automação como 'done' preservando last_sent_at
+  //              e last_product_name para o painel continuar exibindo.
   if (!product) {
     if (!cfg.post_loop) {
       await admin.from("automation_configs").update({
