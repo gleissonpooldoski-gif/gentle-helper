@@ -523,6 +523,7 @@ export type Database = {
           group_jid: string
           group_name: string
           id: string
+          instance_id: string | null
           is_active: boolean
           platform: string
           updated_at: string
@@ -534,6 +535,7 @@ export type Database = {
           group_jid: string
           group_name: string
           id?: string
+          instance_id?: string | null
           is_active?: boolean
           platform?: string
           updated_at?: string
@@ -545,6 +547,7 @@ export type Database = {
           group_jid?: string
           group_name?: string
           id?: string
+          instance_id?: string | null
           is_active?: boolean
           platform?: string
           updated_at?: string
@@ -556,6 +559,13 @@ export type Database = {
             columns: ["channel_id"]
             isOneToOne: false
             referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "monitored_groups_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
             referencedColumns: ["id"]
           },
           {
