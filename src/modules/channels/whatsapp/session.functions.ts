@@ -29,11 +29,16 @@ export const getWhatsAppSession = createServerFn({ method: "POST" })
   })
   .handler(async ({ data, context }): Promise<WhatsAppSessionDTO | null> => {
     const { supabase, userId } = context;
+    const channelUuid = toUuidOrNull(data.channelId);
+    if (!channelUuid) {
+      console.warn("[WA][session] channelId não-UUID ignorado:", data.channelId);
+      return null;
+    }
     const { data: row, error } = await (supabase as any)
       .from("channel_whatsapp_session_status")
       .select("channel_id,status,phone_number,session_id,connected_at,last_seen_at")
       .eq("user_id", userId)
-      .eq("channel_id", data.channelId)
+      .eq("channel_id", channelUuid)
       .maybeSingle();
     if (error) throw new Error(error.message);
     if (!row) return null;
@@ -46,6 +51,7 @@ export const getWhatsAppSession = createServerFn({ method: "POST" })
       lastSeenAt: row.last_seen_at,
     };
   });
+
 
 export const disconnectWhatsAppSession = createServerFn({ method: "POST" })
   .middleware([apiClient, requireSupabaseAuth])
