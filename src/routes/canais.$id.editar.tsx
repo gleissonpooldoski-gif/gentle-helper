@@ -3446,7 +3446,8 @@ function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {})
     const rows = await listProductsFn({ data: { channelId, platform: "shopee" } });
     setImportedProducts(rows.map(rowToStoredProduct));
     setDeletedIds(new Set());
-  }, [channelId, listProductsFn]);
+    onCountsChanged?.();
+  }, [channelId, listProductsFn, onCountsChanged]);
 
   useEffect(() => {
     void reloadProducts().catch((err) => {
