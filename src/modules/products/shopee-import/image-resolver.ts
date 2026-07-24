@@ -104,7 +104,7 @@ function findMetaImage(html: string): string | null {
 /** Broad CDN URL scan (fallback for HTML that doesn't emit OG tags). */
 function findCdnUrl(html: string): string | null {
   const re =
-    /https?:\/\/(?:[a-z0-9-]+\.)?(?:susercontent\.com|cf\.shopee\.[a-z.]+|shopeemobile\.com)\/file\/[a-z0-9_-]+(?:_tn)?/gi;
+    /https?:\/\/(?:[a-z0-9-]+\.)*(?:susercontent\.com|cf\.shopee\.[a-z.]+|shopeemobile\.com)\/file\/[a-z0-9_-]+(?:_tn)?/gi;
   const matches = html.match(re);
   if (!matches) return null;
   for (const url of matches) if (isValidProductImage(url)) return url;
