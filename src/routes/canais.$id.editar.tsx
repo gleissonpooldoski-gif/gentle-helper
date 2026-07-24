@@ -3890,7 +3890,9 @@ function ShopeePanel() {
       />
       <EditProductModal
         open={editTarget !== null}
+        channelId={channelId}
         target={editTarget}
+
         onClose={() => setEditTarget(null)}
         onSaved={(updated) => {
           setImportedProducts((prev) =>
