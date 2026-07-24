@@ -394,7 +394,7 @@ function EditChannelPage() {
           ) : tab === "wa-grupos" ? (
             <WhatsAppGroupsPanel />
           ) : tab === "wa-monitor" ? (
-            <WhatsAppMonitorPanel />
+            <WhatsAppMonitorPanel channelId={id} />
           ) : tab === "ml" ? (
             <MercadoLivrePanel />
           ) : tab === "shopee" ? (
