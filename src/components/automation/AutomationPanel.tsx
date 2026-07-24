@@ -351,7 +351,7 @@ export function AutomationPanel({ channelId, groupId = null, groupName = null, t
           </label>
 
           <p className="mt-5 mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Lojas ativas
+            Filtro de lojas <span className="normal-case text-muted-foreground/70">(usado só para listar produtos ao adicionar)</span>
           </p>
           <div className="grid grid-cols-2 gap-1.5">
             {STORE_OPTIONS.map((s) => (
@@ -366,6 +366,56 @@ export function AutomationPanel({ channelId, groupId = null, groupName = null, t
               </label>
             ))}
           </div>
+
+          <div className="mt-5">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Produtos deste grupo <span className="ml-1 text-foreground/80">({queue.length})</span>
+              </p>
+              <div className="flex gap-1.5">
+                {queue.length > 0 && (
+                  <Button type="button" size="sm" variant="ghost" onClick={handleClearQueue} className="h-7 px-2 text-[11px] text-red-600 hover:text-red-700">
+                    Limpar
+                  </Button>
+                )}
+                <Button type="button" size="sm" variant="outline" onClick={openPicker} className="h-7 gap-1 px-2 text-[11px]">
+                  <Plus className="h-3 w-3" /> Adicionar
+                </Button>
+              </div>
+            </div>
+            {queue.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-border/60 bg-muted/20 p-4 text-center text-[12px] text-muted-foreground">
+                <Package className="mx-auto mb-1 h-4 w-4 opacity-60" />
+                Nenhum produto na fila. Clique em <b>Adicionar</b> para escolher os produtos deste grupo.
+              </div>
+            ) : (
+              <ul className="max-h-48 space-y-1 overflow-y-auto rounded-lg border border-border/60 bg-background p-2">
+                {queue.map((q, i) => (
+                  <li key={q.id} className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-muted/50">
+                    <span className="w-5 text-[10px] font-semibold text-muted-foreground">{i + 1}</span>
+                    {q.mediaUrl ? (
+                      <img src={q.mediaUrl} alt="" className="h-8 w-8 shrink-0 rounded object-cover" />
+                    ) : (
+                      <div className="h-8 w-8 shrink-0 rounded bg-muted" />
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[12px] font-medium">{q.title}</p>
+                      <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{q.store}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRemove(q.id)}
+                      className="rounded p-1 text-muted-foreground hover:bg-red-500/10 hover:text-red-600"
+                      title="Remover"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
 
           <div className="mt-5 flex gap-2">
             <Button onClick={handleSave} disabled={saving} className="flex-1 h-10">
