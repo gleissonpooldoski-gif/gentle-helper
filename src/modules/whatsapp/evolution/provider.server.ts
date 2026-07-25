@@ -254,6 +254,26 @@ export const evolutionProvider: WhatsAppProvider = {
       .filter((x): x is WhatsAppGroup => !!x);
   },
 
+  async setWebhook(instanceName, webhookUrl, events): Promise<void> {
+    const evs = events ?? ["QRCODE_UPDATED", "CONNECTION_UPDATE", "MESSAGES_UPSERT"];
+    const body = {
+      webhook: { url: webhookUrl, enabled: true, byEvents: false, base64: true, events: evs },
+      // compat com diferentes builds
+      url: webhookUrl,
+      enabled: true,
+      webhook_by_events: false,
+      events: evs,
+    };
+    try {
+      await evolutionJson(`/webhook/set/${encodeURIComponent(instanceName)}`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+    } catch (err) {
+      console.warn("[WA] setWebhook falhou:", (err as Error).message);
+    }
+  },
+
   async sendText(instanceName, jid, text): Promise<{ id?: string }> {
     const number = jid.includes("@") ? jid.split("@")[0] : jid;
     const res = await evolutionJson<any>(
