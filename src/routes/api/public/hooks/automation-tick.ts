@@ -198,7 +198,9 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
     if (!product) {
       await admin.from("automation_configs").update({
         status: "error",
-        last_error: "Nenhum produto ativo/válido nas lojas selecionadas",
+        last_error: cfg.group_id
+          ? "Nenhum produto capturado deste grupo disponível para envio"
+          : "Nenhum produto ativo/válido nas lojas selecionadas",
         next_run_at: new Date(Date.now() + cfg.intervalo_min * 60_000).toISOString(),
       }).eq("id", cfg.id);
       return;
