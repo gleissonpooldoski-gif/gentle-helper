@@ -150,7 +150,8 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
       .limit(30);
 
     if (cfg.group_id) {
-      q = q.eq("source_group_jid", cfg.group_id);
+      // Elegíveis: capturados do próprio grupo OU importados no canal (sem grupo de origem).
+      q = q.or(`source_group_jid.eq.${cfg.group_id},source_group_jid.is.null`);
     }
 
     if (excluded.size > 0) {
