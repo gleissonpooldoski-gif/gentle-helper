@@ -64,10 +64,28 @@ export interface AutomationPanelProps {
   groupId?: string | null;
   groupName?: string | null;
   instanceId?: string | null;
+  instanceName?: string | null;
+  instancePhone?: string | null;
+  instanceStatus?: string | null;
   title?: string;
+  productTotal?: number | null;
+  bare?: boolean;
+  onCancel?: () => void;
 }
 
-export function AutomationPanel({ channelId, groupId = null, groupName = null, instanceId: seedInstanceId = null, title }: AutomationPanelProps) {
+export function AutomationPanel({
+  channelId,
+  groupId = null,
+  groupName = null,
+  instanceId: seedInstanceId = null,
+  instanceName = null,
+  instancePhone = null,
+  instanceStatus = null,
+  title,
+  productTotal = null,
+  bare = false,
+  onCancel,
+}: AutomationPanelProps) {
   const getFn = useServerFn(getAutomationConfig);
   const saveFn = useServerFn(saveAutomationConfig);
   const startFn = useServerFn(startAutomation);
@@ -214,15 +232,52 @@ export function AutomationPanel({ channelId, groupId = null, groupName = null, i
     }
   };
 
+  const isConnected = (instanceStatus ?? "").toLowerCase() === "connected";
+  const wrapperCls = bare
+    ? ""
+    : "rounded-2xl border border-border/70 bg-card p-5";
+
   return (
-    <div className="rounded-2xl border border-border/70 bg-card p-5">
+    <div className={wrapperCls}>
+      {(instanceName || instancePhone) && (
+        <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-muted/30 px-4 py-3">
+          <div className="min-w-0">
+            <p className="text-[10.5px] font-semibold uppercase tracking-wider text-muted-foreground">
+              WhatsApp responsável
+            </p>
+            <p className="mt-0.5 truncate text-sm font-semibold text-foreground">
+              {instancePhone ?? instanceName}
+            </p>
+            {instancePhone && instanceName && (
+              <p className="truncate text-[11px] text-muted-foreground">{instanceName}</p>
+            )}
+          </div>
+          <span
+            className={cn(
+              "inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold",
+              isConnected
+                ? "bg-emerald-500/15 text-emerald-700"
+                : "bg-amber-500/15 text-amber-700",
+            )}
+          >
+            <span
+              className={cn(
+                "h-2 w-2 rounded-full",
+                isConnected ? "bg-emerald-500 animate-pulse" : "bg-amber-500",
+              )}
+            />
+            {isConnected ? "Conectado" : instanceStatus ?? "Offline"}
+          </span>
+        </div>
+      )}
+
       <div className="mb-4 flex items-center justify-between gap-2">
         <div className="min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            {title ?? "Frequência e loop"}
+            {title ?? "Configuração da automação"}
           </p>
           {groupName && (
-            <p className="mt-0.5 truncate text-[12px] font-medium text-foreground/80" title={groupName}>
+            <p className="mt-0.5 truncate text-[13px] font-medium text-foreground" title={groupName}>
               {groupName}
             </p>
           )}
@@ -357,20 +412,25 @@ export function AutomationPanel({ channelId, groupId = null, groupName = null, i
             Nenhum produto é repetido antes que todos tenham sido publicados neste grupo.
           </p>
 
-          <div className="mt-5 flex gap-2">
-            <Button onClick={handleSave} disabled={saving} className="flex-1 h-10">
+          <div className="mt-5 flex flex-wrap gap-2">
+            {onCancel && (
+              <Button type="button" variant="ghost" onClick={onCancel} className="h-10">
+                Cancelar
+              </Button>
+            )}
+            <Button onClick={handleSave} disabled={saving} variant="outline" className="flex-1 h-10">
               {saving ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Save className="mr-1.5 h-4 w-4" />}
-              Salvar
+              Salvar alterações
             </Button>
             {cfg?.status === "running" || cfg?.status === "waiting" || cfg?.status === "error" ? (
-              <Button onClick={handleStop} disabled={busy} variant="outline" className="flex-1 h-10">
+              <Button onClick={handleStop} disabled={busy} variant="destructive" className="flex-1 h-10">
                 {busy ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Square className="mr-1.5 h-4 w-4" />}
-                Parar
+                Parar automação
               </Button>
             ) : (
               <Button onClick={handleStart} disabled={busy} className="flex-1 h-10 bg-emerald-600 hover:bg-emerald-700">
                 {busy ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Play className="mr-1.5 h-4 w-4" />}
-                Iniciar
+                Iniciar automação
               </Button>
             )}
           </div>
