@@ -471,7 +471,7 @@ async function captureOne(
   // Dedup rápido por link bruto ou item_id neste canal.
   const { data: existing } = await ctx.supabase
     .from("products")
-    .select("id, image_url, title")
+    .select("id, image_url, title, promo_price, original_price")
     .eq("user_id", ctx.userId)
     .eq("channel_id", ctx.channelId)
     .eq("platform", finalPlatform)
@@ -516,6 +516,24 @@ async function captureOne(
   // Se DE e POR forem iguais, não é desconto real — descarta o "DE".
   if (priceBefore != null && price != null && priceBefore <= price) priceBefore = null;
 
+  // === Lógica inteligente de promoção ===
+  // 1) Compara preço atual com o último preço salvo (queda histórica).
+  // 2) Se o scraper não trouxe priceBefore, mas o preço caiu vs histórico,
+  //    usa o preço antigo como "DE:".
+  const prevPrice = existing?.promo_price != null ? Number(existing.promo_price) : null;
+  const priceDropped = prevPrice != null && price != null && price < prevPrice;
+  let effectiveOriginal = priceBefore;
+  if (effectiveOriginal == null && priceDropped) {
+    effectiveOriginal = prevPrice;
+  }
+  const isDiscount =
+    effectiveOriginal != null && price != null && effectiveOriginal > price;
+  const discountPct = isDiscount
+    ? Math.round(((effectiveOriginal! - price!) / effectiveOriginal!) * 100)
+    : null;
+  const priceChanged =
+    price != null && prevPrice != null && Number(prevPrice) !== Number(price);
+
   const affiliate = await buildAffiliateLink(ctx.supabase, ctx.userId, finalPlatform, resolved);
   const finalTitle = (title ?? existing?.title ?? "Produto capturado").slice(0, 300);
 
@@ -528,8 +546,11 @@ async function captureOne(
     image_url: image ?? existing?.image_url ?? null,
     raw_link: resolved,
     affiliate_link: affiliate,
-    original_price: priceBefore,
+    original_price: effectiveOriginal,
     promo_price: price,
+    discount_percentage: discountPct,
+    is_discount: isDiscount,
+    price_changed_at: priceChanged ? new Date().toISOString() : undefined,
     sales: sold,
     sales_label: soldLabel,
     availability: "active" as const,
@@ -538,11 +559,14 @@ async function captureOne(
     source_group_name: ctx.groupName,
   };
 
-  const { error } = await ctx.supabase
+  const { data: upserted, error } = await ctx.supabase
     .from("products")
-    .upsert(payload as never, { onConflict: "user_id,channel_id,platform,item_id" });
+    .upsert(payload as never, { onConflict: "user_id,channel_id,platform,item_id" })
+    .select("id")
+    .maybeSingle();
 
   if (error) {
+
     console.error("[MONITOR] upsert error", error.message);
     return "skipped";
   }
