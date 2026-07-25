@@ -59,10 +59,13 @@ export async function testConnection(input: {
   followers?: number;
   mediaCount?: number;
 }> {
-  const token = await resolvePageToken({ token: input.token, pageId: input.pageId });
+  // A Page token can query the linked Instagram account directly. Do not
+  // query the Facebook Page or request engagement fields during the health
+  // check: both add an unrelated pages_read_engagement requirement and can
+  // reject an otherwise valid Instagram connection with Meta error #10.
   return gfetch(`/${input.igId}`, {
-    access_token: token,
-    fields: "username,name,followers_count,media_count",
+    access_token: input.token,
+    fields: "id,username,name",
   }) as any;
 }
 
