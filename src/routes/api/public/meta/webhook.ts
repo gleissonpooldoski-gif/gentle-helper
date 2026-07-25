@@ -24,6 +24,13 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
       POST: async ({ request }) => {
         const started = Date.now();
         const bodyText = await request.text();
+
+        // Verificação HMAC-SHA256 obrigatória (Meta manda x-hub-signature-256).
+        const sig = request.headers.get("x-hub-signature-256");
+        if (!verifyMetaSignature(bodyText, sig)) {
+          return new Response("bad signature", { status: 401 });
+        }
+
         let payload: any = null;
         try {
           payload = JSON.parse(bodyText);
