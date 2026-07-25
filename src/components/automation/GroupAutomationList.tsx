@@ -84,40 +84,43 @@ export function GroupAutomationList({ channelId }: { channelId: string }) {
 
   return (
     <>
-      <div className="space-y-4">
+      <div className="space-y-6">
         {grouped.map(([instanceId, block]) => (
-          <div key={instanceId} className="rounded-2xl border border-border/70 bg-card p-5">
-            <div className="mb-3 flex items-center justify-between gap-2">
+          <section key={instanceId} className="space-y-3">
+            <header className="flex items-center justify-between gap-3 px-1">
               <div className="flex min-w-0 items-center gap-2">
-                <span className="grid h-8 w-8 place-items-center rounded-lg bg-emerald-500/15 text-emerald-600">
-                  <Smartphone className="h-4 w-4" />
+                <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-emerald-500/15 text-emerald-600">
+                  <Smartphone className="h-3.5 w-3.5" />
                 </span>
                 <div className="min-w-0">
-                  <p className="truncate text-[13px] font-semibold text-foreground">
+                  <p className="truncate text-[12px] font-semibold text-foreground">
                     {block.instancePhone ?? block.instanceName}
                   </p>
-                  <p className="truncate text-[11px] text-muted-foreground">
+                  <p className="truncate text-[10.5px] text-muted-foreground">
                     {block.instanceName}
                     {block.instanceStatus === "connected" ? " · ✅ Conectado" : ""}
                   </p>
                 </div>
               </div>
-              <span className="text-[11px] text-muted-foreground">{block.items.length} grupo(s)</span>
-            </div>
-            <ul className="space-y-2">
+              <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10.5px] font-medium text-muted-foreground">
+                {block.items.length} grupo(s)
+              </span>
+            </header>
+
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {block.items.map((g, i) => (
-                <li
+                <div
                   key={`${g.instanceId}:${g.groupId}`}
-                  className="flex items-center gap-3 rounded-xl border border-border/60 bg-background p-3"
+                  className="flex items-center gap-3 rounded-2xl border border-border/70 bg-card p-4 transition hover:border-primary/40 hover:shadow-sm"
                 >
-                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-[11px] font-bold text-primary">
+                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-[11px] font-bold text-primary">
                     G{i + 1}
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[13px] font-semibold text-foreground" title={g.groupName ?? g.groupId}>
                       {g.groupName ?? g.groupId}
                     </p>
-                    <p className="truncate text-[11.5px] text-muted-foreground">
+                    <p className="truncate text-[11px] text-muted-foreground">
                       Automação independente
                     </p>
                   </div>
@@ -125,17 +128,18 @@ export function GroupAutomationList({ channelId }: { channelId: string }) {
                     type="button"
                     size="sm"
                     variant="outline"
-                    className="gap-1.5"
+                    className="shrink-0 gap-1.5"
                     onClick={() => setOpen(g)}
                   >
                     <Pencil className="h-3.5 w-3.5" /> Editar
                   </Button>
-                </li>
+                </div>
               ))}
-            </ul>
-          </div>
+            </div>
+          </section>
         ))}
       </div>
+
 
       <Dialog open={!!open} onOpenChange={(v) => !v && setOpen(null)}>
         <DialogContent className="max-w-lg">
