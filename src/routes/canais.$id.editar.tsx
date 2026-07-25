@@ -994,6 +994,7 @@ function LayoutPostPanel({ channelId }: { channelId: string }) {
   const [saving, setSaving] = useState(false);
   const [variations, setVariations] = useState<HeaderVariation[]>([]);
   const [newVariation, setNewVariation] = useState("");
+  const [newVariationType, setNewVariationType] = useState<"normal" | "discount">("normal");
   const [addingVar, setAddingVar] = useState(false);
   const [testPhone, setTestPhone] = useState("");
   const [testing, setTesting] = useState(false);
