@@ -130,11 +130,15 @@ export function renderPost(
   // só está preenchido quando existe um preço original real, distinto do atual.
   const originalNum = Number(String(product.price_original ?? "").replace(/[^\d.,-]/g, "").replace(",", "."));
   const promoNum = Number(String(product.price ?? "").replace(/[^\d.,-]/g, "").replace(",", "."));
+  const hasRealDiscount =
+    Number.isFinite(originalNum) &&
+    Number.isFinite(promoNum) &&
+    originalNum > promoNum;
   const showOriginal =
     !layout.hide_original &&
     !!vars.price_original &&
     !!vars.price &&
-    !(Number.isFinite(originalNum) && Number.isFinite(promoNum) && originalNum === promoNum);
+    hasRealDiscount;
   if (showOriginal && layout.original_price_template) {
     blocks.push(fill(layout.original_price_template, vars));
   }
@@ -144,6 +148,19 @@ export function renderPost(
   if (vars.price && layout.price_template) {
     blocks.push(fill(layout.price_template, vars));
   }
+  // Linha de "% OFF" — só quando há desconto real.
+  // Prioriza o discount vindo do produto (calculado na captura); calcula on-the-fly quando ausente.
+  let discountPct: number | null = null;
+  if (product.discount != null && String(product.discount) !== "") {
+    const d = Number(String(product.discount).replace(/[^\d.-]/g, ""));
+    if (Number.isFinite(d) && d > 0) discountPct = Math.round(d);
+  } else if (hasRealDiscount) {
+    discountPct = Math.round(((originalNum - promoNum) / originalNum) * 100);
+  }
+  if (discountPct != null && discountPct > 0 && hasRealDiscount) {
+    blocks.push(`🔥 <b>${discountPct}% OFF</b> 🔥`);
+  }
+
   if (vars.link && layout.link_template) {
     blocks.push(fill(layout.link_template, vars));
   }
