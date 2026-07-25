@@ -45,7 +45,7 @@ export async function handleInstagramWebhook(payload: any): Promise<void> {
       if (fromId) {
         try {
           await sendDirectMessage({
-            igId: conn.instagram_account_id, token, recipientId: fromId,
+            igId: igId, token, recipientId: fromId,
             text: buildProductText(product),
             buttonUrl: (product.affiliate_link ?? product.raw_link) || undefined,
             buttonTitle: "VER PARA COMPRAR",
@@ -73,7 +73,7 @@ export async function handleInstagramWebhook(payload: any): Promise<void> {
       if (!product) continue;
       try {
         await sendDirectMessage({
-          igId: conn.instagram_account_id, token, recipientId: senderId,
+          igId: igId, token, recipientId: senderId,
           text: buildProductText(product),
           buttonUrl: (product.affiliate_link ?? product.raw_link) || undefined,
           buttonTitle: "VER PARA COMPRAR",
