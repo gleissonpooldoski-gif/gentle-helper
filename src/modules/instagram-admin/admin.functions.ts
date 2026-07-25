@@ -243,21 +243,33 @@ export const listInstagramAutomations = createServerFn({ method: "GET" })
 
 export const saveInstagramAutomation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { id?: string; keyword: string; message: string; enabled?: boolean }) =>
-    z
-      .object({
-        id: z.string().uuid().optional(),
-        keyword: z.string().min(1).max(80),
-        message: z.string().min(1).max(2000),
-        enabled: z.boolean().optional(),
-      })
-      .parse(d),
+  .inputValidator(
+    (d: {
+      id?: string;
+      keyword: string;
+      message: string;
+      enabled?: boolean;
+      product_id?: string;
+      scope?: "both" | "comment" | "message";
+    }) =>
+      z
+        .object({
+          id: z.string().uuid().optional(),
+          keyword: z.string().min(1).max(80),
+          message: z.string().min(1).max(2000),
+          enabled: z.boolean().optional(),
+          product_id: z.string().uuid().optional(),
+          scope: z.enum(["both", "comment", "message"]).optional(),
+        })
+        .parse(d),
   )
   .handler(async ({ data, context }) => {
-    const payload = {
+    const payload: any = {
       keyword: data.keyword.trim().toLowerCase(),
       message: data.message,
       enabled: data.enabled ?? true,
+      product_id: data.product_id ?? null,
+      scope: data.scope ?? "both",
     };
     if (data.id) {
       const { error } = await (context.supabase as any)
@@ -297,3 +309,311 @@ export const listInstagramLogs = createServerFn({ method: "GET" })
     if (error) throw error;
     return data ?? [];
   });
+
+/* ---- Products (affiliate) ---- */
+
+export const listInstagramProducts = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data, error } = await (context.supabase as any)
+      .from("products")
+      .select(
+        "id,title,image_url,original_price,promo_price,affiliate_link,raw_link,store_name,category,availability,created_at",
+      )
+      .order("created_at", { ascending: false })
+      .limit(200);
+    if (error) throw error;
+    return data ?? [];
+  });
+
+/* ---- Story Templates (Fabric.js) ---- */
+
+const templateInput = z.object({
+  id: z.string().uuid().optional(),
+  name: z.string().min(1).max(80),
+  fabric_json: z.any(),
+  image_url: z.string().url().optional().or(z.literal("")),
+  is_default: z.boolean().optional(),
+});
+
+export const listStoryTemplates = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data, error } = await (context.supabase as any)
+      .from("instagram_story_templates")
+      .select("id,name,fabric_json,image_url,is_default,active,created_at,updated_at")
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    return data ?? [];
+  });
+
+export const saveStoryTemplate = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: z.infer<typeof templateInput>) => templateInput.parse(d))
+  .handler(async ({ data, context }) => {
+    const payload = {
+      name: data.name,
+      fabric_json: data.fabric_json,
+      image_url: data.image_url || "",
+      is_default: data.is_default ?? false,
+      user_id: context.userId,
+      channel_id: context.userId, // single-admin: reuse userId as channel scope
+      title_color: "#ffffff",
+      price_color: "#22c55e",
+      caption_template: "",
+      active: true,
+    };
+    if (data.is_default) {
+      await (context.supabase as any)
+        .from("instagram_story_templates")
+        .update({ is_default: false })
+        .neq("id", data.id ?? "00000000-0000-0000-0000-000000000000");
+    }
+    if (data.id) {
+      const { error } = await (context.supabase as any)
+        .from("instagram_story_templates")
+        .update({
+          name: payload.name,
+          fabric_json: payload.fabric_json,
+          image_url: payload.image_url,
+          is_default: payload.is_default,
+        })
+        .eq("id", data.id);
+      if (error) throw error;
+      return { ok: true, id: data.id };
+    } else {
+      const { data: row, error } = await (context.supabase as any)
+        .from("instagram_story_templates")
+        .insert(payload)
+        .select("id")
+        .single();
+      if (error) throw error;
+      return { ok: true, id: row.id };
+    }
+  });
+
+export const deleteStoryTemplate = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { error } = await (context.supabase as any)
+      .from("instagram_story_templates")
+      .delete()
+      .eq("id", data.id);
+    if (error) throw error;
+    return { ok: true };
+  });
+
+/* ---- Campaigns: publish story from product ---- */
+
+const publishCampaignInput = z.object({
+  productId: z.string().uuid(),
+  templateId: z.string().uuid().optional(),
+  imageBase64: z.string().min(100), // data URL or raw base64 PNG
+  keyword: z.string().max(80).optional(),
+  message: z.string().max(2000).optional(),
+});
+
+export const publishStoryCampaign = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: z.infer<typeof publishCampaignInput>) => publishCampaignInput.parse(d))
+  .handler(async ({ data, context }) => {
+    const start = Date.now();
+    const { loadSettings } = await import("./settings.server");
+    const { publishStory } = await import("./graph.server");
+    const settings = await loadSettings();
+    if (!settings) throw new Error("Configure a conta Instagram primeiro.");
+
+    const { data: prod, error: pErr } = await (context.supabase as any)
+      .from("products")
+      .select("id,title,affiliate_link,raw_link,image_url")
+      .eq("id", data.productId)
+      .maybeSingle();
+    if (pErr) throw pErr;
+    if (!prod) throw new Error("Produto não encontrado");
+    const affiliateLink: string = prod.affiliate_link || prod.raw_link;
+
+    // Decode base64 → bytes
+    const b64 = data.imageBase64.includes(",")
+      ? data.imageBase64.split(",")[1]
+      : data.imageBase64;
+    const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const filename = `story-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.png`;
+    const { error: upErr } = await (supabaseAdmin as any).storage
+      .from("story-images")
+      .upload(filename, bytes, { contentType: "image/png", upsert: false });
+    if (upErr) throw upErr;
+    const { data: signed, error: signErr } = await (supabaseAdmin as any).storage
+      .from("story-images")
+      .createSignedUrl(filename, 60 * 60);
+    if (signErr) throw signErr;
+    const imageUrl: string = signed.signedUrl;
+
+    let storyId = "";
+    let error: string | null = null;
+    try {
+      storyId = await publishStory({
+        igId: settings.instagramBusinessId,
+        token: settings.accessToken,
+        imageUrl,
+      });
+    } catch (e: any) {
+      error = e?.message ?? "Falha ao publicar";
+    }
+
+    await (context.supabase as any).from("instagram_campaigns").insert({
+      story_id: storyId || null,
+      product_id: data.productId,
+      template_id: data.templateId ?? null,
+      keyword: (data.keyword ?? "").toLowerCase() || null,
+      message: data.message ?? "",
+      affiliate_link: affiliateLink,
+      status: error ? "failed" : "published",
+      error,
+      published_at: error ? null : new Date().toISOString(),
+    });
+
+    await (context.supabase as any).from("instagram_logs").insert({
+      type: error ? "story_publish_failed" : "story_published",
+      payload: { productId: data.productId, storyId, error },
+      latency_ms: Date.now() - start,
+    });
+
+    if (error) throw new Error(error);
+    return { ok: true, storyId };
+  });
+
+export const listInstagramCampaigns = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data, error } = await (context.supabase as any)
+      .from("instagram_campaigns")
+      .select(
+        "id,story_id,product_id,template_id,keyword,message,affiliate_link,status,error,published_at,created_at",
+      )
+      .order("created_at", { ascending: false })
+      .limit(50);
+    if (error) throw error;
+    return data ?? [];
+  });
+
+/* ---- Dashboard stats + Diagnostics ---- */
+
+export const getInstagramDashboardStats = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const since = new Date();
+    since.setHours(0, 0, 0, 0);
+    const isoDay = since.toISOString();
+
+    const [{ data: pubs }, { data: dms }, { data: comments }, { data: autoRuns }, { data: top }] =
+      await Promise.all([
+        (context.supabase as any)
+          .from("instagram_campaigns")
+          .select("id")
+          .gte("published_at", isoDay)
+          .eq("status", "published"),
+        (context.supabase as any)
+          .from("instagram_logs")
+          .select("id")
+          .eq("type", "dm_auto_sent")
+          .gte("created_at", isoDay),
+        (context.supabase as any)
+          .from("instagram_comments")
+          .select("id")
+          .not("reply", "is", null)
+          .gte("replied_at", isoDay),
+        (context.supabase as any)
+          .from("instagram_logs")
+          .select("id")
+          .in("type", ["dm_auto_sent", "comment_auto_replied", "story_reply_auto_dm"])
+          .gte("created_at", isoDay),
+        (context.supabase as any)
+          .from("instagram_campaigns")
+          .select("product_id")
+          .eq("status", "published")
+          .gte("created_at", new Date(Date.now() - 7 * 86400000).toISOString()),
+      ]);
+
+    const topMap = new Map<string, number>();
+    for (const r of top ?? []) if (r.product_id) topMap.set(r.product_id, (topMap.get(r.product_id) ?? 0) + 1);
+    const topIds = [...topMap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
+    let topProducts: Array<{ id: string; title: string; count: number }> = [];
+    if (topIds.length) {
+      const { data: rows } = await (context.supabase as any)
+        .from("products")
+        .select("id,title")
+        .in("id", topIds.map(([id]) => id));
+      const nm = new Map<string, string>((rows ?? []).map((r: any) => [r.id, r.title]));
+      topProducts = topIds.map(([id, count]) => ({ id, title: nm.get(id) ?? "—", count }));
+    }
+
+    const responseRate = (dms?.length ?? 0) + (comments?.length ?? 0);
+    return {
+      storiesToday: pubs?.length ?? 0,
+      commentsReplied: comments?.length ?? 0,
+      dmsSent: dms?.length ?? 0,
+      automationsRun: autoRuns?.length ?? 0,
+      responseRate,
+      topProducts,
+    };
+  });
+
+export const getInstagramDiagnostics = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { loadSettings } = await import("./settings.server");
+    const { testConnection } = await import("./graph.server");
+    const s = await loadSettings();
+    if (!s) return { configured: false } as const;
+
+    let conn: any = null;
+    let error: string | null = null;
+    try {
+      conn = await testConnection({
+        igId: s.instagramBusinessId,
+        token: s.accessToken,
+        pageId: s.facebookPageId,
+      });
+    } catch (e: any) {
+      error = e?.message ?? "Falha";
+    }
+
+    const [{ data: lastStory }, { data: lastDm }, { data: lastComment }] = await Promise.all([
+      (context.supabase as any)
+        .from("instagram_campaigns")
+        .select("published_at")
+        .eq("status", "published")
+        .order("published_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      (context.supabase as any)
+        .from("instagram_logs")
+        .select("created_at")
+        .eq("type", "dm_auto_sent")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      (context.supabase as any)
+        .from("instagram_comments")
+        .select("replied_at")
+        .not("reply", "is", null)
+        .order("replied_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ]);
+
+    return {
+      configured: true,
+      error,
+      info: conn,
+      businessId: s.instagramBusinessId,
+      pageId: s.facebookPageId,
+      lastStoryAt: lastStory?.published_at ?? null,
+      lastDmAt: lastDm?.created_at ?? null,
+      lastCommentAt: lastComment?.replied_at ?? null,
+    };
+  });
+

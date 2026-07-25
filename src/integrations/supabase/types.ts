@@ -572,6 +572,8 @@ export type Database = {
           id: string
           keyword: string
           message: string
+          product_id: string | null
+          scope: string
           updated_at: string
         }
         Insert: {
@@ -580,6 +582,8 @@ export type Database = {
           id?: string
           keyword: string
           message: string
+          product_id?: string | null
+          scope?: string
           updated_at?: string
         }
         Update: {
@@ -588,9 +592,72 @@ export type Database = {
           id?: string
           keyword?: string
           message?: string
+          product_id?: string | null
+          scope?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "instagram_automations_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      instagram_campaigns: {
+        Row: {
+          affiliate_link: string | null
+          created_at: string
+          error: string | null
+          id: string
+          keyword: string | null
+          message: string
+          product_id: string | null
+          published_at: string | null
+          status: string
+          story_id: string | null
+          template_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          affiliate_link?: string | null
+          created_at?: string
+          error?: string | null
+          id?: string
+          keyword?: string | null
+          message?: string
+          product_id?: string | null
+          published_at?: string | null
+          status?: string
+          story_id?: string | null
+          template_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          affiliate_link?: string | null
+          created_at?: string
+          error?: string | null
+          id?: string
+          keyword?: string | null
+          message?: string
+          product_id?: string | null
+          published_at?: string | null
+          status?: string
+          story_id?: string | null
+          template_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "instagram_campaigns_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       instagram_comments: {
         Row: {
@@ -808,18 +875,21 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          latency_ms: number | null
           payload: Json | null
           type: string
         }
         Insert: {
           created_at?: string
           id?: string
+          latency_ms?: number | null
           payload?: Json | null
           type: string
         }
         Update: {
           created_at?: string
           id?: string
+          latency_ms?: number | null
           payload?: Json | null
           type?: string
         }
@@ -969,8 +1039,11 @@ export type Database = {
           caption_template: string
           channel_id: string
           created_at: string
+          fabric_json: Json | null
           id: string
           image_url: string
+          is_default: boolean
+          name: string
           price_color: string
           title_color: string
           updated_at: string
@@ -981,8 +1054,11 @@ export type Database = {
           caption_template?: string
           channel_id: string
           created_at?: string
+          fabric_json?: Json | null
           id?: string
           image_url: string
+          is_default?: boolean
+          name?: string
           price_color?: string
           title_color?: string
           updated_at?: string
@@ -993,8 +1069,11 @@ export type Database = {
           caption_template?: string
           channel_id?: string
           created_at?: string
+          fabric_json?: Json | null
           id?: string
           image_url?: string
+          is_default?: boolean
+          name?: string
           price_color?: string
           title_color?: string
           updated_at?: string
