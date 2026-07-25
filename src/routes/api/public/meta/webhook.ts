@@ -1,4 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { verifyMetaSignature } from "@/lib/public-auth.server";
+
 
 /**
  * Meta webhook (single-account Instagram Admin).
