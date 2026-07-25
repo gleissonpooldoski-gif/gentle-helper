@@ -1,0 +1,1 @@
+ALTER TABLE public.instagram_story_templates ALTER COLUMN channel_id DROP NOT NULL;
