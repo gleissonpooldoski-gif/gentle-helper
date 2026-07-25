@@ -2084,7 +2084,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      try_lock_automation_config: {
+        Args: { _config_id: string }
+        Returns: boolean
+      }
+      unlock_automation_config: {
+        Args: { _config_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never
