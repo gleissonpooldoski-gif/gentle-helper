@@ -197,13 +197,30 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
     }
   }
 
-  // Localiza a instância padrão do usuário para descobrir grupos alvo.
-  const { data: inst } = await admin
-    .from("whatsapp_instances")
-    .select("id, instance_name")
-    .eq("user_id", cfg.user_id)
-    .eq("instance_name", DEFAULT_INSTANCE)
-    .maybeSingle();
+  // Localiza a instância WhatsApp que enviará os posts.
+  // Se `cfg.instance_id` estiver definido, usa aquela instância específica;
+  // caso contrário cai para a instância padrão DIVULGA LINKS.
+  let inst: { id: string; instance_name: string } | null = null;
+  if (cfg.instance_id) {
+    const { data: row } = await admin
+      .from("whatsapp_instances")
+      .select("id, instance_name")
+      .eq("user_id", cfg.user_id)
+      .eq("id", cfg.instance_id)
+      .maybeSingle();
+    if (row) inst = row as any;
+  }
+  if (!inst) {
+    const { data: row } = await admin
+      .from("whatsapp_instances")
+      .select("id, instance_name")
+      .eq("user_id", cfg.user_id)
+      .eq("instance_name", DEFAULT_INSTANCE)
+      .maybeSingle();
+    if (row) inst = row as any;
+  }
+
+  const instanceName = inst?.instance_name ?? DEFAULT_INSTANCE;
 
   let groups: Array<{ group_jid: string; group_name: string | null }> = [];
   if (cfg.group_id) {
@@ -221,7 +238,7 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
   if (groups.length === 0) {
     await admin.from("automation_configs").update({
       status: "error",
-      last_error: "Nenhum grupo selecionado para DIVULGA LINKS",
+      last_error: `Nenhum grupo selecionado para ${instanceName}`,
       next_run_at: new Date(Date.now() + cfg.intervalo_min * 60_000).toISOString(),
     }).eq("id", cfg.id);
     return;
@@ -230,7 +247,7 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
   // Valida conexão
   let state = "";
   try {
-    state = await connectionState(DEFAULT_INSTANCE);
+    state = await connectionState(instanceName);
   } catch (err) {
     await admin.from("automation_configs").update({
       status: "error",
@@ -246,7 +263,7 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
       product_id: product.id,
       product_name: product.title,
       store: product.platform,
-      instance_name: DEFAULT_INSTANCE,
+      instance_name: instanceName,
       media_url: product.image_url,
       status: "failed",
       error_message: `WhatsApp desconectado (state=${state || "unknown"})`,
