@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import {
   deleteInstagramAutomation,
   listInstagramAutomations,
+  listInstagramProducts,
   saveInstagramAutomation,
 } from "@/modules/instagram-admin/admin.functions";
 import { InstagramLayout } from "./instagram";
@@ -16,18 +17,31 @@ function Page() {
   const list = useServerFn(listInstagramAutomations);
   const save = useServerFn(saveInstagramAutomation);
   const del = useServerFn(deleteInstagramAutomation);
+  const listProducts = useServerFn(listInstagramProducts);
+
   const { data, isLoading } = useQuery({
     queryKey: ["ig-admin", "automations"],
     queryFn: () => list(),
   });
+  const products = useQuery({ queryKey: ["ig-admin", "products"], queryFn: () => listProducts() });
 
   const [keyword, setKeyword] = useState("");
   const [message, setMessage] = useState(
     "Olá 👋\n\nSegue sua promoção:\n{{affiliate_link}}",
   );
+  const [productId, setProductId] = useState("");
+  const [scope, setScope] = useState<"both" | "comment" | "message">("both");
 
   const saveMut = useMutation({
-    mutationFn: () => save({ data: { keyword, message } }),
+    mutationFn: () =>
+      save({
+        data: {
+          keyword,
+          message,
+          product_id: productId || undefined,
+          scope,
+        } as any,
+      }),
     onSuccess: () => {
       toast.success("Automação salva");
       setKeyword("");
@@ -38,109 +52,104 @@ function Page() {
 
   const delMut = useMutation({
     mutationFn: (id: string) => del({ data: { id } }),
-    onSuccess: () => {
-      toast.success("Automação removida");
-      qc.invalidateQueries({ queryKey: ["ig-admin", "automations"] });
-    },
-  });
-
-  const toggle = useMutation({
-    mutationFn: (r: { id: string; keyword: string; message: string; enabled: boolean }) =>
-      save({ data: r }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["ig-admin", "automations"] }),
   });
 
   return (
     <InstagramLayout>
       <div className="grid gap-6 lg:grid-cols-2">
-        <section className="rounded-2xl border border-border/70 bg-card p-6">
+        <div className="rounded-2xl border border-border/70 bg-card p-6">
           <h2 className="mb-4 text-lg font-semibold">Nova automação</h2>
-          <label className="mb-3 block">
-            <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Palavra-chave
-            </span>
-            <input
-              value={keyword}
-              onChange={(e) => setKeyword(e.target.value)}
-              placeholder="link"
-              className="w-full rounded-lg border border-border/70 bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none"
-            />
-          </label>
-          <label className="mb-3 block">
-            <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Mensagem automática
-            </span>
-            <textarea
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              rows={5}
-              className="w-full rounded-lg border border-border/70 bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none"
-            />
-            <span className="mt-1 block text-xs text-muted-foreground">
-              Use {"{{"}affiliate_link{"}}"} para o link.
-            </span>
-          </label>
-          <button
-            type="button"
-            onClick={() => saveMut.mutate()}
-            disabled={saveMut.isPending || !keyword || !message}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
-          >
-            {saveMut.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-            Salvar
-          </button>
-        </section>
+          <div className="space-y-3">
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold uppercase text-muted-foreground">Palavra-chave</span>
+              <input
+                value={keyword}
+                onChange={(e) => setKeyword(e.target.value)}
+                placeholder="link"
+                className="w-full rounded-lg border border-border/70 bg-background px-3 py-2 text-sm"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold uppercase text-muted-foreground">Escopo</span>
+              <select
+                value={scope}
+                onChange={(e) => setScope(e.target.value as any)}
+                className="w-full rounded-lg border border-border/70 bg-background px-3 py-2 text-sm"
+              >
+                <option value="both">Comentário + DM</option>
+                <option value="comment">Apenas comentários</option>
+                <option value="message">Apenas DMs</option>
+              </select>
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold uppercase text-muted-foreground">Produto relacionado</span>
+              <select
+                value={productId}
+                onChange={(e) => setProductId(e.target.value)}
+                className="w-full rounded-lg border border-border/70 bg-background px-3 py-2 text-sm"
+              >
+                <option value="">— nenhum —</option>
+                {(products.data ?? []).map((p: any) => (
+                  <option key={p.id} value={p.id}>
+                    {p.title?.slice(0, 60)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold uppercase text-muted-foreground">Mensagem</span>
+              <textarea
+                rows={5}
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                className="w-full rounded-lg border border-border/70 bg-background px-3 py-2 text-sm"
+              />
+              <span className="text-xs text-muted-foreground">
+                Placeholder: <code>{"{{affiliate_link}}"}</code>
+              </span>
+            </label>
+            <button
+              type="button"
+              onClick={() => saveMut.mutate()}
+              disabled={saveMut.isPending || !keyword || !message}
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
+            >
+              {saveMut.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+              Salvar automação
+            </button>
+          </div>
+        </div>
 
-        <section className="rounded-2xl border border-border/70 bg-card p-6">
+        <div className="rounded-2xl border border-border/70 bg-card p-6">
           <h2 className="mb-4 text-lg font-semibold">Automações ativas</h2>
-          {isLoading && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" /> Carregando…
-            </div>
+          {isLoading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+          {(data ?? []).length === 0 && !isLoading && (
+            <p className="text-sm text-muted-foreground">Nenhuma automação.</p>
           )}
-          {!isLoading && data && data.length === 0 && (
-            <p className="text-sm text-muted-foreground">Nenhuma automação criada.</p>
-          )}
-          <ul className="space-y-3">
+          <ul className="space-y-2">
             {(data ?? []).map((a: any) => (
-              <li key={a.id} className="rounded-xl border border-border/70 bg-background p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold">🔑 {a.keyword}</p>
-                    <pre className="mt-1 whitespace-pre-wrap text-xs text-foreground/80">
-                      {a.message}
-                    </pre>
-                  </div>
-                  <div className="flex flex-col items-end gap-2">
-                    <label className="inline-flex cursor-pointer items-center gap-2 text-xs">
-                      <input
-                        type="checkbox"
-                        checked={a.enabled}
-                        onChange={(e) =>
-                          toggle.mutate({
-                            id: a.id,
-                            keyword: a.keyword,
-                            message: a.message,
-                            enabled: e.target.checked,
-                          })
-                        }
-                      />
-                      {a.enabled ? "ativa" : "inativa"}
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => delMut.mutate(a.id)}
-                      className="text-destructive hover:opacity-80"
-                      aria-label="Remover"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+              <li
+                key={a.id}
+                className="flex items-start justify-between gap-3 rounded-lg border border-border/70 bg-background p-3"
+              >
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold">#{a.keyword}</div>
+                  <div className="line-clamp-2 whitespace-pre-wrap text-xs text-muted-foreground">
+                    {a.message}
                   </div>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => delMut.mutate(a.id)}
+                  className="rounded p-1 text-muted-foreground hover:text-destructive"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
               </li>
             ))}
           </ul>
-        </section>
+        </div>
       </div>
     </InstagramLayout>
   );
@@ -150,7 +159,7 @@ export const Route = createFileRoute("/instagram/automacoes")({
   head: () => ({
     meta: [
       { title: "Automações Instagram · DivulgaLinks" },
-      { name: "description", content: "Respostas automáticas por palavra-chave em DMs." },
+      { name: "description", content: "Regras de DM e comentários automáticos por palavra-chave." },
     ],
   }),
   component: Page,

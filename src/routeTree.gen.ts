@@ -17,6 +17,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as InstagramStoriesRouteImport } from './routes/instagram.stories'
 import { Route as InstagramPublicacoesRouteImport } from './routes/instagram.publicacoes'
 import { Route as InstagramMensagensRouteImport } from './routes/instagram.mensagens'
+import { Route as InstagramDashboardRouteImport } from './routes/instagram.dashboard'
 import { Route as InstagramConfiguracoesRouteImport } from './routes/instagram.configuracoes'
 import { Route as InstagramComentariosRouteImport } from './routes/instagram.comentarios'
 import { Route as InstagramAutomacoesRouteImport } from './routes/instagram.automacoes'
@@ -77,6 +78,11 @@ const InstagramPublicacoesRoute = InstagramPublicacoesRouteImport.update({
 const InstagramMensagensRoute = InstagramMensagensRouteImport.update({
   id: '/mensagens',
   path: '/mensagens',
+  getParentRoute: () => InstagramRoute,
+} as any)
+const InstagramDashboardRoute = InstagramDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
   getParentRoute: () => InstagramRoute,
 } as any)
 const InstagramConfiguracoesRoute = InstagramConfiguracoesRouteImport.update({
@@ -210,6 +216,7 @@ export interface FileRoutesByFullPath {
   '/instagram/automacoes': typeof InstagramAutomacoesRoute
   '/instagram/comentarios': typeof InstagramComentariosRoute
   '/instagram/configuracoes': typeof InstagramConfiguracoesRoute
+  '/instagram/dashboard': typeof InstagramDashboardRoute
   '/instagram/mensagens': typeof InstagramMensagensRoute
   '/instagram/publicacoes': typeof InstagramPublicacoesRoute
   '/instagram/stories': typeof InstagramStoriesRoute
@@ -241,6 +248,7 @@ export interface FileRoutesByTo {
   '/instagram/automacoes': typeof InstagramAutomacoesRoute
   '/instagram/comentarios': typeof InstagramComentariosRoute
   '/instagram/configuracoes': typeof InstagramConfiguracoesRoute
+  '/instagram/dashboard': typeof InstagramDashboardRoute
   '/instagram/mensagens': typeof InstagramMensagensRoute
   '/instagram/publicacoes': typeof InstagramPublicacoesRoute
   '/instagram/stories': typeof InstagramStoriesRoute
@@ -273,6 +281,7 @@ export interface FileRoutesById {
   '/instagram/automacoes': typeof InstagramAutomacoesRoute
   '/instagram/comentarios': typeof InstagramComentariosRoute
   '/instagram/configuracoes': typeof InstagramConfiguracoesRoute
+  '/instagram/dashboard': typeof InstagramDashboardRoute
   '/instagram/mensagens': typeof InstagramMensagensRoute
   '/instagram/publicacoes': typeof InstagramPublicacoesRoute
   '/instagram/stories': typeof InstagramStoriesRoute
@@ -306,6 +315,7 @@ export interface FileRouteTypes {
     | '/instagram/automacoes'
     | '/instagram/comentarios'
     | '/instagram/configuracoes'
+    | '/instagram/dashboard'
     | '/instagram/mensagens'
     | '/instagram/publicacoes'
     | '/instagram/stories'
@@ -337,6 +347,7 @@ export interface FileRouteTypes {
     | '/instagram/automacoes'
     | '/instagram/comentarios'
     | '/instagram/configuracoes'
+    | '/instagram/dashboard'
     | '/instagram/mensagens'
     | '/instagram/publicacoes'
     | '/instagram/stories'
@@ -368,6 +379,7 @@ export interface FileRouteTypes {
     | '/instagram/automacoes'
     | '/instagram/comentarios'
     | '/instagram/configuracoes'
+    | '/instagram/dashboard'
     | '/instagram/mensagens'
     | '/instagram/publicacoes'
     | '/instagram/stories'
@@ -470,6 +482,13 @@ declare module '@tanstack/react-router' {
       path: '/mensagens'
       fullPath: '/instagram/mensagens'
       preLoaderRoute: typeof InstagramMensagensRouteImport
+      parentRoute: typeof InstagramRoute
+    }
+    '/instagram/dashboard': {
+      id: '/instagram/dashboard'
+      path: '/dashboard'
+      fullPath: '/instagram/dashboard'
+      preLoaderRoute: typeof InstagramDashboardRouteImport
       parentRoute: typeof InstagramRoute
     }
     '/instagram/configuracoes': {
@@ -626,6 +645,7 @@ interface InstagramRouteChildren {
   InstagramAutomacoesRoute: typeof InstagramAutomacoesRoute
   InstagramComentariosRoute: typeof InstagramComentariosRoute
   InstagramConfiguracoesRoute: typeof InstagramConfiguracoesRoute
+  InstagramDashboardRoute: typeof InstagramDashboardRoute
   InstagramMensagensRoute: typeof InstagramMensagensRoute
   InstagramPublicacoesRoute: typeof InstagramPublicacoesRoute
   InstagramStoriesRoute: typeof InstagramStoriesRoute
@@ -635,6 +655,7 @@ const InstagramRouteChildren: InstagramRouteChildren = {
   InstagramAutomacoesRoute: InstagramAutomacoesRoute,
   InstagramComentariosRoute: InstagramComentariosRoute,
   InstagramConfiguracoesRoute: InstagramConfiguracoesRoute,
+  InstagramDashboardRoute: InstagramDashboardRoute,
   InstagramMensagensRoute: InstagramMensagensRoute,
   InstagramPublicacoesRoute: InstagramPublicacoesRoute,
   InstagramStoriesRoute: InstagramStoriesRoute,
