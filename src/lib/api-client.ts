@@ -3,58 +3,43 @@ import { supabase } from "@/integrations/supabase/client";
 
 const EXPIRY_SAFETY_WINDOW_SECONDS = 30;
 
-function redirectToLogin() {
-  if (typeof window === "undefined" || window.location.pathname === "/auth") return;
-  const redirect = `${window.location.pathname}${window.location.search}`;
-  window.location.assign(`/auth?redirect=${encodeURIComponent(redirect)}`);
-}
-
-function isAuthenticationError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error ?? "");
-  return message.includes("Unauthorized") || message.includes("authorization header");
-}
-
 /**
  * Global authenticated RPC client.
  *
- * It restores/refreshes the persisted login session before every authenticated
- * server-function request and sends the access token through the standard
- * Authorization: Bearer header. The backend remains responsible for validating
- * the token and deriving user_id from it.
+ * Attaches the current Supabase access token to every server-function request.
+ * Intencionalmente NÃO redireciona para /auth em caso de falha — isso causava
+ * hard-reloads no meio de interações (digitar nome de instância, polling de
+ * QR, realtime) e derrubava o usuário do fluxo. A proteção real de rotas
+ * autenticadas é feita pelo layout `_authenticated`; aqui apenas propagamos o
+ * erro para o chamador tratar com toast.
  */
 export const apiClient = createMiddleware({ type: "function" }).client(async ({ next }) => {
   if (typeof window === "undefined") return next();
 
-  const { data, error } = await supabase.auth.getSession();
-  if (error) {
-    redirectToLogin();
-    throw new Error("Sua sessão expirou. Entre novamente para continuar.");
+  let session = null as Awaited<ReturnType<typeof supabase.auth.getSession>>["data"]["session"];
+  try {
+    const { data } = await supabase.auth.getSession();
+    session = data.session;
+  } catch {
+    // Falha transitória lendo sessão — segue sem token; backend responde 401
+    // e o chamador exibe toast. Não redireciona.
   }
 
-  let session = data.session;
   const expiresSoon =
     session?.expires_at != null &&
     session.expires_at <= Math.floor(Date.now() / 1000) + EXPIRY_SAFETY_WINDOW_SECONDS;
 
   if (session && expiresSoon) {
-    const refreshed = await supabase.auth.refreshSession();
-    if (refreshed.error) {
-      redirectToLogin();
-      throw new Error("Sua sessão expirou. Entre novamente para continuar.");
+    try {
+      const refreshed = await supabase.auth.refreshSession();
+      if (!refreshed.error && refreshed.data.session) {
+        session = refreshed.data.session;
+      }
+    } catch {
+      /* segue com token atual; se estiver realmente expirado, backend devolve 401 */
     }
-    session = refreshed.data.session;
   }
 
   const token = session?.access_token;
-  if (!token) {
-    redirectToLogin();
-    throw new Error("Faça login para salvar suas configurações.");
-  }
-
-  try {
-    return await next({ headers: { Authorization: `Bearer ${token}` } });
-  } catch (error) {
-    if (isAuthenticationError(error)) redirectToLogin();
-    throw error;
-  }
+  return next({ headers: token ? { Authorization: `Bearer ${token}` } : {} });
 });
