@@ -68,15 +68,28 @@ async function connectionState(instance: string): Promise<string> {
 }
 
 async function sendMedia(instance: string, jid: string, mediaUrl: string, caption: string) {
-  return evolutionFetch(`/message/sendMedia/${encodeURIComponent(instance)}`, {
-    method: "POST",
-    body: JSON.stringify({
-      number: jid,
-      mediatype: "image",
-      media: mediaUrl,
-      caption,
-    }),
-  });
+  // 1 retry curto em falhas transitórias (rede/5xx).
+  let lastErr: unknown = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      return await evolutionFetch(`/message/sendMedia/${encodeURIComponent(instance)}`, {
+        method: "POST",
+        body: JSON.stringify({
+          number: jid,
+          mediatype: "image",
+          media: mediaUrl,
+          caption,
+        }),
+      });
+    } catch (e) {
+      lastErr = e;
+      const msg = e instanceof Error ? e.message : String(e);
+      // Não retenta em erros permanentes (4xx exceto 408/429).
+      if (/\b4\d\d\b/.test(msg) && !/408|429/.test(msg)) break;
+      await new Promise((r) => setTimeout(r, 1200));
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
 }
 
 async function tickOne(admin: any, cfg: any): Promise<void> {
@@ -113,52 +126,58 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
   );
 
   const ANTI_REPEAT_HOURS = 24;
+  const VALIDATION_TTL_MS = 6 * 3600_000; // reaproveita validação recente
 
   async function pickNext(): Promise<any | null> {
-    const { data: sent } = await admin
-      .from("automation_group_sends")
-      .select("product_id")
-      .eq("config_id", cfg.id);
-    const excluded = new Set((sent ?? []).map((r: any) => r.product_id).filter(Boolean));
+    // Inventário obrigatório por canal + grupo. Legados sem grupo ficam
+    // pendentes e jamais são enviados automaticamente.
+    if (!cfg.group_id) return null;
 
-    // Proteção anti-repetição real (24h): exclui qualquer produto já enviado
-    // com sucesso para este mesmo config nas últimas 24h.
+    // Sends do ciclo + histórico anti-repetição em paralelo (1 round-trip).
     const since = new Date(Date.now() - ANTI_REPEAT_HOURS * 3600_000).toISOString();
-    const { data: recent } = await admin
-      .from("whatsapp_campaign_history")
-      .select("product_id")
-      .eq("config_id", cfg.id)
-      .eq("status", "sent")
-      .gte("sent_at", since);
-    for (const r of recent ?? []) {
-      if (r?.product_id) excluded.add(r.product_id);
-    }
+    const [sentRes, recentRes] = await Promise.all([
+      admin.from("automation_group_sends").select("product_id").eq("config_id", cfg.id),
+      admin
+        .from("whatsapp_campaign_history")
+        .select("product_id")
+        .eq("config_id", cfg.id)
+        .eq("status", "sent")
+        .gte("sent_at", since),
+    ]);
+    const excluded = new Set<string>();
+    for (const r of sentRes.data ?? []) if (r?.product_id) excluded.add(r.product_id);
+    for (const r of recentRes.data ?? []) if (r?.product_id) excluded.add(r.product_id);
 
-    // Busca um lote de candidatos aleatorizados e valida em ordem.
+    // Seleção enxuta (colunas usadas) ordenada pelos menos-validados.
     let q = admin
       .from("products")
-      .select("*")
+      .select(
+        "id, title, platform, promo_price, original_price, image_url, affiliate_link, raw_link, sales, sales_label, store_name, category, source_group_jid, source_group_name, availability, last_validated_at",
+      )
       .eq("user_id", cfg.user_id)
       .eq("channel_id", cfg.channel_id)
+      .eq("source_group_jid", cfg.group_id)
       .in("platform", lojas)
       .eq("availability", "active")
       .not("affiliate_link", "is", null)
       .order("last_validated_at", { ascending: true, nullsFirst: true })
       .limit(30);
 
-    // Inventário obrigatório por canal + grupo. Legados sem grupo ficam
-    // pendentes e jamais são enviados automaticamente.
-    if (!cfg.group_id) return null;
-    q = q.eq("source_group_jid", cfg.group_id);
-
     if (excluded.size > 0) {
       q = q.not("id", "in", `(${Array.from(excluded).join(",")})`);
     }
     const { data, error } = await q;
     if (error) throw new Error(error.message);
-    // Ordem aleatória: embaralha o lote antes de validar.
     const shuffled = [...(data ?? [])].sort(() => Math.random() - 0.5);
+    const validationCutoff = Date.now() - VALIDATION_TTL_MS;
     for (const cand of shuffled) {
+      // Reaproveita validação recente para eliminar o gargalo de rede
+      // (fetch HTTP por candidato em cada tick). Se validado há < 6h e ainda
+      // ativo, envia direto — a rotina de validação em massa cuida do resto.
+      const lastVal = cand.last_validated_at ? new Date(cand.last_validated_at).getTime() : 0;
+      if (lastVal > validationCutoff && cand.availability === "active") {
+        return cand;
+      }
       const result = await validateProduct(cand);
       if (result.availability === "active") {
         await persistValidation(admin, cand.id, cfg.channel_id, result);
@@ -470,8 +489,13 @@ export const Route = createFileRoute("/api/public/hooks/automation-tick")({
           return Response.json({ ok: false, error: error.message }, { status: 500 });
         }
 
+        // Processa configs em paralelo com concorrência limitada, evitando
+        // que um tick com muitos grupos estoure o timeout do Worker.
+        const CONCURRENCY = 5;
+        const queue = [...(configs ?? [])];
         const results: Array<{ id: string; ok: boolean; skipped?: boolean; error?: string }> = [];
-        for (const cfg of configs ?? []) {
+
+        async function processOne(cfg: any) {
           try {
             const r = await withConfigLock(supabaseAdmin, cfg.id, () => tickOne(supabaseAdmin, cfg));
             if (r && typeof r === "object" && "skipped" in r) {
@@ -489,6 +513,15 @@ export const Route = createFileRoute("/api/public/hooks/automation-tick")({
             }).eq("id", cfg.id);
           }
         }
+
+        const workers = Array.from({ length: Math.min(CONCURRENCY, queue.length) }, async () => {
+          while (queue.length > 0) {
+            const cfg = queue.shift();
+            if (!cfg) return;
+            await processOne(cfg);
+          }
+        });
+        await Promise.all(workers);
         return Response.json({ ok: true, processed: results.length, results });
       },
       GET: async () => Response.json({ ok: true, hint: "POST with x-cron-secret header to trigger" }),

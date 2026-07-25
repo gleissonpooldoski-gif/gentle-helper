@@ -595,13 +595,17 @@ export const getChannelFlowSummary = createServerFn({ method: "POST" })
   })
   .handler(async ({ data, context }): Promise<ChannelFlowSummaryDTO> => {
     const { supabase, userId } = context;
+    // "Produtos ativos" = inventário realmente utilizável pela automação deste
+    // canal: ativo, com link de afiliado E vinculado a um grupo real (exclui
+    // legados pendentes com source_group_jid='').
     const { count: active } = await supabase
       .from("products")
       .select("id", { count: "exact", head: true })
       .eq("user_id", userId)
       .eq("channel_id", data.channelId)
       .eq("availability", "active")
-      .not("affiliate_link", "is", null);
+      .not("affiliate_link", "is", null)
+      .neq("source_group_jid", "");
 
 
     const { data: cfgs } = await supabase
