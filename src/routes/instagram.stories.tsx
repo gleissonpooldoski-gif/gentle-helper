@@ -485,7 +485,6 @@ function PublishBox() {
             >
               Baixar arte gerada
             </button>
-          </div>
         </div>
       </div>
     </div>
