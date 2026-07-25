@@ -59,7 +59,7 @@ function Page() {
       return test({ data: { useSaved: true } });
     },
     onSuccess: (r: any) => {
-      setStatus({ kind: "ok", text: `Conectado como @${r.info.username}` });
+      setStatus({ kind: "ok", info: r.info });
       toast.success("Instagram conectado");
     },
     onError: (e: any) => {
@@ -106,18 +106,13 @@ function Page() {
               type="password"
             />
 
-            {status.kind !== "idle" && (
-              <div
-                className={
-                  status.kind === "ok"
-                    ? "rounded-lg bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700"
-                    : "rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive"
-                }
-              >
-                {status.kind === "ok" ? "🟢 " : "🔴 "}
-                {status.text}
+            {status.kind === "err" && (
+              <div className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                🔴 {status.text}
               </div>
             )}
+
+            {status.kind === "ok" && <StatusPanel info={status.info} igId={igId} />}
 
             <div className="flex flex-wrap gap-3 pt-2">
               <button
