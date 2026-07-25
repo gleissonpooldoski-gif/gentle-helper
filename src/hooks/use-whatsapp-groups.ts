@@ -46,16 +46,37 @@ async function loadInto(channelId: string, force: boolean): Promise<void> {
 
   const p = (async () => {
     try {
-      const inst = await adoptEvolutionInstance({ data: { instanceName: DEFAULT_INSTANCE_NAME } });
+      let inst: WhatsAppInstanceDTO | null = entry.instance;
+      try {
+        inst = await adoptEvolutionInstance({ data: { instanceName: DEFAULT_INSTANCE_NAME } });
+      } catch (err) {
+        // Falha transitória no provider não deve invalidar a instância —
+        // se já temos uma no cache (conectada anteriormente), seguimos com ela.
+        console.warn("[WA] adopt falhou, mantendo cache:", err);
+      }
       entry.instance = inst;
-      if (inst.status !== "connected") {
+      if (!inst) {
+        entry.error = "WhatsApp não configurado";
         entry.groups = [];
-        entry.error = "WhatsApp desconectado";
         return;
       }
-      const gs = await fetchWhatsAppGroups({ data: { id: inst.id, channelId } });
-      entry.groups = gs;
-      entry.error = null;
+      // Tenta buscar grupos independentemente do status reportado — a Evolution
+      // às vezes devolve "connecting" transitório mas a listagem funciona.
+      try {
+        const gs = await fetchWhatsAppGroups({ data: { id: inst.id, channelId } });
+        entry.groups = gs;
+        entry.error = null;
+      } catch (err) {
+        if (entry.groups.length > 0) {
+          // Mantém o cache válido; não derruba os modais por falha momentânea.
+          console.warn("[WA] fetchGroups falhou, mantendo cache:", err);
+          entry.error = null;
+        } else if (inst.status !== "connected") {
+          entry.error = "WhatsApp desconectado";
+        } else {
+          entry.error = err instanceof Error ? err.message : "Falha ao carregar grupos";
+        }
+      }
     } catch (err) {
       entry.error = err instanceof Error ? err.message : "Falha ao carregar grupos";
     } finally {

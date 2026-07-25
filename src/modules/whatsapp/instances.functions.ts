@@ -320,7 +320,6 @@ export const adoptEvolutionInstance = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const { getWhatsAppProvider } = await import("./index.server");
     const provider = getWhatsAppProvider("evolution");
-    const st = await provider.getStatus(data.instanceName);
 
     const { data: existing } = await (supabase as any)
       .from("whatsapp_instances")
@@ -329,18 +328,44 @@ export const adoptEvolutionInstance = createServerFn({ method: "POST" })
       .eq("instance_name", data.instanceName)
       .maybeSingle();
 
+    // Consulta status ao vivo — mas trata falha/instabilidade do provider como
+    // "sem novidade": não rebaixamos uma instância já conectada só porque a
+    // Evolution respondeu lento/erro em um refresh de modal.
+    let liveStatus: string | null = null;
+    let livePhone: string | null = null;
+    try {
+      const st = await provider.getStatus(data.instanceName);
+      liveStatus = st.status;
+      livePhone = st.phone ?? null;
+    } catch (err) {
+      console.warn("[WA][adopt] getStatus falhou, preservando status do banco:", err);
+    }
+
+    const dbStatus: string | null = existing?.status ?? null;
+    // Regra: só rebaixa "connected" para outro status se o provider disser
+    // explicitamente "disconnected". "connecting" / erros transitórios mantêm
+    // o status atual do banco.
+    const effectiveStatus =
+      liveStatus === "connected"
+        ? "connected"
+        : liveStatus === "disconnected"
+          ? "disconnected"
+          : (dbStatus ?? liveStatus ?? "disconnected");
+
     const payload = {
       user_id: userId,
       channel_id: data.channelId,
       provider: "evolution",
       instance_name: data.instanceName,
-      status: st.status,
-      phone: st.phone,
-      qr_code: null,
-      last_seen_at: st.status === "connected" ? new Date().toISOString() : null,
+      status: effectiveStatus,
+      phone: livePhone ?? existing?.phone ?? null,
+      qr_code: effectiveStatus === "connected" ? null : existing?.qr_code ?? null,
+      last_seen_at:
+        effectiveStatus === "connected"
+          ? new Date().toISOString()
+          : existing?.last_seen_at ?? null,
     };
     console.log("[WA][adopt whatsapp_instances]", payload);
-
 
     if (existing) {
       // Não mover a instância compartilhada de um canal para outro cada vez
