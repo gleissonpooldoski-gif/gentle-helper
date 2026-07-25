@@ -40,6 +40,34 @@ import {
 import { listChannels, type ChannelDTO } from "@/modules/channels/channels.functions";
 import { toast } from "sonner";
 
+function downloadConversionsCsv(rows: ConversionRow[]) {
+  const headers = [
+    "order_id","order_date","status","platform","store_name","product_name",
+    "value","commission","commission_pct","qty","buyer_type","device",
+  ];
+  const escape = (v: unknown) => {
+    const s = v == null ? "" : String(v);
+    return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const lines = [headers.join(",")];
+  for (const r of rows) {
+    lines.push([
+      r.order_id, r.order_date, r.status, r.platform, r.store_name ?? "",
+      r.product_name, r.value, r.commission, r.commission_pct, r.qty,
+      r.buyer_type, r.device,
+    ].map(escape).join(","));
+  }
+  const blob = new Blob(["\ufeff" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `relatorio-shopee-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 export const Route = createFileRoute("/relatorios")({
   head: () => ({
     meta: [
