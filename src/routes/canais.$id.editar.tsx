@@ -1329,40 +1329,18 @@ const WEEKDAYS = [
 const DEFAULT_HOURS = [8, 9, 12, 13, 17, 18, 21, 22];
 
 function InstagramPanel({ channelId }: { channelId: string }) {
-  const getConnFn = useServerFn(
-    (require("@/lib/instagram.functions") as typeof import("@/lib/instagram.functions")).getInstagramConnection,
-  );
-  const startOAuthFn = useServerFn(
-    (require("@/lib/instagram.functions") as typeof import("@/lib/instagram.functions")).startInstagramOAuth,
-  );
-  const disconnectFn = useServerFn(
-    (require("@/lib/instagram.functions") as typeof import("@/lib/instagram.functions")).disconnectInstagram,
-  );
-  const flagsFn = useServerFn(
-    (require("@/lib/instagram.functions") as typeof import("@/lib/instagram.functions")).updateInstagramFlags,
-  );
-  const listKwFn = useServerFn(
-    (require("@/lib/instagram.functions") as typeof import("@/lib/instagram.functions")).listInstagramKeywords,
-  );
-  const saveKwFn = useServerFn(
-    (require("@/lib/instagram.functions") as typeof import("@/lib/instagram.functions")).saveInstagramKeyword,
-  );
-  const getTplFn = useServerFn(
-    (require("@/lib/instagram.functions") as typeof import("@/lib/instagram.functions")).getInstagramTemplate,
-  );
-  const saveTplFn = useServerFn(
-    (require("@/lib/instagram.functions") as typeof import("@/lib/instagram.functions")).saveInstagramTemplate,
-  );
-  const getSchedFn = useServerFn(
-    (require("@/lib/instagram.functions") as typeof import("@/lib/instagram.functions")).getInstagramSchedule,
-  );
-  const saveSchedFn = useServerFn(
-    (require("@/lib/instagram.functions") as typeof import("@/lib/instagram.functions")).saveInstagramSchedule,
-  );
+  const getConnFn = useServerFn(getInstagramConnection);
+  const startOAuthFn = useServerFn(startInstagramOAuth);
+  const disconnectFn = useServerFn(disconnectInstagram);
+  const flagsFn = useServerFn(updateInstagramFlags);
+  const listKwFn = useServerFn(listInstagramKeywords);
+  const saveKwFn = useServerFn(saveInstagramKeyword);
+  const getTplFn = useServerFn(getInstagramTemplate);
+  const saveTplFn = useServerFn(saveInstagramTemplate);
+  const getSchedFn = useServerFn(getInstagramSchedule);
+  const saveSchedFn = useServerFn(saveInstagramSchedule);
 
-  const [connection, setConnection] = useState<
-    import("@/lib/instagram.functions").IgConnectionView | null
-  >(null);
+  const [connection, setConnection] = useState<IgConnectionView | null>(null);
   const [loading, setLoading] = useState(true);
   const [autoPost, setAutoPost] = useState(true);
   const [disableReply, setDisableReply] = useState(false);
