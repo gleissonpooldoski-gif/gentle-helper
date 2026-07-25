@@ -1,109 +1,96 @@
-# Módulo Instagram — Automação de Vendas
 
-Objetivo: transformar a aba **Instagram** (dentro de `canais/$id/editar`) em uma central de automação real usando **Instagram Graph API**, sem tocar em cores, componentes ou layout existente. Apenas conectar botões, campos e cards já presentes às novas funcionalidades.
+## InstaBotHelp — Automação de comentários + Direct
 
-## 1. Credenciais Meta (pré-requisito)
+Novo módulo **isolado** dentro de `Canais e Grupos → Editar → InstaBotHelp`. Nada fora dessa aba é alterado. A aba já existe visualmente (mockup) — vou substituir o conteúdo mockado por um módulo real, mantendo o mesmo padrão visual do SaaS (cards, botões, tokens).
 
-Vou solicitar via `add_secret`:
-- `META_APP_ID` — App ID do Facebook Developers
-- `META_APP_SECRET` — App Secret
-- `META_WEBHOOK_VERIFY_TOKEN` — string qualquer para verificação do webhook
-- `INSTAGRAM_OAUTH_REDIRECT` — será fixado como `https://<projeto>.lovable.app/api/public/instagram/callback`
+### 1. Banco (nova migração, isolada por canal + usuário)
 
-O usuário precisa habilitar no painel Meta: **instagram_basic, instagram_manage_comments, instagram_manage_messages, instagram_content_publish, pages_manage_metadata, pages_read_engagement, pages_messaging**.
+Novas tabelas em `public`, todas com RLS por `user_id` e escopo por `channel_id`:
 
-## 2. Banco de dados (migração única)
+- `instabot_automations` — 1 registro por publicação IG configurada
+  - `channel_id`, `ig_media_id`, `ig_media_url`, `thumbnail_url`, `caption`, `posted_at`
+  - `enabled` (bool)
+  - `keywords` (text[]) — múltiplas palavras-gatilho
+  - `comment_reply_mode` ('auto' | 'list')
+  - `comment_replies` (text[]) — frases rotativas quando não é auto
+  - `dm_message` (text)
+  - `button_label` (text)
+  - `button_url` (text)
+- `instabot_events` — histórico
+  - `automation_id`, `channel_id`
+  - `ig_user_id`, `ig_username`, `comment_text`, `comment_id`
+  - `dm_sent` (bool), `dm_message`, `status`, `error`
+  - `created_at`
+- `instabot_clicks` — cliques no botão (para taxa/estatística; incrementado por um redirect route)
+  - `automation_id`, `event_id?`, `created_at`
 
-Novas tabelas (todas com RLS `auth.uid() = user_id` + GRANT authenticated/service_role, isolamento por `channel_id` quando aplicável):
+GRANTs padrão + RLS `auth.uid() = user_id`.
 
-- `instagram_connections` — id, user_id, channel_id, instagram_account_id, facebook_page_id, username, name, profile_picture, followers_count, follows_count, media_count, access_token_ciphertext, token_expires_at, status (`connected|disconnected|expired|error`), last_error, timestamps.
-- `instagram_keywords` — id, user_id, channel_id, keyword, action (`send_link`), active, comment_reply_enabled, comment_reply_text, timestamps.
-- `instagram_story_templates` — id, user_id, channel_id, image_url, title_color, price_color, timestamps.
-- `instagram_posts` — id, user_id, channel_id, product_id, instagram_media_id, kind (`post|story`), status (`pending|published|failed`), caption, error_message, published_at, timestamps.
-- `instagram_story_schedule` — id, user_id, channel_id, days int[] (0-6), hours int[] (0-23), template_id, active, last_run_at, timestamps.
-- `instagram_events` — id, user_id, connection_id, kind (`comment|story_reply|dm_sent|click|follower_delta`), payload jsonb, product_id, created_at (para relatórios).
+### 2. Servidor — `src/lib/instabot.functions.ts`
 
-Tokens armazenados via AES-GCM reutilizando helper existente (`shopee-config.server.ts` style) com nova chave `INSTAGRAM_TOKEN_ENC_KEY` (gerada via `generate_secret`).
+Funções (todas `.middleware([requireSupabaseAuth])`, escopo `channelId`):
 
-## 3. OAuth Meta
+- `listInstagramMedia({ channelId })` — usa `instagram_connections` existente + Graph API `/{ig-user-id}/media` (thumbnail, caption, timestamp, permalink). Reaproveita `instagram-graph.server.ts` e `instagram-crypto.server.ts`.
+- `listAutomations({ channelId })`
+- `upsertAutomation({ channelId, ...fields })`
+- `deleteAutomation({ id, channelId })`
+- `toggleAutomation({ id, enabled })`
+- `listAutomationHistory({ automationId, limit })`
+- `getAutomationStats({ automationId })` — detectados, DMs enviadas, cliques, taxa
+- `generateWithAI({ channelId, mediaCaption })` — chama Lovable AI Gateway (`google/gemini-3.6-flash`) e devolve `{ keywords, comment_replies, dm_message }` (Output schema estruturado)
 
-- Server route público **`src/routes/api/public/instagram/callback.ts`**: recebe `code`, troca por short-lived → long-lived token (60 dias), lista páginas Facebook do usuário, encontra IG business account vinculada, salva conexão criptografada, redireciona para `/canais/$id/editar?tab=instagram&ig=connected`.
-- Server fn `startInstagramOAuth({ channelId })` → retorna URL de autorização Meta.
-- Server fn `disconnectInstagram({ channelId })` → apaga conexão + revoga token.
-- Refresh automático de token quando `token_expires_at < now()+7d` (chamado no worker).
+### 3. Webhook — estender captura existente
 
-## 4. Webhook Instagram
+`src/lib/instagram-webhook.server.ts` já processa comentários. Adicionar antes do fluxo genérico:
 
-- **`src/routes/api/public/webhooks/instagram.ts`**:
-  - `GET` → responde `hub.challenge` se `hub.verify_token === META_WEBHOOK_VERIFY_TOKEN`.
-  - `POST` → valida assinatura HMAC-SHA256 (`x-hub-signature-256` com `META_APP_SECRET`), processa eventos:
-    - `comments` → match keyword → responde comentário (se habilitado) + envia DM com produto.
-    - `messages` (story_reply) → mesmo fluxo.
-- Handler chama `handleInstagramTrigger()` (server helper) que:
-  1. Busca keyword ativa que casa (case-insensitive, whole word).
-  2. Escolhe produto relacionado do canal (pode ser o mais recente `active`; se comentário/story tem `media_id` vinculado a um `instagram_posts.product_id`, usa esse).
-  3. Envia DM via Graph `POST /me/messages` com template `button` contendo `web_url` = link afiliado + texto "VER PARA COMPRAR".
-  4. Grava `instagram_events`.
+1. Buscar `instabot_automations` por `ig_media_id = mediaId` e `enabled = true`.
+2. Se match e alguma keyword bater no texto do comentário:
+   - Escolher resposta ao comentário (aleatória da lista, ou IA se `mode='auto'`).
+   - Chamar `replyToComment`.
+   - Enviar DM com `sendDirectMessage` usando `dm_message` + botão `button_label` → link rastreável (`/api/public/instabot/r/{eventId}`).
+   - Registrar em `instabot_events`.
+3. Só cair no fluxo de keywords antigo se nenhuma automação InstaBotHelp cobrir.
 
-## 5. Publicação de Posts e Stories
+### 4. Redirect de clique
 
-Server fns:
-- `publishInstagramPost({ channelId, productId, caption })` — cria container `/{ig-user-id}/media` (image_url = imagem do produto) e publica com `/media_publish`.
-- `publishInstagramStory({ channelId, productId, templateId })` — renderiza template (imagem + variáveis `{title} {price} {price_original} {discount} {store} {link}` via canvas server-side usando `@napi-rs/canvas`? — **alternativa Worker-safe**: gerar SVG/HTML + usar imagem base do template diretamente com overlay via Graph story caption; sem canvas nativo). Uso um render **HTML→imagem via API pública** (`https://api.htmlcsstoimage.com`) evitado; em vez disso gero uma composição usando imagem do template já pronta, aplico texto via **Instagram media caption** (stories aceitam sticker de texto apenas via app oficial). Solução prática: publicar a imagem do produto como story e adicionar `caption` com variáveis substituídas; a "cor do título/preço" fica salva para uso futuro em renderizador dedicado.
-- Registra em `instagram_posts`.
+`src/routes/api/public/instabot/r.$eventId.ts` — GET: incrementa `instabot_clicks` e redireciona 302 para `button_url` do evento.
 
-## 6. Agendamento
+### 5. UI — substituir `InstaBotHelpPanel` mockado (linhas 2184–2350)
 
-Reaproveitar o worker existente (`automation-tick` em pg_cron). Adicionar server route **`src/routes/api/public/hooks/instagram-tick.ts`** que:
-- Refresh de tokens próximos do vencimento.
-- Executa schedules de story ativos cujo dia/hora atual bate.
-- Publica próximo produto do canal ainda não postado hoje.
+Mesmos tokens/componentes já usados no arquivo (Button, Input, Card visual em rounded-2xl, gradiente header IG). Estrutura:
 
-Nova entrada em `pg_cron` chamando esse endpoint a cada minuto.
+```text
+[Header gradient IG — mantém visual atual]
+[Abas internas: Automações | Histórico | Estatísticas]
 
-## 7. UI (sem alterar layout)
+Aba Automações:
+ - Grid de publicações do IG (thumb, data, caption)
+ - "Nova automação" no card ou "Editar" se já existir
+ - Modal/Sheet de edição:
+   * ☑ Ativar
+   * Palavras-chave (textarea, uma por linha)
+   * Resposta ao comentário (textarea "auto" ou várias frases)
+   * Mensagem do Direct (textarea grande)
+   * Texto do botão (input)
+   * Link (input url)
+   * [✨ Gerar automaticamente]  [Salvar]  [Excluir]
 
-Localizar componente atual (`InstagramPanel` na aba dentro de `canais.$id.editar.tsx`) e apenas:
-- Ligar botão **Conectar Instagram** → chama `startInstagramOAuth` e abre nova aba.
-- Card "Conta Vinculada" → carrega via `getInstagramConnection({ channelId })`.
-- Lista de palavras-chave → CRUD via `list/save/deleteInstagramKeyword`.
-- Toggle "Desativar resposta no comentário" → salva em `instagram_keywords.comment_reply_enabled`.
-- Upload template → usa bucket `site-logos` (ou novo `instagram-templates`) via `supabase.storage`.
-- Seletor de dias/horas → salva `instagram_story_schedule`.
-- Toggle "Post automático" e "Crescimento de seguidores" → gravam flags na `instagram_connections` (colunas extras `auto_post_enabled`, `growth_enabled`).
+Aba Histórico:
+ - Tabela: usuário | comentário | data | DM enviada | status
 
-Nenhuma mudança visual. Apenas `onClick`, `value/onChange`, queries e mutations.
+Aba Estatísticas:
+ - 4 cards: detectados, DMs enviadas, cliques, taxa de resposta
+```
 
-## 8. Relatórios
+Se o canal não tem `instagram_connections` ativa, mostrar CTA "Conecte o Instagram na aba Instagram".
 
-Server fn `getInstagramStats({ channelId, from, to })` agregando `instagram_events` + `instagram_posts` para: stories publicados, posts publicados, comentários, DMs enviadas, cliques (a partir de `kind='click'` quando disponível via redirect), conversões (join com `shopee_conversions` por período).
+### 6. Fora de escopo (explicitamente)
 
-Reaproveitar página Relatórios com filtro de plataforma `instagram` (já implementado).
+Não toco em: agendamentos, publicações existentes, aba IA global, aba Instagram existente, Facebook, YouTube, TikTok, WhatsApp, Automação, Layout, Site, Relatórios.
 
-## 9. Detalhes técnicos
+### Detalhes técnicos
 
-- Fetchs à Graph API usam `https://graph.facebook.com/v21.0/...` com `access_token` descriptografado apenas dentro dos handlers server.
-- Todos os writes validam ownership via `requireSupabaseAuth`.
-- Nunca envio link cru: sempre passo pelo `enforceAffiliateLink` (helper existente em `src/lib/affiliate-linker.ts`).
-- Webhook público valida HMAC antes de qualquer processamento; nunca retorna PII.
-
-## 10. Sequência de execução
-
-1. Migração (tabelas + RLS + GRANTS).
-2. Solicitar secrets Meta.
-3. Helpers: crypto de token, cliente Graph API.
-4. OAuth (server fn + callback route).
-5. Webhook route.
-6. Server fns de keywords, templates, schedule, publish, stats.
-7. Wiring da UI existente (sem alterar layout).
-8. Cron `instagram-tick`.
-9. Teste manual (dev) + verificação de tipos.
-
-## Confirmação necessária
-
-Para prosseguir preciso confirmar:
-- Você **já tem um App Meta** aprovado com Instagram Graph API (com Advanced Access nas permissões acima)? Sem isso, apenas contas de teste conseguem receber DMs/webhooks.
-- Posso adicionar os secrets `META_APP_ID`, `META_APP_SECRET`, `META_WEBHOOK_VERIFY_TOKEN` (após sua confirmação, abro o formulário seguro)?
-- Confirma que o render de "cor do título/preço" no story pode ficar como **metadata salva** neste passo, e a composição visual real do sticker vem em uma segunda etapa (limitação da Graph API — stickers de texto só via app oficial; a Graph publica imagem + caption)?
-
-Ao confirmar, executo a implementação completa.
+- IA: `openai/gpt-5.5` via Lovable Gateway? O projeto já usa Gemini em outros pontos — vou usar `google/gemini-3.6-flash` (rápido/barato) com `response_format: json_object` e schema Zod.
+- Isolamento: toda query filtra por `user_id` (RLS) **e** `channel_id` no WHERE.
+- Layout: reutilizar exatamente `Button`, `Input`, `cn`, tokens `border-border/70 bg-card rounded-2xl` já presentes.
+- Migração inclui GRANTs para `authenticated` e `service_role`.
