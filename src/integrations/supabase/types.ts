@@ -565,6 +565,42 @@ export type Database = {
           },
         ]
       }
+      instagram_admin_schedule: {
+        Row: {
+          active: boolean
+          created_at: string
+          days: number[]
+          hours: number[]
+          id: string
+          last_run_at: string | null
+          template_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          days?: number[]
+          hours?: number[]
+          id?: string
+          last_run_at?: string | null
+          template_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          days?: number[]
+          hours?: number[]
+          id?: string
+          last_run_at?: string | null
+          template_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       instagram_automations: {
         Row: {
           button_label: string | null
