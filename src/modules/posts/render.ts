@@ -118,6 +118,19 @@ export function renderPost(
     discount: product.discount != null ? String(product.discount) : "",
   };
 
+  // [DEBUG TEMPORÁRIO] rastreio de vendas/preço por produto renderizado
+  try {
+    console.log("[render-post:debug]", {
+      title: product.title,
+      raw_price: product.price,
+      raw_price_original: product.price_original,
+      effective_price: effectivePrice,
+      effective_original: effectiveOriginal,
+      raw_vendas: product.vendas,
+      vendas_final: vars.vendas,
+    });
+  } catch { /* noop */ }
+
   const blocks: string[] = [];
   if (layout.header) blocks.push(layout.header);
   if (layout.title_template) blocks.push(fill(layout.title_template, vars));
