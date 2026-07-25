@@ -1038,9 +1038,10 @@ function LayoutPostPanel({ channelId }: { channelId: string }) {
     if (!text) return;
     setAddingVar(true);
     try {
-      const row = await addVariationFn({ data: { text } });
+      const row = await addVariationFn({ data: { text, type: newVariationType } });
       setVariations((prev) => [...prev, row]);
       setNewVariation("");
+      setNewVariationType("normal");
       toast.success("Variação adicionada");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Falha ao adicionar variação");
