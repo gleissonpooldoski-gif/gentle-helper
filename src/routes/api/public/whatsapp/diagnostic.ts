@@ -81,6 +81,17 @@ export const Route = createFileRoute("/api/public/whatsapp/diagnostic")({
           result.fetchAllGroups = { error: e?.message ?? String(e) };
         }
 
+        // 4) webhook/find
+        try {
+          const res = await fetch(`${baseUrl}/webhook/find/${encodeURIComponent("DIVULGA LINKS")}`, { headers });
+          const text = await res.text();
+          let parsed: any = null;
+          try { parsed = JSON.parse(text); } catch { parsed = text.slice(0, 500); }
+          result.webhook = { status: res.status, body: parsed };
+        } catch (e: any) {
+          result.webhook = { error: e?.message ?? String(e) };
+        }
+
         return new Response(JSON.stringify(result, null, 2), {
           status: 200,
           headers: { "Content-Type": "application/json" },
