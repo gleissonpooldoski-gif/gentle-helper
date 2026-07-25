@@ -149,8 +149,9 @@ export async function scrapeShopeeImage(
   offerUrl?: string | null,
 ): Promise<string | null> {
   try {
-    // Attempt order: product URL with WhatsApp UA is the most reliable —
-    // Shopee renders OG tags for link-preview bots.
+    // Ordem: WhatsApp UA (mais confiável) → Facebook UA como fallback.
+    // O desktop UA quase nunca traz OG quando WA+FB já falharam, então
+    // deixamos ele fora do caminho quente para não desperdiçar timeout.
     const attempts: Array<{ url: string; ua: string; tag: string }> = [
       { url: productUrl, ua: UA_WHATSAPP, tag: "product-wa" },
     ];
@@ -158,7 +159,6 @@ export async function scrapeShopeeImage(
       attempts.push({ url: offerUrl, ua: UA_WHATSAPP, tag: "offer-wa" });
     }
     attempts.push({ url: productUrl, ua: UA_FACEBOOK, tag: "product-fb" });
-    attempts.push({ url: productUrl, ua: UA_DESKTOP, tag: "product-desktop" });
 
     for (const a of attempts) {
       const attempt = await tryUrl(a.url, a.ua, a.tag);
