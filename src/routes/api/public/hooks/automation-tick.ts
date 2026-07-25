@@ -429,7 +429,9 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
     let err: string | null = null;
     try {
       if (!productDetail.image) throw new Error("Produto sem imagem");
+      console.log("[WHATSAPP_FINAL_CAPTION]", { source: "automation", instance: instanceName, jid: g.group_jid, caption });
       await sendMedia(instanceName, g.group_jid, productDetail.image, caption);
+
       await new Promise((r) => setTimeout(r, 800));
       anySent = true;
     } catch (e) {
