@@ -232,15 +232,52 @@ export function AutomationPanel({
     }
   };
 
+  const isConnected = (instanceStatus ?? "").toLowerCase() === "connected";
+  const wrapperCls = bare
+    ? ""
+    : "rounded-2xl border border-border/70 bg-card p-5";
+
   return (
-    <div className="rounded-2xl border border-border/70 bg-card p-5">
+    <div className={wrapperCls}>
+      {(instanceName || instancePhone) && (
+        <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-muted/30 px-4 py-3">
+          <div className="min-w-0">
+            <p className="text-[10.5px] font-semibold uppercase tracking-wider text-muted-foreground">
+              WhatsApp responsável
+            </p>
+            <p className="mt-0.5 truncate text-sm font-semibold text-foreground">
+              {instancePhone ?? instanceName}
+            </p>
+            {instancePhone && instanceName && (
+              <p className="truncate text-[11px] text-muted-foreground">{instanceName}</p>
+            )}
+          </div>
+          <span
+            className={cn(
+              "inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold",
+              isConnected
+                ? "bg-emerald-500/15 text-emerald-700"
+                : "bg-amber-500/15 text-amber-700",
+            )}
+          >
+            <span
+              className={cn(
+                "h-2 w-2 rounded-full",
+                isConnected ? "bg-emerald-500 animate-pulse" : "bg-amber-500",
+              )}
+            />
+            {isConnected ? "Conectado" : instanceStatus ?? "Offline"}
+          </span>
+        </div>
+      )}
+
       <div className="mb-4 flex items-center justify-between gap-2">
         <div className="min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            {title ?? "Frequência e loop"}
+            {title ?? "Configuração da automação"}
           </p>
           {groupName && (
-            <p className="mt-0.5 truncate text-[12px] font-medium text-foreground/80" title={groupName}>
+            <p className="mt-0.5 truncate text-[13px] font-medium text-foreground" title={groupName}>
               {groupName}
             </p>
           )}
