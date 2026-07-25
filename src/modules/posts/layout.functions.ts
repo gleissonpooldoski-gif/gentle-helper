@@ -111,11 +111,18 @@ export async function loadLayoutFor(
 
 /* ==================== Header Variations ==================== */
 
+export type HeaderVariationType = "normal" | "discount";
+
 export interface HeaderVariation {
   id: string;
   user_id: string | null;
   text: string;
   active: boolean;
+  type: HeaderVariationType;
+}
+
+function normalizeHeaderType(v: unknown): HeaderVariationType {
+  return v === "discount" ? "discount" : "normal";
 }
 
 export const listHeaderVariations = createServerFn({ method: "GET" })
@@ -124,28 +131,35 @@ export const listHeaderVariations = createServerFn({ method: "GET" })
     const { supabase } = context;
     const { data, error } = await (supabase as any)
       .from("post_header_variations")
-      .select("id, user_id, text, active")
+      .select("id, user_id, text, active, type")
       .order("user_id", { ascending: true, nullsFirst: true })
       .order("created_at", { ascending: true });
     if (error) throw new Error(error.message);
-    return (data ?? []) as HeaderVariation[];
+    return (data ?? []).map((r: any) => ({
+      id: r.id,
+      user_id: r.user_id,
+      text: r.text,
+      active: r.active,
+      type: normalizeHeaderType(r.type),
+    })) as HeaderVariation[];
   });
 
 export const addHeaderVariation = createServerFn({ method: "POST" })
   .middleware([apiClient, requireSupabaseAuth])
-  .inputValidator((data: { text: string }) => ({
+  .inputValidator((data: { text: string; type?: HeaderVariationType }) => ({
     text: String(data?.text ?? "").trim(),
+    type: normalizeHeaderType(data?.type),
   }))
   .handler(async ({ data, context }): Promise<HeaderVariation> => {
     if (!data.text) throw new Error("Texto obrigatório");
     const { supabase, userId } = context;
     const { data: row, error } = await (supabase as any)
       .from("post_header_variations")
-      .insert({ user_id: userId, text: data.text, active: true })
-      .select("id, user_id, text, active")
+      .insert({ user_id: userId, text: data.text, active: true, type: data.type })
+      .select("id, user_id, text, active, type")
       .single();
     if (error) throw new Error(error.message);
-    return row as HeaderVariation;
+    return { ...row, type: normalizeHeaderType(row.type) } as HeaderVariation;
   });
 
 export const deleteHeaderVariation = createServerFn({ method: "POST" })
@@ -166,27 +180,42 @@ export const deleteHeaderVariation = createServerFn({ method: "POST" })
  * Escolhe o cabeçalho a ser usado para um envio.
  * - custom → usa layout.header exatamente como está.
  * - auto   → escolhe aleatório entre variações ativas do usuário + globais,
- *            evitando os últimos N já enviados (anti-repetição).
+ *            filtrando por tipo (discount se o produto tem preço promocional,
+ *            normal caso contrário). Evita repetir os últimos N enviados.
+ *            Fallback: se não houver frase do tipo pedido, usa qualquer ativa.
  */
 export async function resolveHeader(
   supabase: any,
   userId: string,
   layout: PostLayout,
   recentHeaders: string[] = [],
+  opts: { hasDiscount?: boolean } = {},
 ): Promise<string> {
   if (layout.header_mode !== "auto") return layout.header;
   const { data } = await supabase
     .from("post_header_variations")
-    .select("text, active, user_id")
+    .select("text, active, user_id, type")
     .or(`user_id.eq.${userId},user_id.is.null`);
-  const pool: string[] = (data ?? [])
-    .filter((r: any) => r.active !== false && typeof r.text === "string" && r.text.trim())
-    .map((r: any) => r.text as string);
-  if (pool.length === 0) return layout.header;
+  const all = (data ?? []).filter(
+    (r: any) => r.active !== false && typeof r.text === "string" && r.text.trim(),
+  );
+  if (all.length === 0) return layout.header;
+  const wanted: HeaderVariationType = opts.hasDiscount ? "discount" : "normal";
+  const typed = all.filter((r: any) => normalizeHeaderType(r.type) === wanted);
+  const pool: string[] = (typed.length > 0 ? typed : all).map((r: any) => r.text as string);
   const recent = new Set(recentHeaders.filter(Boolean));
   const candidates = pool.filter((t) => !recent.has(t));
   const src = candidates.length > 0 ? candidates : pool;
   return src[Math.floor(Math.random() * src.length)];
+}
+
+export function productHasDiscount(product: {
+  promo_price?: number | string | null;
+  original_price?: number | string | null;
+}): boolean {
+  const promo = Number(product?.promo_price);
+  const original = Number(product?.original_price);
+  return Number.isFinite(promo) && Number.isFinite(original) && original > promo && promo > 0;
 }
 
 /* ==================== Enviar teste ==================== */
