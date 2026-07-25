@@ -23,6 +23,7 @@ import { Route as ApiPublicWhatsappWebhookRouteImport } from './routes/api/publi
 import { Route as ApiPublicWhatsappDiagnosticRouteImport } from './routes/api/public/whatsapp/diagnostic'
 import { Route as ApiPublicWhatsappConnectRouteImport } from './routes/api/public/whatsapp/connect'
 import { Route as ApiPublicWebhooksInstagramRouteImport } from './routes/api/public/webhooks/instagram'
+import { Route as ApiPublicMetaWebhookRouteImport } from './routes/api/public/meta/webhook'
 import { Route as ApiPublicInstagramCallbackRouteImport } from './routes/api/public/instagram/callback'
 import { Route as ApiPublicHooksProductsValidateRouteImport } from './routes/api/public/hooks/products-validate'
 import { Route as ApiPublicHooksInstagramTickRouteImport } from './routes/api/public/hooks/instagram-tick'
@@ -107,6 +108,11 @@ const ApiPublicWebhooksInstagramRoute =
     path: '/api/public/webhooks/instagram',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicMetaWebhookRoute = ApiPublicMetaWebhookRouteImport.update({
+  id: '/api/public/meta/webhook',
+  path: '/api/public/meta/webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicInstagramCallbackRoute =
   ApiPublicInstagramCallbackRouteImport.update({
     id: '/api/public/instagram/callback',
@@ -165,6 +171,7 @@ export interface FileRoutesByFullPath {
   '/api/public/hooks/instagram-tick': typeof ApiPublicHooksInstagramTickRoute
   '/api/public/hooks/products-validate': typeof ApiPublicHooksProductsValidateRoute
   '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
+  '/api/public/meta/webhook': typeof ApiPublicMetaWebhookRoute
   '/api/public/webhooks/instagram': typeof ApiPublicWebhooksInstagramRoute
   '/api/public/whatsapp/connect': typeof ApiPublicWhatsappConnectRoute
   '/api/public/whatsapp/diagnostic': typeof ApiPublicWhatsappDiagnosticRoute
@@ -188,6 +195,7 @@ export interface FileRoutesByTo {
   '/api/public/hooks/instagram-tick': typeof ApiPublicHooksInstagramTickRoute
   '/api/public/hooks/products-validate': typeof ApiPublicHooksProductsValidateRoute
   '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
+  '/api/public/meta/webhook': typeof ApiPublicMetaWebhookRoute
   '/api/public/webhooks/instagram': typeof ApiPublicWebhooksInstagramRoute
   '/api/public/whatsapp/connect': typeof ApiPublicWhatsappConnectRoute
   '/api/public/whatsapp/diagnostic': typeof ApiPublicWhatsappDiagnosticRoute
@@ -212,6 +220,7 @@ export interface FileRoutesById {
   '/api/public/hooks/instagram-tick': typeof ApiPublicHooksInstagramTickRoute
   '/api/public/hooks/products-validate': typeof ApiPublicHooksProductsValidateRoute
   '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
+  '/api/public/meta/webhook': typeof ApiPublicMetaWebhookRoute
   '/api/public/webhooks/instagram': typeof ApiPublicWebhooksInstagramRoute
   '/api/public/whatsapp/connect': typeof ApiPublicWhatsappConnectRoute
   '/api/public/whatsapp/diagnostic': typeof ApiPublicWhatsappDiagnosticRoute
@@ -237,6 +246,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/instagram-tick'
     | '/api/public/hooks/products-validate'
     | '/api/public/instagram/callback'
+    | '/api/public/meta/webhook'
     | '/api/public/webhooks/instagram'
     | '/api/public/whatsapp/connect'
     | '/api/public/whatsapp/diagnostic'
@@ -260,6 +270,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/instagram-tick'
     | '/api/public/hooks/products-validate'
     | '/api/public/instagram/callback'
+    | '/api/public/meta/webhook'
     | '/api/public/webhooks/instagram'
     | '/api/public/whatsapp/connect'
     | '/api/public/whatsapp/diagnostic'
@@ -283,6 +294,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/instagram-tick'
     | '/api/public/hooks/products-validate'
     | '/api/public/instagram/callback'
+    | '/api/public/meta/webhook'
     | '/api/public/webhooks/instagram'
     | '/api/public/whatsapp/connect'
     | '/api/public/whatsapp/diagnostic'
@@ -307,6 +319,7 @@ export interface RootRouteChildren {
   ApiPublicHooksInstagramTickRoute: typeof ApiPublicHooksInstagramTickRoute
   ApiPublicHooksProductsValidateRoute: typeof ApiPublicHooksProductsValidateRoute
   ApiPublicInstagramCallbackRoute: typeof ApiPublicInstagramCallbackRoute
+  ApiPublicMetaWebhookRoute: typeof ApiPublicMetaWebhookRoute
   ApiPublicWebhooksInstagramRoute: typeof ApiPublicWebhooksInstagramRoute
   ApiPublicWhatsappConnectRoute: typeof ApiPublicWhatsappConnectRoute
   ApiPublicWhatsappDiagnosticRoute: typeof ApiPublicWhatsappDiagnosticRoute
@@ -416,6 +429,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicWebhooksInstagramRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/meta/webhook': {
+      id: '/api/public/meta/webhook'
+      path: '/api/public/meta/webhook'
+      fullPath: '/api/public/meta/webhook'
+      preLoaderRoute: typeof ApiPublicMetaWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/instagram/callback': {
       id: '/api/public/instagram/callback'
       path: '/api/public/instagram/callback'
@@ -483,6 +503,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicHooksInstagramTickRoute: ApiPublicHooksInstagramTickRoute,
   ApiPublicHooksProductsValidateRoute: ApiPublicHooksProductsValidateRoute,
   ApiPublicInstagramCallbackRoute: ApiPublicInstagramCallbackRoute,
+  ApiPublicMetaWebhookRoute: ApiPublicMetaWebhookRoute,
   ApiPublicWebhooksInstagramRoute: ApiPublicWebhooksInstagramRoute,
   ApiPublicWhatsappConnectRoute: ApiPublicWhatsappConnectRoute,
   ApiPublicWhatsappDiagnosticRoute: ApiPublicWhatsappDiagnosticRoute,
