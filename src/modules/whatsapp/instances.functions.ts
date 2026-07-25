@@ -626,7 +626,7 @@ export const sendWhatsAppProduct = createServerFn({ method: "POST" })
         price: prod.promo_price,
         price_original: prod.original_price,
         parcelamento: null,
-        vendas: prod.sales,
+        vendas: (prod as { sales_label?: string | null }).sales_label ?? prod.sales,
         link: prod.affiliate_link,
         image: prod.image_url,
       };
