@@ -385,14 +385,21 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
     console.log("[COMPARE_POST_PIPELINE]", {
       source: "automation",
       title: product.title,
-      sales: product.sales,
-      sales_label: (product as { sales_label?: string | null }).sales_label,
-      vendas_final: (product as { sales_label?: string | null }).sales_label ?? product.sales,
-      price: product.promo_price,
-      original: product.original_price,
-      layout_channel: cfg.channel_id,
+      vendas: productDetail.vendas,
+      sales_label: (product as { sales_label?: string | null }).sales_label ?? null,
+      sales: product.sales ?? null,
+      price: productDetail.price,
+      price_original: productDetail.price_original,
+      promo_price: product.promo_price ?? null,
+      original_price: product.original_price ?? null,
+      channel_id: cfg.channel_id,
+      group_id: groups.map((g) => g.group_jid),
+      config_id: cfg.id,
+      header_mode: layout.header_mode,
+      header: chosenHeader,
     });
   } catch { /* noop */ }
+
   const caption = renderPost(effectiveLayout, productDetail, "whatsapp");
 
 
