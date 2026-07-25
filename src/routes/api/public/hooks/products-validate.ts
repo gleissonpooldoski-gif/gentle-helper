@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { requireCronSecret } from "@/lib/public-auth.server";
 
 /**
  * Rotina de sincronização periódica dos produtos importados.
@@ -9,6 +10,9 @@ export const Route = createFileRoute("/api/public/hooks/products-validate")({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        const authFail = requireCronSecret(request);
+        if (authFail) return authFail;
+
         const url = new URL(request.url);
         const limit = Math.min(200, Math.max(1, Number(url.searchParams.get("limit") ?? 50)));
         const staleHours = Math.max(1, Number(url.searchParams.get("staleHours") ?? 24));
