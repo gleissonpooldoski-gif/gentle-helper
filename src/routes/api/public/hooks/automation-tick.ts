@@ -134,6 +134,10 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
     }
 
     // Busca um lote de candidatos aleatorizados e valida em ordem.
+    // ISOLAMENTO OBRIGATÓRIO: quando a config é por grupo (`cfg.group_id`),
+    // só considera produtos capturados a partir do mesmo grupo destino
+    // (`products.source_group_jid = cfg.group_id`). Isso impede que um
+    // WhatsApp/grupo dispare produtos que pertencem a outro grupo.
     let q = admin
       .from("products")
       .select("*")
@@ -144,6 +148,10 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
       .not("affiliate_link", "is", null)
       .order("last_validated_at", { ascending: true, nullsFirst: true })
       .limit(30);
+
+    if (cfg.group_id) {
+      q = q.eq("source_group_jid", cfg.group_id);
+    }
 
     if (excluded.size > 0) {
       q = q.not("id", "in", `(${Array.from(excluded).join(",")})`);
@@ -190,7 +198,9 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
     if (!product) {
       await admin.from("automation_configs").update({
         status: "error",
-        last_error: "Nenhum produto ativo/válido nas lojas selecionadas",
+        last_error: cfg.group_id
+          ? "Nenhum produto capturado deste grupo disponível para envio"
+          : "Nenhum produto ativo/válido nas lojas selecionadas",
         next_run_at: new Date(Date.now() + cfg.intervalo_min * 60_000).toISOString(),
       }).eq("id", cfg.id);
       return;
@@ -224,6 +234,38 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
 
   let groups: Array<{ group_jid: string; group_name: string | null }> = [];
   if (cfg.group_id) {
+    // Validação obrigatória de posse: o grupo destino precisa estar vinculado
+    // à instância desta config. Se não estiver, bloqueia envio.
+    if (inst) {
+      const { data: owns } = await admin
+        .from("whatsapp_group_selections")
+        .select("group_jid, group_name")
+        .eq("user_id", cfg.user_id)
+        .eq("instance_id", inst.id)
+        .eq("channel_id", cfg.channel_id)
+        .eq("group_jid", cfg.group_id)
+        .maybeSingle();
+      if (!owns) {
+        await admin.from("whatsapp_campaign_history").insert({
+          user_id: cfg.user_id,
+          config_id: cfg.id,
+          product_id: product.id,
+          product_name: product.title,
+          store: product.platform,
+          group_id: cfg.group_id,
+          group_name: cfg.group_name,
+          instance_name: instanceName,
+          status: "failed",
+          error_message: `Grupo bloqueado: ${cfg.group_id} não pertence à instância ${instanceName}`,
+        });
+        await admin.from("automation_configs").update({
+          status: "error",
+          last_error: `Grupo não pertence à instância ${instanceName}`,
+          next_run_at: new Date(Date.now() + cfg.intervalo_min * 60_000).toISOString(),
+        }).eq("id", cfg.id);
+        return;
+      }
+    }
     groups = [{ group_jid: cfg.group_id, group_name: cfg.group_name ?? null }];
   } else if (inst) {
     const { data: gsel } = await admin
@@ -315,7 +357,27 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
 
 
   let anySent = false;
+  const productSourceJid: string | null = (product as { source_group_jid?: string | null }).source_group_jid ?? null;
   for (const g of groups) {
+    // Bloqueio de isolamento: se o produto foi capturado de outro grupo,
+    // cancela o envio para este destino e registra o motivo.
+    if (productSourceJid && productSourceJid !== g.group_jid) {
+      await admin.from("whatsapp_campaign_history").insert({
+        user_id: cfg.user_id,
+        config_id: cfg.id,
+        product_id: product.id,
+        product_name: product.title,
+        store: product.platform,
+        group_id: g.group_jid,
+        group_name: g.group_name,
+        instance_name: instanceName,
+        media_url: productDetail.image,
+        caption,
+        status: "blocked",
+        error_message: `Produto bloqueado: pertence a outro grupo (${(product as { source_group_name?: string | null }).source_group_name ?? productSourceJid})`,
+      });
+      continue;
+    }
     let ok = true;
     let err: string | null = null;
     try {
