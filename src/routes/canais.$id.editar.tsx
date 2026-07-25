@@ -1323,7 +1323,42 @@ const WEEKDAYS = [
 
 const DEFAULT_HOURS = [8, 9, 12, 13, 17, 18, 21, 22];
 
-function InstagramPanel() {
+function InstagramPanel({ channelId }: { channelId: string }) {
+  const getConnFn = useServerFn(
+    (require("@/lib/instagram.functions") as typeof import("@/lib/instagram.functions")).getInstagramConnection,
+  );
+  const startOAuthFn = useServerFn(
+    (require("@/lib/instagram.functions") as typeof import("@/lib/instagram.functions")).startInstagramOAuth,
+  );
+  const disconnectFn = useServerFn(
+    (require("@/lib/instagram.functions") as typeof import("@/lib/instagram.functions")).disconnectInstagram,
+  );
+  const flagsFn = useServerFn(
+    (require("@/lib/instagram.functions") as typeof import("@/lib/instagram.functions")).updateInstagramFlags,
+  );
+  const listKwFn = useServerFn(
+    (require("@/lib/instagram.functions") as typeof import("@/lib/instagram.functions")).listInstagramKeywords,
+  );
+  const saveKwFn = useServerFn(
+    (require("@/lib/instagram.functions") as typeof import("@/lib/instagram.functions")).saveInstagramKeyword,
+  );
+  const getTplFn = useServerFn(
+    (require("@/lib/instagram.functions") as typeof import("@/lib/instagram.functions")).getInstagramTemplate,
+  );
+  const saveTplFn = useServerFn(
+    (require("@/lib/instagram.functions") as typeof import("@/lib/instagram.functions")).saveInstagramTemplate,
+  );
+  const getSchedFn = useServerFn(
+    (require("@/lib/instagram.functions") as typeof import("@/lib/instagram.functions")).getInstagramSchedule,
+  );
+  const saveSchedFn = useServerFn(
+    (require("@/lib/instagram.functions") as typeof import("@/lib/instagram.functions")).saveInstagramSchedule,
+  );
+
+  const [connection, setConnection] = useState<
+    import("@/lib/instagram.functions").IgConnectionView | null
+  >(null);
+  const [loading, setLoading] = useState(true);
   const [autoPost, setAutoPost] = useState(true);
   const [disableReply, setDisableReply] = useState(false);
   const [schedActive, setSchedActive] = useState(true);
@@ -1332,11 +1367,113 @@ function InstagramPanel() {
   const [replyText, setReplyText] = useState(
     "Ficou feliz que tenha gostado 😅 Já deixei o link abaixo. Aproveita porque esse valor costuma acabar rápido ⏰👇",
   );
+  const [keywordId, setKeywordId] = useState<string | undefined>();
+  const [keyword, setKeyword] = useState<string>("quero");
+  const [templateUrl, setTemplateUrl] = useState<string>("");
+  const [titleColor, setTitleColor] = useState<string>("#ffffff");
+  const [priceColor, setPriceColor] = useState<string>("#facc15");
+  const [buttonTitle, setButtonTitle] = useState<string>("VER PARA COMPRAR");
 
-  const toggleDay = (d: string) =>
-    setDays((p) => (p.includes(d) ? p.filter((x) => x !== d) : [...p, d]));
-  const toggleHour = (h: number) =>
-    setHours((p) => (p.includes(h) ? p.filter((x) => x !== h) : [...p, h]));
+  const DAY_MAP: Record<string, number> = { dom: 0, seg: 1, ter: 2, qua: 3, qui: 4, sex: 5, sab: 6 };
+  const REV_DAY: Record<number, string> = { 0: "dom", 1: "seg", 2: "ter", 3: "qua", 4: "qui", 5: "sex", 6: "sab" };
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    Promise.all([
+      getConnFn({ data: { channelId } }),
+      listKwFn({ data: { channelId } }),
+      getTplFn({ data: { channelId } }),
+      getSchedFn({ data: { channelId } }),
+    ])
+      .then(([conn, kws, tpl, sched]) => {
+        if (cancelled) return;
+        setConnection(conn);
+        setAutoPost(conn?.autoPostEnabled ?? true);
+        setDisableReply(conn?.disableCommentReply ?? false);
+        const first = (kws ?? [])[0];
+        if (first) {
+          setKeywordId(first.id);
+          setKeyword(first.keyword);
+          setReplyText(first.comment_reply_text ?? "");
+        }
+        if (tpl) {
+          setTemplateUrl(tpl.image_url ?? "");
+          setTitleColor(tpl.title_color ?? "#ffffff");
+          setPriceColor(tpl.price_color ?? "#facc15");
+        }
+        if (sched) {
+          setDays((sched.days ?? []).map((n: number) => REV_DAY[n]).filter(Boolean));
+          setHours(sched.hours ?? []);
+          setSchedActive(sched.active ?? true);
+        }
+      })
+      .catch((e) => toast.error("Falha ao carregar Instagram: " + String(e?.message ?? e)))
+      .finally(() => !cancelled && setLoading(false));
+    return () => { cancelled = true; };
+  }, [channelId, getConnFn, listKwFn, getTplFn, getSchedFn]);
+
+  const isConnected = connection?.status === "connected";
+
+  const toggleDay = (d: string) => setDays((p) => (p.includes(d) ? p.filter((x) => x !== d) : [...p, d]));
+  const toggleHour = (h: number) => setHours((p) => (p.includes(h) ? p.filter((x) => x !== h) : [...p, h]));
+
+  const handleConnect = async () => {
+    try {
+      const { url } = await startOAuthFn({ data: { channelId } });
+      window.location.href = url;
+    } catch (e: any) { toast.error(String(e?.message ?? e)); }
+  };
+  const handleDisconnect = async () => {
+    if (!confirm("Desconectar Instagram deste canal?")) return;
+    try {
+      await disconnectFn({ data: { channelId } });
+      setConnection(null);
+      toast.success("Instagram desconectado.");
+    } catch (e: any) { toast.error(String(e?.message ?? e)); }
+  };
+  const handleFlagToggle = async (patch: {
+    autoPostEnabled?: boolean; disableCommentReply?: boolean; growthEnabled?: boolean;
+  }) => {
+    try { await flagsFn({ data: { channelId, ...patch } }); }
+    catch (e: any) { toast.error("Falha ao salvar preferência: " + String(e?.message ?? e)); }
+  };
+  const handleSaveReply = async () => {
+    try {
+      await saveKwFn({
+        data: {
+          channelId, id: keywordId, keyword: keyword || "quero",
+          active: true, commentReplyEnabled: !disableReply, commentReplyText: replyText,
+        },
+      });
+      toast.success("Resposta automática salva.");
+    } catch (e: any) { toast.error(String(e?.message ?? e)); }
+  };
+  const handleSaveTemplate = async () => {
+    if (!templateUrl) { toast.error("Envie ou informe a URL da imagem do template."); return; }
+    try {
+      await saveTplFn({
+        data: {
+          channelId, imageUrl: templateUrl, titleColor, priceColor,
+          captionTemplate: "🔥 {title}\n💰 {price}\n\nClique no link 👇\n{link}",
+        },
+      });
+      toast.success("Template salvo.");
+    } catch (e: any) { toast.error(String(e?.message ?? e)); }
+  };
+  const handleSaveSchedule = async () => {
+    try {
+      await saveSchedFn({
+        data: {
+          channelId,
+          days: days.map((d) => DAY_MAP[d]).filter((n) => n !== undefined),
+          hours,
+          active: schedActive,
+        },
+      });
+      toast.success("Agendamento salvo.");
+    } catch (e: any) { toast.error(String(e?.message ?? e)); }
+  };
 
   return (
     <div className="mt-6 space-y-6">
@@ -1349,18 +1486,19 @@ function InstagramPanel() {
               <Instagram className="h-6 w-6" strokeWidth={2.2} />
             </span>
             <div>
-              <h2 className="font-display text-2xl font-bold tracking-tight">
-                📸 Instagram
-              </h2>
+              <h2 className="font-display text-2xl font-bold tracking-tight">📸 Instagram</h2>
               <p className="text-[13px] text-white/85">
-                Configurações da conta{" "}
-                <span className="font-semibold">@segredodapromocao</span>
+                {isConnected ? (
+                  <>Conta <span className="font-semibold">@{connection?.username}</span></>
+                ) : (
+                  <>Nenhuma conta conectada ainda</>
+                )}
               </p>
             </div>
           </div>
           <span className="inline-flex items-center gap-1.5 self-start rounded-full bg-white/20 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider backdrop-blur">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-300 shadow-[0_0_8px_rgba(52,211,153,0.9)]" />
-            Conectado
+            <span className={cn("h-1.5 w-1.5 rounded-full", isConnected ? "bg-emerald-300 shadow-[0_0_8px_rgba(52,211,153,0.9)]" : "bg-red-300")} />
+            {isConnected ? "Conectado" : loading ? "Carregando..." : "Desconectado"}
           </span>
         </div>
       </div>
@@ -1368,51 +1506,61 @@ function InstagramPanel() {
       {/* Row 1 — account + growth chart */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <SectionCard title="Conta vinculada" icon={<Users className="h-4 w-4" />}>
-          <div className="flex items-center gap-4">
-            <div className="relative shrink-0">
-              <div className="grid h-16 w-16 place-items-center rounded-full bg-[linear-gradient(135deg,#feda75,#d62976,#4f5bd5)] p-[2px]">
-                <div className="grid h-full w-full place-items-center rounded-full bg-card font-display text-lg font-bold text-foreground">
-                  SP
+          {isConnected ? (
+            <>
+              <div className="flex items-center gap-4">
+                <div className="relative shrink-0">
+                  <div className="grid h-16 w-16 place-items-center rounded-full bg-[linear-gradient(135deg,#feda75,#d62976,#4f5bd5)] p-[2px]">
+                    <div className="grid h-full w-full place-items-center overflow-hidden rounded-full bg-card font-display text-lg font-bold text-foreground">
+                      {connection?.profilePicture ? (
+                        <img src={connection.profilePicture} alt={connection.username ?? ""} className="h-full w-full object-cover" />
+                      ) : (connection?.username ?? "IG").slice(0, 2).toUpperCase()}
+                    </div>
+                  </div>
+                  <span className="absolute -bottom-0.5 -right-0.5 grid h-5 w-5 place-items-center rounded-full border-2 border-card bg-emerald-500 text-white">
+                    <Check className="h-2.5 w-2.5" strokeWidth={4} />
+                  </span>
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate text-[13px] text-muted-foreground">@{connection?.username}</p>
+                  <p className="truncate font-display text-lg font-bold text-foreground">{connection?.name}</p>
                 </div>
               </div>
-              <span className="absolute -bottom-0.5 -right-0.5 grid h-5 w-5 place-items-center rounded-full border-2 border-card bg-emerald-500 text-white">
-                <Check className="h-2.5 w-2.5" strokeWidth={4} />
-              </span>
-            </div>
-            <div className="min-w-0">
-              <p className="truncate text-[13px] text-muted-foreground">
-                @segredodapromocao
-              </p>
-              <p className="truncate font-display text-lg font-bold text-foreground">
-                Segredo Das Promoções 🛍️
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-4 grid grid-cols-3 gap-2 rounded-xl border border-border/70 bg-muted/30 p-3 text-center">
-            {[
-              { n: 34, l: "Mídias" },
-              { n: 108, l: "Seguidores" },
-              { n: 28, l: "Seguindo" },
-            ].map((s) => (
-              <div key={s.l}>
-                <p className="font-display text-xl font-bold text-foreground">
-                  {s.n}
-                </p>
-                <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                  {s.l}
-                </p>
+              <div className="mt-4 grid grid-cols-3 gap-2 rounded-xl border border-border/70 bg-muted/30 p-3 text-center">
+                {[
+                  { n: connection?.mediaCount ?? 0, l: "Mídias" },
+                  { n: connection?.followers ?? 0, l: "Seguidores" },
+                  { n: connection?.follows ?? 0, l: "Seguindo" },
+                ].map((s) => (
+                  <div key={s.l}>
+                    <p className="font-display text-xl font-bold text-foreground">{s.n}</p>
+                    <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{s.l}</p>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-
-          <Button
-            variant="outline"
-            className="mt-4 h-10 w-full rounded-lg border-red-300 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700"
-          >
-            <Trash2 className="mr-1.5 h-4 w-4" />
-            Desconectar Instagram
-          </Button>
+              <Button
+                variant="outline"
+                onClick={handleDisconnect}
+                className="mt-4 h-10 w-full rounded-lg border-red-300 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700"
+              >
+                <Trash2 className="mr-1.5 h-4 w-4" />
+                Desconectar Instagram
+              </Button>
+            </>
+          ) : (
+            <div className="flex flex-col items-center justify-center gap-3 py-6 text-center">
+              <p className="text-sm text-muted-foreground">
+                Conecte uma conta Instagram Business/Creator vinculada a uma Página do Facebook.
+              </p>
+              <Button
+                onClick={handleConnect}
+                className="h-10 rounded-lg bg-gradient-to-r from-[#feda75] via-[#d62976] to-[#4f5bd5] px-6 text-white hover:opacity-95"
+              >
+                <Instagram className="mr-1.5 h-4 w-4" />
+                Conectar Instagram
+              </Button>
+            </div>
+          )}
         </SectionCard>
 
         <SectionCard title="Crescimento de seguidores" icon={<Sparkles className="h-4 w-4" />}>
@@ -1434,39 +1582,43 @@ function InstagramPanel() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <SectionCard title="Template IG Story (9:16)" icon={<Palette className="h-4 w-4" />}>
           <a
-            href="#"
+            href="https://www.canva.com/pt_br/design/create/?category=stories"
+            target="_blank" rel="noreferrer"
             className="inline-block text-[13px] font-semibold text-primary underline-offset-2 hover:underline"
           >
             Clique aqui para editar o template no Canva
           </a>
 
-          <label className="mt-3 flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-border bg-background px-3 py-2.5 text-sm text-muted-foreground hover:border-primary/50">
-            <Upload className="h-4 w-4" />
-            <span className="flex-1">Escolha um arquivo</span>
-            <span className="rounded-md bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
-              Nenhum selecionado
-            </span>
-            <input type="file" className="hidden" />
-          </label>
+          <Field label="URL da imagem base (1080x1920)">
+            <Input
+              value={templateUrl}
+              onChange={(e) => setTemplateUrl(e.target.value)}
+              placeholder="https://.../template.jpg"
+              className="h-10"
+            />
+          </Field>
 
           <div className="grid grid-cols-2 gap-3">
             <Field label="Cor do Título">
               <input
-                type="color"
-                defaultValue="#ffffff"
+                type="color" value={titleColor}
+                onChange={(e) => setTitleColor(e.target.value)}
                 className="h-10 w-full cursor-pointer rounded-lg border border-border bg-background"
               />
             </Field>
             <Field label="Cor do Preço">
               <input
-                type="color"
-                defaultValue="#facc15"
+                type="color" value={priceColor}
+                onChange={(e) => setPriceColor(e.target.value)}
                 className="h-10 w-full cursor-pointer rounded-lg border border-border bg-background"
               />
             </Field>
           </div>
 
-          <Button className="h-10 w-full rounded-lg bg-gradient-to-r from-[oklch(0.7_0.19_45)] to-[oklch(0.62_0.22_25)] text-white shadow-[0_10px_24px_-14px_rgba(220,80,20,0.6)] hover:opacity-95">
+          <Button
+            onClick={handleSaveTemplate}
+            className="h-10 w-full rounded-lg bg-gradient-to-r from-[oklch(0.7_0.19_45)] to-[oklch(0.62_0.22_25)] text-white shadow-[0_10px_24px_-14px_rgba(220,80,20,0.6)] hover:opacity-95"
+          >
             <Save className="mr-1.5 h-4 w-4" />
             Salvar
           </Button>
@@ -1483,21 +1635,16 @@ function InstagramPanel() {
       </div>
 
       {/* Row 3 — auto reply */}
-      <SectionCard
-        title="Resposta automática do story"
-        icon={<Send className="h-4 w-4" />}
-      >
+      <SectionCard title="Resposta automática do story" icon={<Send className="h-4 w-4" />}>
         <div className="space-y-2">
           <div className="flex items-start gap-2 rounded-lg border border-[oklch(0.85_0.15_85)]/40 bg-[oklch(0.98_0.05_90)] px-3 py-2 text-[12px] leading-relaxed text-[oklch(0.42_0.12_75)]">
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-            <span>
-              Não há compatibilidade com figurinhas (links, enquetes, localização).
-            </span>
+            <span>Não há compatibilidade com figurinhas (links, enquetes, localização).</span>
           </div>
           <div className="flex items-start gap-2 rounded-lg border border-primary/25 bg-primary/5 px-3 py-2 text-[12px] leading-relaxed text-primary">
             <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <span>
-              📢 O template deve conter a chamada: <b>"Comente QUERO para receber o link!"</b>
+              📢 O template deve conter a chamada: <b>"Comente {keyword.toUpperCase()} para receber o link!"</b>
             </span>
           </div>
         </div>
@@ -1507,24 +1654,31 @@ function InstagramPanel() {
             label="Post automático"
             description="Publicar stories automaticamente"
             checked={autoPost}
-            onChange={setAutoPost}
+            onChange={(v) => { setAutoPost(v); void handleFlagToggle({ autoPostEnabled: v }); }}
           />
           <ToggleRow
             label="Desativar resposta no comentário"
             description="Não enviar DM para quem comentar"
             checked={disableReply}
-            onChange={setDisableReply}
+            onChange={(v) => { setDisableReply(v); void handleFlagToggle({ disableCommentReply: v }); }}
           />
         </div>
+
+        <Field label="Palavra-chave (comentário / resposta de story)">
+          <Input
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value.slice(0, 40))}
+            placeholder="quero"
+            className="h-10 font-mono uppercase"
+          />
+        </Field>
 
         <div>
           <div className="mb-1.5 flex items-center justify-between">
             <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               Texto da resposta automática ao story
             </label>
-            <span className="text-[11px] text-muted-foreground">
-              {replyText.length}/500
-            </span>
+            <span className="text-[11px] text-muted-foreground">{replyText.length}/500</span>
           </div>
           <textarea
             value={replyText}
@@ -1536,13 +1690,17 @@ function InstagramPanel() {
 
         <Field label="Texto do botão de link">
           <Input
-            defaultValue="VER PARA COMPRAR"
+            value={buttonTitle}
+            onChange={(e) => setButtonTitle(e.target.value.slice(0, 20))}
             className="h-10 font-mono uppercase"
           />
         </Field>
 
         <div className="flex justify-end">
-          <Button className="h-10 rounded-lg bg-gradient-to-r from-[oklch(0.7_0.19_45)] to-[oklch(0.62_0.22_25)] px-6 text-white shadow-[0_10px_24px_-14px_rgba(220,80,20,0.6)] hover:opacity-95">
+          <Button
+            onClick={handleSaveReply}
+            className="h-10 rounded-lg bg-gradient-to-r from-[oklch(0.7_0.19_45)] to-[oklch(0.62_0.22_25)] px-6 text-white shadow-[0_10px_24px_-14px_rgba(220,80,20,0.6)] hover:opacity-95"
+          >
             <Save className="mr-1.5 h-4 w-4" />
             Salvar
           </Button>
@@ -1551,10 +1709,7 @@ function InstagramPanel() {
 
       {/* Row 4 — schedule + tips */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
-        <SectionCard
-          title="Agendamento recorrente do story"
-          icon={<Calendar className="h-4 w-4" />}
-        >
+        <SectionCard title="Agendamento recorrente do story" icon={<Calendar className="h-4 w-4" />}>
           <div>
             <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               Dias da semana
@@ -1613,7 +1768,10 @@ function InstagramPanel() {
           />
 
           <div className="flex justify-end">
-            <Button className="h-10 rounded-lg bg-primary px-6 hover:bg-primary/90">
+            <Button
+              onClick={handleSaveSchedule}
+              className="h-10 rounded-lg bg-primary px-6 hover:bg-primary/90"
+            >
               <Save className="mr-1.5 h-4 w-4" />
               Salvar Agendamento
             </Button>
@@ -1633,22 +1791,15 @@ function InstagramPanel() {
             <ul className="space-y-2.5 text-[13px] text-foreground/85">
               <li className="flex items-start gap-2">
                 <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" strokeWidth={3} />
-                <span>
-                  Limite de até <b>25 posts automáticos</b> por 24 horas.
-                </span>
+                <span>Limite de até <b>25 posts automáticos</b> por 24 horas.</span>
               </li>
               <li className="flex items-start gap-2">
                 <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" strokeWidth={3} />
-                <span>
-                  Proporção correta de <b>9:16 (1080×1920px)</b>.
-                </span>
+                <span>Proporção correta de <b>9:16 (1080×1920px)</b>.</span>
               </li>
               <li className="flex items-start gap-2 rounded-lg border border-[oklch(0.85_0.15_85)]/40 bg-[oklch(0.98_0.05_90)] px-2 py-2 text-[12px] text-[oklch(0.42_0.12_75)]">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                <span>
-                  Se o Instagram desconectar, reconecte usando <b>4G</b> ao invés
-                  de Wi-Fi.
-                </span>
+                <span>Se o Instagram desconectar, reconecte usando <b>4G</b> ao invés de Wi-Fi.</span>
               </li>
             </ul>
           </div>
@@ -1657,6 +1808,7 @@ function InstagramPanel() {
     </div>
   );
 }
+
 
 function ToggleRow({
   label,
