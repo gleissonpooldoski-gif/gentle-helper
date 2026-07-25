@@ -238,7 +238,10 @@ function PublishBox() {
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  // Compose preview
+  // Compose preview — matches the "Divulga Links" reference layout:
+  //  · Product photo centered in the template's white frame
+  //  · Title (up to 2 lines) below the product
+  //  · Colored bar with "POR R$ XX,XX" (+ small strike "DE R$ Y") at the bottom
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -246,63 +249,106 @@ function PublishBox() {
     if (!ctx) return;
     canvas.width = W;
     canvas.height = H;
-    ctx.fillStyle = "#fde047";
-    ctx.fillRect(0, 0, W, H);
+
+    const FRAME = { x: 90, y: 340, w: 900, h: 1240 };
+    const PROD = { x: FRAME.x + 40, y: FRAME.y + 40, w: FRAME.w - 80, h: 760 };
+    const TITLE_Y = PROD.y + PROD.h + 60;
+    const BAR = { x: FRAME.x + 30, y: FRAME.y + FRAME.h - 210, w: FRAME.w - 60, h: 170 };
 
     const drawText = () => {
-      const price = formatBRL(product?.promo_price ?? product?.original_price);
+      const promo = product?.promo_price ?? null;
+      const original = product?.original_price ?? null;
+      const priceStr = formatBRL(promo ?? original);
+      const originalStr =
+        promo && original && Number(original) > Number(promo) ? formatBRL(original) : "";
       const title = product?.title ?? "Selecione um produto";
-      ctx.textAlign = "center";
+
+      // TITLE
       ctx.fillStyle = template?.title_color ?? "#111111";
-      ctx.font = "700 56px Inter, system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+      ctx.font = "700 60px Inter, system-ui, sans-serif";
       const words = title.split(" ");
+      const maxLineWidth = FRAME.w - 100;
       const lines: string[] = [];
       let line = "";
       for (const w of words) {
         const test = line ? `${line} ${w}` : w;
-        if (ctx.measureText(test).width > W - 200 && line) {
+        if (ctx.measureText(test).width > maxLineWidth && line) {
           lines.push(line);
           line = w;
         } else line = test;
       }
       if (line) lines.push(line);
-      lines.slice(0, 3).forEach((ln, i) => ctx.fillText(ln, W / 2, 1300 + i * 70));
+      lines.slice(0, 2).forEach((ln, i) => ctx.fillText(ln, W / 2, TITLE_Y + i * 72));
 
-      if (price) {
-        ctx.fillStyle = template?.price_color ?? "#ef4444";
-        ctx.font = "800 140px Inter, system-ui, sans-serif";
-        ctx.fillText(price, W / 2, 1600);
+      // PRICE BAR (rounded rectangle in priceColor)
+      if (priceStr) {
+        const barColor = template?.price_color ?? "#6d28d9";
+        const r = 24;
+        ctx.fillStyle = barColor;
+        ctx.beginPath();
+        ctx.moveTo(BAR.x + r, BAR.y);
+        ctx.arcTo(BAR.x + BAR.w, BAR.y, BAR.x + BAR.w, BAR.y + BAR.h, r);
+        ctx.arcTo(BAR.x + BAR.w, BAR.y + BAR.h, BAR.x, BAR.y + BAR.h, r);
+        ctx.arcTo(BAR.x, BAR.y + BAR.h, BAR.x, BAR.y, r);
+        ctx.arcTo(BAR.x, BAR.y, BAR.x + BAR.w, BAR.y, r);
+        ctx.closePath();
+        ctx.fill();
+
+        let priceY = BAR.y + BAR.h / 2;
+        if (originalStr) {
+          ctx.fillStyle = "rgba(255,255,255,0.92)";
+          ctx.font = "600 34px Inter, system-ui, sans-serif";
+          ctx.textBaseline = "middle";
+          const deLabel = `DE ${originalStr}`;
+          const dy = BAR.y + 44;
+          ctx.fillText(deLabel, W / 2, dy);
+          const tw = ctx.measureText(deLabel).width;
+          ctx.strokeStyle = "rgba(255,255,255,0.92)";
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.moveTo(W / 2 - tw / 2, dy);
+          ctx.lineTo(W / 2 + tw / 2, dy);
+          ctx.stroke();
+          priceY = BAR.y + BAR.h - 58;
+        }
+
+        ctx.fillStyle = "#ffffff";
+        ctx.textBaseline = "middle";
+        ctx.font = "700 44px Inter, system-ui, sans-serif";
+        const porW = ctx.measureText("POR ").width;
+        ctx.font = "900 96px Inter, system-ui, sans-serif";
+        const priceW = ctx.measureText(priceStr).width;
+        const totalW = porW + priceW;
+        const startX = (W - totalW) / 2;
+        ctx.textAlign = "left";
+        ctx.font = "700 44px Inter, system-ui, sans-serif";
+        ctx.fillText("POR ", startX, priceY);
+        ctx.font = "900 96px Inter, system-ui, sans-serif";
+        ctx.fillText(priceStr, startX + porW, priceY);
+        ctx.textAlign = "center";
       }
     };
 
     const drawProduct = (img: HTMLImageElement) => {
-      const maxW = 720;
-      const ratio = Math.min(maxW / img.width, 900 / img.height);
+      const ratio = Math.min(PROD.w / img.width, PROD.h / img.height);
       const w = img.width * ratio;
       const h = img.height * ratio;
-      ctx.drawImage(img, (W - w) / 2, 280, w, h);
+      const x = PROD.x + (PROD.w - w) / 2;
+      const y = PROD.y + (PROD.h - h) / 2;
+      ctx.drawImage(img, x, y, w, h);
     };
 
-    const paint = async () => {
-      if (template?.image_url) {
-        const bg = new Image();
-        bg.crossOrigin = "anonymous";
-        bg.onload = () => {
-          ctx.drawImage(bg, 0, 0, W, H);
-          if (product?.image_url) {
-            const pi = new Image();
-            pi.crossOrigin = "anonymous";
-            pi.onload = () => {
-              drawProduct(pi);
-              drawText();
-            };
-            pi.onerror = drawText;
-            pi.src = product.image_url;
-          } else drawText();
-        };
-        bg.onerror = drawText;
-        bg.src = template.image_url;
-      } else if (product?.image_url) {
+    const drawFrameFallback = () => {
+      ctx.fillStyle = "#fde047";
+      ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(FRAME.x, FRAME.y, FRAME.w, FRAME.h);
+    };
+
+    const drawContent = () => {
+      if (product?.image_url) {
         const pi = new Image();
         pi.crossOrigin = "anonymous";
         pi.onload = () => {
@@ -313,7 +359,23 @@ function PublishBox() {
         pi.src = product.image_url;
       } else drawText();
     };
-    paint();
+
+    if (template?.image_url) {
+      const bg = new Image();
+      bg.crossOrigin = "anonymous";
+      bg.onload = () => {
+        ctx.drawImage(bg, 0, 0, W, H);
+        drawContent();
+      };
+      bg.onerror = () => {
+        drawFrameFallback();
+        drawContent();
+      };
+      bg.src = template.image_url;
+    } else {
+      drawFrameFallback();
+      drawContent();
+    }
   }, [product, template]);
 
   const mut = useMutation({
@@ -402,13 +464,27 @@ function PublishBox() {
           </button>
         </div>
 
-        <div className="flex justify-center">
-          <div className="overflow-hidden rounded-xl border border-border/60 bg-black/60 p-1">
-            <canvas
-              ref={canvasRef}
-              style={{ width: 180, height: 320, display: "block" }}
-            />
-          </div>
+          <div className="flex flex-col items-center gap-2">
+            <div className="overflow-hidden rounded-xl border border-border/60 bg-black/60 p-1">
+              <canvas
+                ref={canvasRef}
+                style={{ width: 220, height: 391, display: "block" }}
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                const url = canvasRef.current?.toDataURL("image/png");
+                if (!url) return;
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `story-${Date.now()}.png`;
+                a.click();
+              }}
+              className="text-xs font-medium text-primary hover:underline"
+            >
+              Baixar arte gerada
+            </button>
         </div>
       </div>
     </div>
