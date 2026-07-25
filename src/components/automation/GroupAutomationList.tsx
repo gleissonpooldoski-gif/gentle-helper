@@ -187,9 +187,9 @@ function GroupCard({
         </span>
         <div className="min-w-0">
           <p className="truncate text-[13.5px] font-semibold text-foreground">
-            {item.instancePhone ?? item.instanceName}
+            {item.instancePhone ?? item.instanceName ?? "Sem número"}
           </p>
-          <div className="mt-0.5 flex items-center gap-1.5">
+          <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
             <span
               className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
                 isConnected
@@ -198,9 +198,11 @@ function GroupCard({
               }`}
             >
               {isConnected ? <CheckCircle2 className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}
-              {isConnected ? "Conectado" : "Offline"}
+              {isConnected ? "Conectado" : item.instanceStatus ?? "Offline"}
             </span>
-            <span className="truncate text-[11px] text-muted-foreground">{item.instanceName}</span>
+            {item.instancePhone && (
+              <span className="truncate text-[11px] text-muted-foreground">{item.instanceName}</span>
+            )}
           </div>
         </div>
       </div>
@@ -221,10 +223,19 @@ function GroupCard({
       </div>
 
       {/* Métricas */}
-      <div className="flex items-center gap-4 lg:justify-center">
-        <InlineMetric icon={<Package className="h-3.5 w-3.5" />} label="Produtos" value={String(item.productCount)} />
+      <div className="flex items-center gap-5 lg:justify-center">
+        <InlineMetric
+          icon={<Package className="h-3.5 w-3.5" />}
+          label="Produtos ativos"
+          value={
+            item.productTotal > item.productCount
+              ? `${item.productCount} / ${item.productTotal}`
+              : String(item.productCount)
+          }
+        />
         <InlineMetric icon={<Clock className="h-3.5 w-3.5" />} label="Último envio" value={formatRelative(item.lastSentAt)} />
       </div>
+
 
       {/* Status */}
       <div className="flex items-center lg:justify-center">
