@@ -27,6 +27,7 @@ import { Route as ApiPublicInstagramCallbackRouteImport } from './routes/api/pub
 import { Route as ApiPublicHooksProductsValidateRouteImport } from './routes/api/public/hooks/products-validate'
 import { Route as ApiPublicHooksInstagramTickRouteImport } from './routes/api/public/hooks/instagram-tick'
 import { Route as ApiPublicHooksAutomationTickRouteImport } from './routes/api/public/hooks/automation-tick'
+import { Route as ApiPublicInstabotREventIdRouteImport } from './routes/api/public/instabot/r.$eventId'
 import { Route as ApiPublicChannelsWhatsappSessionStatusRouteImport } from './routes/api/public/channels/whatsapp/session-status'
 import { Route as ApiPublicChannelsWhatsappConnectRouteImport } from './routes/api/public/channels/whatsapp/connect'
 
@@ -130,6 +131,12 @@ const ApiPublicHooksAutomationTickRoute =
     path: '/api/public/hooks/automation-tick',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicInstabotREventIdRoute =
+  ApiPublicInstabotREventIdRouteImport.update({
+    id: '/api/public/instabot/r/$eventId',
+    path: '/api/public/instabot/r/$eventId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicChannelsWhatsappSessionStatusRoute =
   ApiPublicChannelsWhatsappSessionStatusRouteImport.update({
     id: '/api/public/channels/whatsapp/session-status',
@@ -164,6 +171,7 @@ export interface FileRoutesByFullPath {
   '/api/public/whatsapp/webhook': typeof ApiPublicWhatsappWebhookRoute
   '/api/public/channels/whatsapp/connect': typeof ApiPublicChannelsWhatsappConnectRoute
   '/api/public/channels/whatsapp/session-status': typeof ApiPublicChannelsWhatsappSessionStatusRoute
+  '/api/public/instabot/r/$eventId': typeof ApiPublicInstabotREventIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -186,6 +194,7 @@ export interface FileRoutesByTo {
   '/api/public/whatsapp/webhook': typeof ApiPublicWhatsappWebhookRoute
   '/api/public/channels/whatsapp/connect': typeof ApiPublicChannelsWhatsappConnectRoute
   '/api/public/channels/whatsapp/session-status': typeof ApiPublicChannelsWhatsappSessionStatusRoute
+  '/api/public/instabot/r/$eventId': typeof ApiPublicInstabotREventIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -209,6 +218,7 @@ export interface FileRoutesById {
   '/api/public/whatsapp/webhook': typeof ApiPublicWhatsappWebhookRoute
   '/api/public/channels/whatsapp/connect': typeof ApiPublicChannelsWhatsappConnectRoute
   '/api/public/channels/whatsapp/session-status': typeof ApiPublicChannelsWhatsappSessionStatusRoute
+  '/api/public/instabot/r/$eventId': typeof ApiPublicInstabotREventIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -233,6 +243,7 @@ export interface FileRouteTypes {
     | '/api/public/whatsapp/webhook'
     | '/api/public/channels/whatsapp/connect'
     | '/api/public/channels/whatsapp/session-status'
+    | '/api/public/instabot/r/$eventId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -255,6 +266,7 @@ export interface FileRouteTypes {
     | '/api/public/whatsapp/webhook'
     | '/api/public/channels/whatsapp/connect'
     | '/api/public/channels/whatsapp/session-status'
+    | '/api/public/instabot/r/$eventId'
   id:
     | '__root__'
     | '/'
@@ -277,6 +289,7 @@ export interface FileRouteTypes {
     | '/api/public/whatsapp/webhook'
     | '/api/public/channels/whatsapp/connect'
     | '/api/public/channels/whatsapp/session-status'
+    | '/api/public/instabot/r/$eventId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -300,6 +313,7 @@ export interface RootRouteChildren {
   ApiPublicWhatsappWebhookRoute: typeof ApiPublicWhatsappWebhookRoute
   ApiPublicChannelsWhatsappConnectRoute: typeof ApiPublicChannelsWhatsappConnectRoute
   ApiPublicChannelsWhatsappSessionStatusRoute: typeof ApiPublicChannelsWhatsappSessionStatusRoute
+  ApiPublicInstabotREventIdRoute: typeof ApiPublicInstabotREventIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -430,6 +444,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksAutomationTickRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/instabot/r/$eventId': {
+      id: '/api/public/instabot/r/$eventId'
+      path: '/api/public/instabot/r/$eventId'
+      fullPath: '/api/public/instabot/r/$eventId'
+      preLoaderRoute: typeof ApiPublicInstabotREventIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/channels/whatsapp/session-status': {
       id: '/api/public/channels/whatsapp/session-status'
       path: '/api/public/channels/whatsapp/session-status'
@@ -469,17 +490,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicChannelsWhatsappConnectRoute: ApiPublicChannelsWhatsappConnectRoute,
   ApiPublicChannelsWhatsappSessionStatusRoute:
     ApiPublicChannelsWhatsappSessionStatusRoute,
+  ApiPublicInstabotREventIdRoute: ApiPublicInstabotREventIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

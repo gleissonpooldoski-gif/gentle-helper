@@ -52,6 +52,7 @@ import {
   listInstagramKeywords, saveInstagramKeyword, getInstagramTemplate, saveInstagramTemplate,
   getInstagramSchedule, saveInstagramSchedule, type IgConnectionView,
 } from "@/lib/instagram.functions";
+import { InstaBotHelpPanel } from "@/components/instabot/InstaBotHelpPanel";
 
 
 
@@ -433,7 +434,7 @@ function EditChannelPage() {
           ) : tab === "instasched" ? (
             <InstaSchedPanel />
           ) : tab === "instabot" ? (
-            <InstaBotHelpPanel />
+            <InstaBotHelpPanel channelId={id} />
           ) : tab === "wa-grupos" ? (
             <WhatsAppGroupsPanel />
           ) : tab === "wa-monitor" ? (
@@ -2181,173 +2182,7 @@ function StoryPreviewCard({ item }: { item: SchedItem }) {
   );
 }
 
-/* -------- InstaBotHelp tab -------- */
-
-type ReelItem = {
-  id: string;
-  caption: string;
-  likes: number;
-  comments: number;
-  hue: number;
-  emoji: string;
-  label: string;
-};
-
-const REELS: ReelItem[] = [
-  { id: "r1", caption: "Achadinho da Shopee que TODO MUNDO tá querendo 🔥 comenta EU QUERO", likes: 0, comments: 0, hue: 25, emoji: "🛍️", label: "Achadinho Shopee" },
-  { id: "r2", caption: "Testei esse organizador de gaveta e mudou minha vida 🤯", likes: 12, comments: 3, hue: 200, emoji: "🧺", label: "Organizador" },
-  { id: "r3", caption: "Look completo por menos de R$ 100 na Shein — comenta LINK", likes: 48, comments: 21, hue: 330, emoji: "👗", label: "Look Shein" },
-  { id: "r4", caption: "Cozinha aesthetic com esses achados de Amazon 🍳✨", likes: 5, comments: 1, hue: 45, emoji: "🍳", label: "Cozinha" },
-  { id: "r5", caption: "Fone TWS com cancelamento ativo por R$ 119 🎧 corre!", likes: 132, comments: 44, hue: 260, emoji: "🎧", label: "Fone TWS" },
-  { id: "r6", caption: "Kit skincare que virou febre no TikTok 🧴 achei mais barato", likes: 76, comments: 18, hue: 320, emoji: "🧴", label: "Skincare" },
-  { id: "r7", caption: "Utilidades para banheiro que valem cada centavo 🚿", likes: 0, comments: 0, hue: 190, emoji: "🚿", label: "Banheiro" },
-  { id: "r8", caption: "Tênis chunky viral por menos de R$ 200 👟", likes: 210, comments: 63, hue: 150, emoji: "👟", label: "Tênis" },
-];
-
-const REMIX: ReelItem[] = [
-  { id: "m1", caption: "REMIX: reagi ao vídeo viral do achado de cozinha 🍳", likes: 22, comments: 4, hue: 45, emoji: "🍳", label: "Remix Cozinha" },
-  { id: "m2", caption: "REMIX: testei o organizador viral do TikTok", likes: 61, comments: 12, hue: 200, emoji: "🧺", label: "Remix Organizador" },
-  { id: "m3", caption: "REMIX: unboxing do fone TWS mais pedido", likes: 88, comments: 27, hue: 260, emoji: "🎧", label: "Remix Fone" },
-  { id: "m4", caption: "REMIX: skincare rotina de 3 passos", likes: 34, comments: 7, hue: 320, emoji: "🧴", label: "Remix Skincare" },
-];
-
-function InstaBotHelpPanel() {
-  const [mode, setMode] = useState<"reels" | "remix">("reels");
-  const items = mode === "reels" ? REELS : REMIX;
-
-  return (
-    <div className="mt-6 space-y-6">
-      {/* Header banner */}
-      <div className="relative overflow-hidden rounded-2xl border border-border/70 p-6 text-white shadow-[0_1px_2px_rgba(15,23,42,0.04),0_18px_40px_-24px_rgba(220,80,120,0.55)]">
-        <div className="absolute inset-0 bg-[linear-gradient(115deg,#4f5bd5_0%,#962fbf_40%,#d62976_70%,#fa7e1e_100%)]" />
-        <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-4">
-            <span className="grid h-12 w-12 place-items-center rounded-2xl bg-white/20 backdrop-blur">
-              <Sparkles className="h-6 w-6" strokeWidth={2.2} />
-            </span>
-            <div>
-              <h2 className="font-display text-2xl font-bold tracking-tight">
-                🤖 InstaBotHelp
-              </h2>
-              <p className="text-[13px] text-white/90">
-                Gerencie automações de comentários em{" "}
-                <span className="font-semibold">Reels</span> e{" "}
-                <span className="font-semibold">Remix</span> de{" "}
-                <span className="font-semibold">@segredodapromocao</span>
-              </p>
-            </div>
-          </div>
-
-          {/* Tabs */}
-          <div className="inline-flex items-center gap-1 rounded-full bg-white/15 p-1 backdrop-blur">
-            {[
-              { id: "reels", label: "📷 Reels" },
-              { id: "remix", label: "🎬 Remix" },
-            ].map((t) => {
-              const on = mode === t.id;
-              return (
-                <button
-                  key={t.id}
-                  onClick={() => setMode(t.id as typeof mode)}
-                  className={cn(
-                    "h-9 rounded-full px-4 text-[13px] font-semibold transition-all",
-                    on
-                      ? "bg-white text-[oklch(0.45_0.22_320)] shadow-sm"
-                      : "text-white/85 hover:bg-white/10",
-                  )}
-                >
-                  {t.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* Grid */}
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {items.map((r) => (
-          <ReelCard key={r.id} item={r} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function ReelCard({ item }: { item: ReelItem }) {
-  return (
-    <div className="group flex flex-col overflow-hidden rounded-2xl border border-border/70 bg-card shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_-16px_rgba(15,23,42,0.1)] transition-all hover:-translate-y-0.5 hover:shadow-[0_1px_2px_rgba(15,23,42,0.04),0_18px_40px_-20px_rgba(15,23,42,0.18)]">
-      {/* Thumbnail */}
-      <div
-        className="relative aspect-[9/14] w-full overflow-hidden"
-        style={{
-          backgroundImage: `linear-gradient(160deg, oklch(0.3 0.12 ${item.hue}) 0%, oklch(0.5 0.2 ${item.hue}) 55%, oklch(0.7 0.2 ${(item.hue + 30) % 360}) 100%)`,
-        }}
-      >
-        {/* faux content */}
-        <div className="absolute inset-0 flex items-center justify-center text-7xl drop-shadow-lg">
-          {item.emoji}
-        </div>
-
-        {/* subtle grain */}
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.25),transparent_60%)]" />
-
-        {/* Top-left label */}
-        <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-md bg-black/40 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-white backdrop-blur-sm">
-          <Instagram className="h-3 w-3" strokeWidth={2.6} />
-          Reels
-        </span>
-
-        {/* Play hint */}
-        <div className="pointer-events-none absolute inset-0 grid place-items-center">
-          <span className="grid h-12 w-12 place-items-center rounded-full bg-white/25 text-white opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100">
-            <svg viewBox="0 0 24 24" className="ml-0.5 h-5 w-5 fill-white">
-              <path d="M8 5v14l11-7z" />
-            </svg>
-          </span>
-        </div>
-
-        {/* Floating metrics */}
-        <div className="absolute inset-x-3 bottom-3 flex items-center justify-between rounded-lg bg-black/45 px-3 py-1.5 text-[11px] font-semibold text-white backdrop-blur-md">
-          <span className="flex items-center gap-1.5">
-            <span>👍</span>
-            <span>{item.likes}</span>
-            <span className="text-white/70">likes</span>
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span>💬</span>
-            <span>{item.comments}</span>
-            <span className="text-white/70">coment.</span>
-          </span>
-        </div>
-      </div>
-
-      {/* Body */}
-      <div className="flex flex-1 flex-col gap-3 p-4">
-        <p className="line-clamp-3 min-h-[54px] text-[12.5px] leading-snug text-foreground/85">
-          {item.caption}
-        </p>
-
-        <div className="mt-auto grid grid-cols-2 gap-2">
-          <Button
-            size="sm"
-            className="h-9 gap-1.5 rounded-lg bg-gradient-to-r from-[oklch(0.62_0.22_25)] to-[oklch(0.55_0.24_15)] text-[12px] font-semibold text-white shadow-[0_8px_18px_-10px_rgba(220,50,50,0.55)] hover:opacity-95"
-          >
-            <Instagram className="h-3.5 w-3.5" />
-            Ver no IG
-          </Button>
-          <Button
-            size="sm"
-            className="h-9 gap-1.5 rounded-lg bg-gradient-to-r from-[oklch(0.72_0.18_150)] to-[oklch(0.6_0.2_155)] text-[12px] font-semibold text-white shadow-[0_8px_18px_-10px_rgba(20,160,90,0.55)] hover:opacity-95"
-          >
-            <Sparkles className="h-3.5 w-3.5" />
-            Nova automação
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
-}
+/* InstaBotHelp panel lives in src/components/instabot/InstaBotHelpPanel.tsx */
 
 /* -------- WhatsApp Groups tab -------- */
 
