@@ -125,8 +125,12 @@ export function AutomationPanel({ channelId, groupId = null, groupName = null, t
     (async () => {
       setLoading(true);
       try {
-        const c = await getFn({ data: scope });
+        const [c, inst] = await Promise.all([
+          getFn({ data: scope }),
+          listInstFn({ data: { channelId } }).catch(() => [] as WhatsAppInstanceDTO[]),
+        ]);
         if (cancelled) return;
+        setInstances(inst);
         applyCfg(c);
         const h = await histFn({ data: { ...scope, limit: 5 } });
         if (cancelled) return;
