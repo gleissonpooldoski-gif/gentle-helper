@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useRouterState } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, redirect, useRouterState } from "@tanstack/react-router";
 import { AppSidebar } from "@/components/app-sidebar";
 import { cn } from "@/lib/utils";
 import { FileImage, Image as ImageIcon, MessageCircle, MessageSquare, Settings2, Zap } from "lucide-react";
@@ -52,23 +52,16 @@ export function InstagramLayout({ children }: { children: React.ReactNode }) {
 }
 
 export const Route = createFileRoute("/instagram")({
+  beforeLoad: ({ location }) => {
+    if (location.pathname === "/instagram" || location.pathname === "/instagram/") {
+      throw redirect({ to: "/instagram/configuracoes" });
+    }
+  },
   head: () => ({
     meta: [
       { title: "Instagram · DivulgaLinks" },
       { name: "description", content: "Automação Instagram via Meta Graph API." },
     ],
   }),
-  component: () => (
-    <InstagramLayout>
-      <RedirectToConfig />
-    </InstagramLayout>
-  ),
+  component: () => <Outlet />,
 });
-
-function RedirectToConfig() {
-  return (
-    <div className="rounded-xl border border-border/70 bg-card p-6 text-sm text-muted-foreground">
-      Selecione uma aba acima para começar.
-    </div>
-  );
-}
