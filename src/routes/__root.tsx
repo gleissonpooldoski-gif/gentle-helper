@@ -121,14 +121,58 @@ function RootShell({ children }: { children: ReactNode }) {
   );
 }
 
+const PUBLIC_PREFIXES = ["/auth", "/g/", "/api/"];
+
+function isPublicPath(pathname: string): boolean {
+  return PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(p));
+}
+
+function AuthGate({ children }: { children: ReactNode }) {
+  const router = useRouter();
+  useEffect(() => {
+    let cancelled = false;
+    let unsub: (() => void) | undefined;
+
+    const evaluate = async () => {
+      if (typeof window === "undefined") return;
+      const pathname = window.location.pathname;
+      if (isPublicPath(pathname)) return;
+      const { supabase } = await import("@/integrations/supabase/client");
+      const { data } = await supabase.auth.getSession();
+      if (cancelled) return;
+      if (!data.session) {
+        const redirect = encodeURIComponent(pathname + window.location.search);
+        router.navigate({ to: "/auth", search: { redirect } as never, replace: true });
+      }
+      const sub = supabase.auth.onAuthStateChange((_e, session) => {
+        if (!session && !isPublicPath(window.location.pathname)) {
+          router.navigate({ to: "/auth", replace: true });
+        }
+      });
+      unsub = () => sub.data.subscription.unsubscribe();
+    };
+
+    void evaluate();
+    return () => {
+      cancelled = true;
+      unsub?.();
+    };
+  }, [router]);
+
+  return <>{children}</>;
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
   return (
     <QueryClientProvider client={queryClient}>
-      {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-      <Outlet />
+      <AuthGate>
+        {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+        <Outlet />
+      </AuthGate>
       <Toaster richColors position="top-right" />
     </QueryClientProvider>
   );
 }
+
