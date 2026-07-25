@@ -1,15 +1,18 @@
 import { createFileRoute, Link, Outlet, redirect, useRouterState } from "@tanstack/react-router";
 import { AppSidebar } from "@/components/app-sidebar";
 import { cn } from "@/lib/utils";
-import { FileImage, Image as ImageIcon, MessageCircle, MessageSquare, Settings2, Zap } from "lucide-react";
+import { Activity, FileImage, Image as ImageIcon, LayoutDashboard, LayoutTemplate, MessageCircle, MessageSquare, Settings2, Zap } from "lucide-react";
 
 const TABS = [
-  { to: "/instagram/configuracoes", label: "Configurações", icon: Settings2 },
+  { to: "/instagram/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/instagram/publicacoes", label: "Publicações", icon: FileImage },
   { to: "/instagram/stories", label: "Stories", icon: ImageIcon },
+  { to: "/instagram/templates", label: "Templates", icon: LayoutTemplate },
+  { to: "/instagram/automacoes", label: "Automações", icon: Zap },
   { to: "/instagram/comentarios", label: "Comentários", icon: MessageCircle },
   { to: "/instagram/mensagens", label: "Mensagens", icon: MessageSquare },
-  { to: "/instagram/automacoes", label: "Automações", icon: Zap },
+  { to: "/instagram/diagnostico", label: "Diagnóstico", icon: Activity },
+  { to: "/instagram/configuracoes", label: "Configurações", icon: Settings2 },
 ] as const;
 
 export function InstagramLayout({ children }: { children: React.ReactNode }) {
