@@ -56,12 +56,15 @@ export const listMonitorGroups = createServerFn({ method: "POST" })
         pictureUrl: string | null;
       }
     >();
+    let successfulProviderFetches = 0;
+    let lastProviderError: unknown = null;
 
     for (const inst of instances ?? []) {
       try {
         const groups = await getWhatsAppProvider(inst.provider).fetchGroups(
           inst.instance_name,
         );
+        successfulProviderFetches += 1;
         for (const g of groups) {
           if (!g?.jid) continue;
           if (!fresh.has(g.jid)) {
@@ -74,6 +77,7 @@ export const listMonitorGroups = createServerFn({ method: "POST" })
           }
         }
       } catch (error) {
+        lastProviderError = error;
         console.warn(
           `[WA] Falha ao buscar grupos da instância ${inst.instance_name}:`,
           error,
@@ -81,16 +85,20 @@ export const listMonitorGroups = createServerFn({ method: "POST" })
       }
     }
 
-    if ((instances ?? []).length > 0 && fresh.size === 0) {
-      // Se a instância está cadastrada, uma resposta vazia é válida; porém uma
-      // falha de todas as chamadas deve chegar à interface em vez de parecer
-      // que o usuário não participa de nenhum grupo.
+    if ((instances ?? []).length > 0 && successfulProviderFetches === 0) {
+      // Uma falha de todas as chamadas deve chegar à interface em vez de
+      // parecer que o usuário não participa de nenhum grupo.
       const connectedInstances = (instances ?? []).filter(
         (inst: any) => inst.status === "connected",
       );
       if (connectedInstances.length === 0) {
         throw new Error("WhatsApp desconectado. Atualize o status da instância.");
       }
+      throw new Error(
+        lastProviderError instanceof Error
+          ? lastProviderError.message
+          : "Falha ao buscar os grupos na Evolution API",
+      );
     }
 
     // Seleção existente — SOMENTE das instâncias deste canal (isolamento por instância).
