@@ -66,6 +66,7 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
   const deleteFn = useServerFn(deleteWhatsAppInstance);
 
   const adoptFn = useServerFn(adoptEvolutionInstance);
+  const importAllFn = useServerFn(importAllEvolutionInstances);
   const groupsFn = useServerFn(fetchWhatsAppGroups);
   const saveGroupsFn = useServerFn(saveWhatsAppGroupSelection);
   const sendTextFn = useServerFn(sendWhatsAppText);
