@@ -64,10 +64,28 @@ export interface AutomationPanelProps {
   groupId?: string | null;
   groupName?: string | null;
   instanceId?: string | null;
+  instanceName?: string | null;
+  instancePhone?: string | null;
+  instanceStatus?: string | null;
   title?: string;
+  productTotal?: number | null;
+  bare?: boolean;
+  onCancel?: () => void;
 }
 
-export function AutomationPanel({ channelId, groupId = null, groupName = null, instanceId: seedInstanceId = null, title }: AutomationPanelProps) {
+export function AutomationPanel({
+  channelId,
+  groupId = null,
+  groupName = null,
+  instanceId: seedInstanceId = null,
+  instanceName = null,
+  instancePhone = null,
+  instanceStatus = null,
+  title,
+  productTotal = null,
+  bare = false,
+  onCancel,
+}: AutomationPanelProps) {
   const getFn = useServerFn(getAutomationConfig);
   const saveFn = useServerFn(saveAutomationConfig);
   const startFn = useServerFn(startAutomation);
