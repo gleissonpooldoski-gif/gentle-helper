@@ -217,7 +217,7 @@ export const enrichShopeeImagesBatch = createServerFn({ method: "POST" })
         }
         const { error } = await context.supabase
           .from("products")
-          .update(patch)
+          .update(patch as never)
           .eq("id", item.id)
           .eq("user_id", context.userId)
           .eq("channel_id", data.channelId);
@@ -227,7 +227,7 @@ export const enrichShopeeImagesBatch = createServerFn({ method: "POST" })
         return {
           id: item.id,
           itemId: item.itemId ?? null,
-          found: !!image as const,
+          found: !!image,
           image: image ?? undefined,
         };
       }),
