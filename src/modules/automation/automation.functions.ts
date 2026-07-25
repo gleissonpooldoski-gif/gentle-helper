@@ -480,6 +480,8 @@ export const listAutomationGroups = createServerFn({ method: "POST" })
         productCount: counts.active,
         productTotal: counts.total,
         lastSentAt: lastSent,
+        intervalMin: Number.isFinite(Number(cfg?.intervalo_min)) && Number(cfg?.intervalo_min) > 0 ? Number(cfg.intervalo_min) : 15,
+        postsPerHour: Math.max(1, Math.round(60 / (Number.isFinite(Number(cfg?.intervalo_min)) && Number(cfg?.intervalo_min) > 0 ? Number(cfg.intervalo_min) : 15))),
       };
     });
   });
