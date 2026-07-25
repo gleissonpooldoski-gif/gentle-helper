@@ -147,19 +147,29 @@ async function ensureConfig(
   channelId: string,
   groupId: string | null,
   groupName: string | null,
+  seedInstanceId: string | null = null,
 ) {
   // Cada grupo tem sua PRÓPRIA config (frequência, janela, loop, lojas,
-  // instância). O worker de tick, quando encontra cfg.group_id preenchido,
-  // dispara apenas para aquele grupo. Isso permite Grupo 1, Grupo 2, …
-  // com configurações independentes no mesmo canal.
+  // instância). Se houver `seedInstanceId`, ele é gravado apenas na criação —
+  // nunca sobrescreve uma escolha já feita pelo usuário.
+  const { data: existing } = await supabase
+    .from("automation_configs")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("channel_id", channelId)
+    .eq("group_scope", groupId ?? "")
+    .maybeSingle();
+  if (existing) return existing;
+
   const { data: row, error } = await supabase
     .from("automation_configs")
-    .upsert({
+    .insert({
       user_id: userId,
       channel_id: channelId,
       group_id: groupId,
       group_name: groupName,
-    }, { onConflict: "user_id,channel_id,group_scope" })
+      instance_id: seedInstanceId,
+    })
     .select("*")
     .single();
   if (error) throw new Error(error.message);
@@ -171,15 +181,19 @@ interface ScopeInput {
   channelId: string;
   groupId?: string | null;
   groupName?: string | null;
+  instanceId?: string | null;
 }
 
 function parseScope(data: ScopeInput) {
   const channelId = String(data?.channelId ?? "").trim();
   if (!channelId) throw new Error("channelId obrigatório");
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const seedInst = data?.instanceId ? String(data.instanceId).trim() : "";
   return {
     channelId,
     groupId: normalizeGroupId(data?.groupId),
     groupName: (data?.groupName ?? null) as string | null,
+    seedInstanceId: UUID_RE.test(seedInst) ? seedInst : null,
   };
 }
 
