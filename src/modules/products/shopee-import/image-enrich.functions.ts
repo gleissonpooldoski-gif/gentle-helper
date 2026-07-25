@@ -123,15 +123,16 @@ export const enrichShopeeImageOne = createServerFn({ method: "POST" })
     }
     const { error } = await context.supabase
       .from("products")
-      .update(patch)
+      .update(patch as never)
       .eq("id", data.id)
       .eq("user_id", context.userId)
       .eq("channel_id", data.channelId);
     if (error) return { id: data.id, itemId: data.itemId ?? null, found: false as const };
+    const found = !!patch.image_url;
     return {
       id: data.id,
       itemId: data.itemId ?? null,
-      found: !!patch.image_url as const,
+      found,
       image: (patch.image_url as string | undefined) ?? null,
     };
   });
