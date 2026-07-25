@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { requireCronSecret } from "@/lib/public-auth.server";
 
 /**
  * Worker de automação. Chamado por pg_cron a cada minuto.
