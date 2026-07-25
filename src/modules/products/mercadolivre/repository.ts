@@ -47,7 +47,7 @@ export async function upsertProducts(
 
   const { error: upErr } = await supabase
     .from("products")
-    .upsert(batch as never, { onConflict: "user_id,channel_id,platform,item_id" });
+    .upsert(batch as never, { onConflict: "user_id,channel_id,source_group_jid,platform,item_id" });
   if (upErr) throw new Error(`Falha ao gravar produtos: ${upErr.message}`);
 
   const updated = batch.filter((b) => existingSet.has(b.item_id)).length;
