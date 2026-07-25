@@ -85,7 +85,7 @@ const loadPublicSite = createServerFn({ method: "GET" })
       .from("products")
       .select("id, title, image_url, promo_price, original_price, affiliate_link, raw_link, platform, sales, created_at")
       .eq("channel_id", channelId)
-      .eq("availability", "ACTIVE");
+      .eq("availability", "active");
 
     if (platforms.length > 0) query = query.in("platform", platforms);
 
