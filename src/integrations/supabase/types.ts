@@ -73,6 +73,7 @@ export type Database = {
           hora_fim: string
           hora_inicio: string
           id: string
+          instance_id: string | null
           intervalo_min: number
           last_error: string | null
           last_product_name: string | null
@@ -94,6 +95,7 @@ export type Database = {
           hora_fim?: string
           hora_inicio?: string
           id?: string
+          instance_id?: string | null
           intervalo_min?: number
           last_error?: string | null
           last_product_name?: string | null
@@ -115,6 +117,7 @@ export type Database = {
           hora_fim?: string
           hora_inicio?: string
           id?: string
+          instance_id?: string | null
           intervalo_min?: number
           last_error?: string | null
           last_product_name?: string | null
@@ -126,7 +129,15 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "automation_configs_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       automation_group_sends: {
         Row: {
