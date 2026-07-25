@@ -31,7 +31,6 @@ const MAIN: Item[] = [
 const CONFIG: Item[] = [
   { id: "afiliados", label: "Config Afiliados", icon: Settings, href: "/config-afiliados" },
   { id: "canais", label: "Canais/Grupos", icon: Radio, href: "/" },
-  { id: "instagram", label: "Instagram", icon: Instagram, href: "/instagram/configuracoes" },
   { id: "relatorios", label: "Relatórios", icon: BarChart3, href: "/relatorios" },
   { id: "envios-whatsapp", label: "Envios WhatsApp", icon: Send, href: "/configuracoes/envios-whatsapp" },
 ];
