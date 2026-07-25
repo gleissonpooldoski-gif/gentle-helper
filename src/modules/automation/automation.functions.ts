@@ -356,13 +356,17 @@ export interface AutomationGroupDTO {
   instanceName: string;
   instancePhone: string | null;
   instanceStatus: string | null;
+  configId: string | null;
+  automationStatus: "idle" | "running" | "waiting" | "error" | "done" | "paused" | null;
+  productCount: number;
+  lastSentAt: string | null;
 }
 
 /**
  * Lista TODOS os grupos que o usuário selecionou em QUALQUER instância
- * WhatsApp para este canal. Assim, cada número conectado aparece com seus
- * próprios grupos escolhidos — cada grupo edita sua config independente,
- * pré-vinculada à instância correspondente.
+ * WhatsApp para este canal. Cada item é uma "unidade" (1 WhatsApp × 1
+ * grupo) totalmente isolada — com contagem de produtos vinculados, último
+ * envio e status de automação individuais.
  */
 export const listAutomationGroups = createServerFn({ method: "POST" })
   .middleware([apiClient, requireSupabaseAuth])
@@ -390,10 +394,6 @@ export const listAutomationGroups = createServerFn({ method: "POST" })
       .order("updated_at", { ascending: false });
     if (error) throw new Error(error.message);
 
-    // Dedupe defensivo: cada grupo (JID) só aparece UMA vez,
-    // vinculado à instância que o selecionou por último. Evita a
-    // "pilha" de cards duplicados quando o mesmo grupo estava salvo
-    // em mais de uma instância no histórico.
     const seen = new Set<string>();
     const unique: any[] = [];
     for (const r of (sel ?? []) as any[]) {
@@ -405,8 +405,35 @@ export const listAutomationGroups = createServerFn({ method: "POST" })
       String(a.group_name ?? "").localeCompare(String(b.group_name ?? ""), "pt-BR"),
     );
 
+    const jids = unique.map((r) => r.group_jid);
+    const { data: cfgs } = jids.length
+      ? await supabase
+          .from("automation_configs")
+          .select("id, group_id, status, last_sent_at, instance_id")
+          .eq("user_id", userId)
+          .eq("channel_id", data.channelId)
+          .in("group_id", jids)
+      : { data: [] as any[] };
+    const cfgMap = new Map<string, any>();
+    for (const c of (cfgs ?? []) as any[]) if (c.group_id) cfgMap.set(c.group_id, c);
+
+    const countMap = new Map<string, number>();
+    await Promise.all(
+      jids.map(async (jid) => {
+        const { count } = await supabase
+          .from("products")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", userId)
+          .eq("channel_id", data.channelId)
+          .eq("source_group_jid", jid)
+          .eq("availability", "active");
+        countMap.set(jid, count ?? 0);
+      }),
+    );
+
     return unique.map((r: any) => {
       const inst = instMap.get(r.instance_id);
+      const cfg = cfgMap.get(r.group_jid);
       return {
         groupId: r.group_jid,
         groupName: r.group_name ?? null,
@@ -414,8 +441,79 @@ export const listAutomationGroups = createServerFn({ method: "POST" })
         instanceName: inst?.instance_name ?? "—",
         instancePhone: inst?.phone ?? null,
         instanceStatus: inst?.status ?? null,
+        configId: cfg?.id ?? null,
+        automationStatus: (cfg?.status ?? null) as AutomationGroupDTO["automationStatus"],
+        productCount: countMap.get(r.group_jid) ?? 0,
+        lastSentAt: cfg?.last_sent_at ?? null,
       };
     });
+  });
+
+export interface GroupProductDTO {
+  id: string;
+  title: string;
+  platform: string;
+  promoPrice: number | null;
+  imageUrl: string | null;
+  availability: string;
+}
+
+export const listGroupProducts = createServerFn({ method: "POST" })
+  .middleware([apiClient, requireSupabaseAuth])
+  .inputValidator((data: { channelId: string; groupJid: string }) => ({
+    channelId: String(data?.channelId ?? "").trim(),
+    groupJid: String(data?.groupJid ?? "").trim(),
+  }))
+  .handler(async ({ data, context }): Promise<GroupProductDTO[]> => {
+    const { supabase, userId } = context;
+    if (!data.channelId || !data.groupJid) return [];
+    const { data: rows, error } = await supabase
+      .from("products")
+      .select("id, title, platform, promo_price, image_url, availability")
+      .eq("user_id", userId)
+      .eq("channel_id", data.channelId)
+      .eq("source_group_jid", data.groupJid)
+      .order("created_at", { ascending: false })
+      .limit(200);
+    if (error) throw new Error(error.message);
+    return (rows ?? []).map((r: any) => ({
+      id: r.id,
+      title: r.title,
+      platform: r.platform,
+      promoPrice: r.promo_price != null ? Number(r.promo_price) : null,
+      imageUrl: r.image_url,
+      availability: r.availability,
+    }));
+  });
+
+export const toggleGroupAutomation = createServerFn({ method: "POST" })
+  .middleware([apiClient, requireSupabaseAuth])
+  .inputValidator((data: { channelId: string; groupId: string; pause: boolean }) => ({
+    channelId: String(data?.channelId ?? "").trim(),
+    groupId: String(data?.groupId ?? "").trim(),
+    pause: !!data?.pause,
+  }))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    if (!data.channelId || !data.groupId) throw new Error("parâmetros inválidos");
+    const { data: cfg } = await supabase
+      .from("automation_configs")
+      .select("id, status")
+      .eq("user_id", userId)
+      .eq("channel_id", data.channelId)
+      .eq("group_id", data.groupId)
+      .maybeSingle();
+    if (!cfg) throw new Error("Configure este grupo antes de pausar/retomar.");
+    const nextStatus = data.pause ? "idle" : "running";
+    const patch: any = { status: nextStatus };
+    if (data.pause) patch.next_run_at = null;
+    else patch.next_run_at = new Date().toISOString();
+    const { error } = await supabase
+      .from("automation_configs")
+      .update(patch)
+      .eq("id", cfg.id);
+    if (error) throw new Error(error.message);
+    return { status: nextStatus };
   });
 
 
