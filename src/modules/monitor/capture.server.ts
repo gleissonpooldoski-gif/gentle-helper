@@ -152,7 +152,26 @@ type MessageMeta = {
   title: string | null;
   price: number | null;
   priceBefore: number | null;
+  sold: number | null;
+  soldLabel: string | null;
 };
+
+/**
+ * Parseia texto de vendas no padrão Shopee: "5 mil vendidos", "1,5 mil+",
+ * "10 mil vendidos", "300+ vendidos". Retorna número absoluto e label limpa.
+ */
+function parseSalesText(text: string): { sold: number; label: string } | null {
+  const m = text.match(/(\d+(?:[.,]\d+)?)\s*(mil|k)?\s*\+?\s*vendid/i);
+  if (!m) return null;
+  const raw = Number((m[1] ?? "").replace(",", "."));
+  if (!Number.isFinite(raw) || raw <= 0) return null;
+  const multiplier = m[2] ? 1000 : 1;
+  const sold = Math.round(raw * multiplier);
+  const label = multiplier === 1000
+    ? `${Number.isInteger(raw) ? raw : String(raw).replace(".", ",")} mil`
+    : `${sold}`;
+  return { sold, label };
+}
 
 function parseBrazilianMoney(value: string): number | null {
   const normalized = value.replace(/\s/g, "").replace(/\./g, "").replace(",", ".");
