@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { publishForChannel } from "@/lib/instagram-publish.server";
+import { requireCronSecret } from "@/lib/public-auth.server";
 
 /**
  * Called by pg_cron every minute. For each active schedule where the current
@@ -9,7 +10,9 @@ import { publishForChannel } from "@/lib/instagram-publish.server";
 export const Route = createFileRoute("/api/public/hooks/instagram-tick")({
   server: {
     handlers: {
-      POST: async () => {
+      POST: async ({ request }) => {
+        const authFail = requireCronSecret(request);
+        if (authFail) return authFail;
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const now = new Date();
         const day = now.getUTCDay(); // 0..6

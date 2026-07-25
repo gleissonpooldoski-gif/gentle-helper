@@ -629,7 +629,7 @@ async function captureOne(
 
   const { data: upserted, error } = await ctx.supabase
     .from("products")
-    .upsert(payload as never, { onConflict: "user_id,channel_id,platform,item_id" })
+    .upsert(payload as never, { onConflict: "user_id,channel_id,source_group_jid,platform,item_id" })
     .select("id")
     .maybeSingle();
 

@@ -36,8 +36,13 @@ export const Route = createFileRoute("/api/public/whatsapp/webhook")({
     handlers: {
       OPTIONS: async () => new Response(null, { status: 204, headers: CORS }),
       POST: async ({ request }) => {
-        // Evolution API não envia autenticação nos webhooks. A identificação
-        // é feita pelo instanceName do payload, que precisa existir no banco.
+        // Autenticação: se EVOLUTION_API_KEY estiver configurada, exige apikey
+        // no header (Evolution repassa a global apikey nos webhooks configurados).
+        const { verifyEvolutionApiKey } = await import("@/lib/public-auth.server");
+        if (!verifyEvolutionApiKey(request)) {
+          return json({ ok: false, error: "unauthorized" }, 401);
+        }
+
         let payload: any;
         try {
           payload = await request.json();

@@ -1503,7 +1503,7 @@ export type Database = {
           sales: number | null
           sales_label: string | null
           source: string | null
-          source_group_jid: string | null
+          source_group_jid: string
           source_group_name: string | null
           store_name: string | null
           title: string
@@ -1533,7 +1533,7 @@ export type Database = {
           sales?: number | null
           sales_label?: string | null
           source?: string | null
-          source_group_jid?: string | null
+          source_group_jid?: string
           source_group_name?: string | null
           store_name?: string | null
           title: string
@@ -1563,7 +1563,7 @@ export type Database = {
           sales?: number | null
           sales_label?: string | null
           source?: string | null
-          source_group_jid?: string | null
+          source_group_jid?: string
           source_group_name?: string | null
           store_name?: string | null
           title?: string

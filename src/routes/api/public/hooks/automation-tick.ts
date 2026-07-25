@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { requireCronSecret } from "@/lib/public-auth.server";
 
 /**
  * Worker de automação. Chamado por pg_cron a cada minuto.
@@ -423,12 +424,6 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
 }
 
 
-function timingSafeEqualStr(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return diff === 0;
-}
 
 /**
  * Advisory lock por config: impede execução concorrente do mesmo tickOne
@@ -450,7 +445,11 @@ async function withConfigLock<T>(admin: any, configId: string, fn: () => Promise
   try {
     return await fn();
   } finally {
-    await admin.rpc("unlock_automation_config", { _config_id: configId }).catch(() => {});
+    try {
+      await admin.rpc("unlock_automation_config", { _config_id: configId });
+    } catch {
+      /* liberação best-effort; timeout do advisory lock também libera */
+    }
   }
 }
 
@@ -458,17 +457,8 @@ export const Route = createFileRoute("/api/public/hooks/automation-tick")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        // Autenticação obrigatória: header x-cron-secret OU Authorization: Bearer <secret>
-        const expected = process.env.CRON_SECRET;
-        if (!expected) {
-          return Response.json({ ok: false, error: "CRON_SECRET não configurado no servidor" }, { status: 500 });
-        }
-        const provided =
-          request.headers.get("x-cron-secret") ??
-          (request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "");
-        if (!provided || !timingSafeEqualStr(provided, expected)) {
-          return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
-        }
+        const authFail = requireCronSecret(request);
+        if (authFail) return authFail;
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
