@@ -1,96 +1,66 @@
+# Instagram Admin (Meta Graph API) — conta única
 
-## InstaBotHelp — Automação de comentários + Direct
+Substitui o fluxo OAuth atual por uma configuração manual global (uma única conta Instagram gerenciada pelo admin do SaaS). Nenhum "Login com Facebook" será usado.
 
-Novo módulo **isolado** dentro de `Canais e Grupos → Editar → InstaBotHelp`. Nada fora dessa aba é alterado. A aba já existe visualmente (mockup) — vou substituir o conteúdo mockado por um módulo real, mantendo o mesmo padrão visual do SaaS (cards, botões, tokens).
+## Banco de dados (Lovable Cloud)
 
-### 1. Banco (nova migração, isolada por canal + usuário)
+Migração nova:
 
-Novas tabelas em `public`, todas com RLS por `user_id` e escopo por `channel_id`:
+- `instagram_settings` (linha única, singleton por `id = 'default'`)
+  - `instagram_business_id`, `facebook_page_id`, `access_token_ciphertext` (AES-256-GCM, reusa `INSTAGRAM_TOKEN_ENC_KEY`)
+  - `created_at`, `updated_at`
+  - RLS: apenas `admin` (via `has_role`) pode ler/gravar. Service role para servidores.
+- `instagram_comments`
+  - `comment_id` (unique), `media_id`, `username`, `comment`, `reply`, `replied_at`, `created_at`
+- `instagram_automations`
+  - `keyword`, `message`, `enabled`, timestamps
+  - Escopo global (sem `user_id`, gerido só por admin)
+- `instagram_logs`
+  - `type`, `payload jsonb`, `created_at`
+- Papel `admin` reaproveitando o padrão `user_roles` (criar se ainda não existir).
 
-- `instabot_automations` — 1 registro por publicação IG configurada
-  - `channel_id`, `ig_media_id`, `ig_media_url`, `thumbnail_url`, `caption`, `posted_at`
-  - `enabled` (bool)
-  - `keywords` (text[]) — múltiplas palavras-gatilho
-  - `comment_reply_mode` ('auto' | 'list')
-  - `comment_replies` (text[]) — frases rotativas quando não é auto
-  - `dm_message` (text)
-  - `button_label` (text)
-  - `button_url` (text)
-- `instabot_events` — histórico
-  - `automation_id`, `channel_id`
-  - `ig_user_id`, `ig_username`, `comment_text`, `comment_id`
-  - `dm_sent` (bool), `dm_message`, `status`, `error`
-  - `created_at`
-- `instabot_clicks` — cliques no botão (para taxa/estatística; incrementado por um redirect route)
-  - `automation_id`, `event_id?`, `created_at`
+Todas as tabelas com `GRANT` + RLS + trigger `updated_at`.
 
-GRANTs padrão + RLS `auth.uid() = user_id`.
+## Backend (server functions + rota pública)
 
-### 2. Servidor — `src/lib/instabot.functions.ts`
+Novo módulo `src/modules/instagram-admin/`:
 
-Funções (todas `.middleware([requireSupabaseAuth])`, escopo `channelId`):
+- `settings.server.ts` — helper `getSettings()` que decripta o token, cache em memória do worker.
+- `graph.server.ts` — chamadas Graph API (test connection, publish story, list comments, reply, list conversations, send DM). Reusa util `gfetch` do `instagram-graph.server.ts`.
+- `services/`
+  - `InstagramService` — CRUD `instagram_settings`, `testConnection`.
+  - `InstagramStoryService` — `publishStory({ imageUrl, caption })`.
+  - `InstagramCommentService` — `listComments`, `reply`, persistir em `instagram_comments`.
+  - `InstagramMessageService` — `listConversations`.
+  - `InstagramAutomationService` — CRUD + `matchKeyword(text)`.
+  - `InstagramWebhookService` — parse do payload Meta, dispatch para automations, log em `instagram_logs`.
+- `admin.functions.ts` — server fns com `requireSupabaseAuth` + verificação de role admin: `getSettings`, `saveSettings`, `testConnection`, `publishStory`, `listComments`, `replyComment`, `listConversations`, `listAutomations`, `saveAutomation`, `deleteAutomation`.
+- Rota pública `src/routes/api/public/meta/webhook.ts` (`GET` verify + `POST` receive) — insere log, aplica automations DM (responde "link" → mensagem com `{{affiliate_link}}`).
 
-- `listInstagramMedia({ channelId })` — usa `instagram_connections` existente + Graph API `/{ig-user-id}/media` (thumbnail, caption, timestamp, permalink). Reaproveita `instagram-graph.server.ts` e `instagram-crypto.server.ts`.
-- `listAutomations({ channelId })`
-- `upsertAutomation({ channelId, ...fields })`
-- `deleteAutomation({ id, channelId })`
-- `toggleAutomation({ id, enabled })`
-- `listAutomationHistory({ automationId, limit })`
-- `getAutomationStats({ automationId })` — detectados, DMs enviadas, cliques, taxa
-- `generateWithAI({ channelId, mediaCaption })` — chama Lovable AI Gateway (`google/gemini-3.6-flash`) e devolve `{ keywords, comment_replies, dm_message }` (Output schema estruturado)
+Storage: bucket `instagram-uploads` (public) para imagens de Story.
 
-### 3. Webhook — estender captura existente
+## Frontend
 
-`src/lib/instagram-webhook.server.ts` já processa comentários. Adicionar antes do fluxo genérico:
+Menu lateral novo em `app-sidebar.tsx`: seção **Instagram** com subitens.
 
-1. Buscar `instabot_automations` por `ig_media_id = mediaId` e `enabled = true`.
-2. Se match e alguma keyword bater no texto do comentário:
-   - Escolher resposta ao comentário (aleatória da lista, ou IA se `mode='auto'`).
-   - Chamar `replyToComment`.
-   - Enviar DM com `sendDirectMessage` usando `dm_message` + botão `button_label` → link rastreável (`/api/public/instabot/r/{eventId}`).
-   - Registrar em `instabot_events`.
-3. Só cair no fluxo de keywords antigo se nenhuma automação InstaBotHelp cobrir.
+Novas rotas:
 
-### 4. Redirect de clique
+- `src/routes/_authenticated/instagram/configuracoes.tsx` — form (Business ID, Page ID, Access Token), botões **Testar conexão** e **Salvar**. Toast + status 🟢/🔴.
+- `src/routes/_authenticated/instagram/publicacoes.tsx` — lista de posts recentes (Graph `/{ig}/media`).
+- `src/routes/_authenticated/instagram/stories.tsx` — upload de imagem (Supabase Storage) + legenda + **Publicar Story**.
+- `src/routes/_authenticated/instagram/comentarios.tsx` — lista comentários, botão **Responder** com dialog.
+- `src/routes/_authenticated/instagram/mensagens.tsx` — lista conversas (nome, última msg, horário, status).
+- `src/routes/_authenticated/instagram/automacoes.tsx` — CRUD palavra-chave/mensagem, toggle enabled.
 
-`src/routes/api/public/instabot/r.$eventId.ts` — GET: incrementa `instabot_clicks` e redireciona 302 para `button_url` do evento.
+Componentes reutilizáveis em `src/components/instagram-admin/` (StatusBadge, ConnectionCard, CommentCard, AutomationForm, StoryComposer). Loading states via `useQuery`/`useMutation`, toasts via `sonner`.
 
-### 5. UI — substituir `InstaBotHelpPanel` mockado (linhas 2184–2350)
+`AuthGate` continua protegendo. Verificação de role admin no server; UI mostra aviso se usuário não for admin.
 
-Mesmos tokens/componentes já usados no arquivo (Button, Input, Card visual em rounded-2xl, gradiente header IG). Estrutura:
+## Env / configuração
+Reutiliza `META_APP_ID`/`META_APP_SECRET` (opcional, só para verificação de assinatura do webhook) e `META_WEBHOOK_VERIFY_TOKEN`. Nada de OAuth.
 
-```text
-[Header gradient IG — mantém visual atual]
-[Abas internas: Automações | Histórico | Estatísticas]
+## Escopo excluído
+- Não altera o fluxo Instagram existente por canal (`instagram_connections`) nem o InstaBotHelp — o novo módulo é paralelo e independente.
+- Nenhum "Login com Facebook" ou tela OAuth.
 
-Aba Automações:
- - Grid de publicações do IG (thumb, data, caption)
- - "Nova automação" no card ou "Editar" se já existir
- - Modal/Sheet de edição:
-   * ☑ Ativar
-   * Palavras-chave (textarea, uma por linha)
-   * Resposta ao comentário (textarea "auto" ou várias frases)
-   * Mensagem do Direct (textarea grande)
-   * Texto do botão (input)
-   * Link (input url)
-   * [✨ Gerar automaticamente]  [Salvar]  [Excluir]
-
-Aba Histórico:
- - Tabela: usuário | comentário | data | DM enviada | status
-
-Aba Estatísticas:
- - 4 cards: detectados, DMs enviadas, cliques, taxa de resposta
-```
-
-Se o canal não tem `instagram_connections` ativa, mostrar CTA "Conecte o Instagram na aba Instagram".
-
-### 6. Fora de escopo (explicitamente)
-
-Não toco em: agendamentos, publicações existentes, aba IA global, aba Instagram existente, Facebook, YouTube, TikTok, WhatsApp, Automação, Layout, Site, Relatórios.
-
-### Detalhes técnicos
-
-- IA: `openai/gpt-5.5` via Lovable Gateway? O projeto já usa Gemini em outros pontos — vou usar `google/gemini-3.6-flash` (rápido/barato) com `response_format: json_object` e schema Zod.
-- Isolamento: toda query filtra por `user_id` (RLS) **e** `channel_id` no WHERE.
-- Layout: reutilizar exatamente `Button`, `Input`, `cn`, tokens `border-border/70 bg-card rounded-2xl` já presentes.
-- Migração inclui GRANTs para `authenticated` e `service_role`.
+Confirma que devo prosseguir com essa estrutura? Um ponto para decidir: **você quer que o novo módulo substitua o painel Instagram por canal (remover a integração antiga) ou conviva em paralelo?** Por padrão vou mantê-los em paralelo.
