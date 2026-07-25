@@ -403,20 +403,17 @@ async function fetchShopeePdp(
  */
 function formatSoldLabel(n: number): string {
   if (n < 1000) {
-    // Arredonda para baixo para múltiplos de 10 (30, 40, 100, 300).
     const rounded = n >= 100 ? Math.floor(n / 100) * 100 : Math.floor(n / 10) * 10;
-    return `${Math.max(rounded, 10)}+`;
+    return `${Math.max(rounded, 10)}`;
   }
   const mil = n / 1000;
   if (mil < 10) {
-    // 1,5 mil+ / 2 mil+
     const rounded = Math.floor(mil * 10) / 10;
     const text = Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1).replace(".", ",");
-    return `${text} mil+`;
+    return `${text} mil`;
   }
-  // 10 mil+, 30 mil+, 100 mil+
   const rounded = Math.floor(mil / 10) * 10 || Math.floor(mil);
-  return `${rounded} mil+`;
+  return `${rounded} mil`;
 }
 
 function tagShopee(url: string, affiliateId: string): string {
