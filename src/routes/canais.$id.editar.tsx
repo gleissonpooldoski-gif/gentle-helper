@@ -3734,7 +3734,7 @@ function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {})
 
   const handlePickCsv = () => {
     if (!importGroupJid) {
-      toast.error("Escolha o grupo que receberá estes produtos.");
+      toast.error("Nenhum grupo vinculado a este canal. Vincule um grupo antes de importar.");
       return;
     }
     fileInputRef.current?.click();
