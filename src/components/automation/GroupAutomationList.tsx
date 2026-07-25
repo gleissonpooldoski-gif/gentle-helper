@@ -97,22 +97,32 @@ export function GroupAutomationList({ channelId }: { channelId: string }) {
 
 
       <Dialog open={!!editing} onOpenChange={(v) => !v && (setEditing(null), reload())}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-0">
+          <DialogHeader className="border-b border-border/60 px-6 py-4">
             <DialogTitle className="flex items-center gap-2 text-base">
               <Users className="h-4 w-4" />
-              {editing ? `Automação — ${editing.groupName ?? editing.groupId}` : "Automação"}
+              Automação — {editing?.groupName ?? editing?.groupId ?? ""}
             </DialogTitle>
           </DialogHeader>
           {editing && (
-            <AutomationPanel
-              key={`${channelId}:${editing.instanceId}:${editing.groupId}`}
-              channelId={channelId}
-              groupId={editing.groupId}
-              groupName={editing.groupName}
-              instanceId={editing.instanceId}
-              title={`Configuração — ${editing.instanceName}`}
-            />
+            <div className="px-6 py-5">
+              <AutomationPanel
+                key={`${channelId}:${editing.instanceId}:${editing.groupId}`}
+                channelId={channelId}
+                groupId={editing.groupId}
+                groupName={editing.groupName}
+                instanceId={editing.instanceId}
+                instanceName={editing.instanceName}
+                instancePhone={editing.instancePhone}
+                instanceStatus={editing.instanceStatus}
+                productTotal={editing.productTotal}
+                bare
+                onCancel={() => {
+                  setEditing(null);
+                  reload();
+                }}
+              />
+            </div>
           )}
         </DialogContent>
       </Dialog>
