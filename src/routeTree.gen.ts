@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TemplatesRouteImport } from './routes/templates'
 import { Route as RelatoriosRouteImport } from './routes/relatorios'
 import { Route as InstagramRouteImport } from './routes/instagram'
 import { Route as ConfigAfiliadosRouteImport } from './routes/config-afiliados'
@@ -26,6 +27,7 @@ import { Route as InstagramAutomacoesRouteImport } from './routes/instagram.auto
 import { Route as GSlugRouteImport } from './routes/g.$slug'
 import { Route as ConfiguracoesSessoesWhatsappRouteImport } from './routes/configuracoes.sessoes-whatsapp'
 import { Route as ConfiguracoesEnviosWhatsappRouteImport } from './routes/configuracoes.envios-whatsapp'
+import { Route as TemplatesEditorIdRouteImport } from './routes/templates.editor.$id'
 import { Route as CanaisIdEditarRouteImport } from './routes/canais.$id.editar'
 import { Route as ApiMlProbeRouteImport } from './routes/api/ml/probe'
 import { Route as ApiMlCallbackRouteImport } from './routes/api/ml/callback'
@@ -42,6 +44,11 @@ import { Route as ApiPublicInstabotREventIdRouteImport } from './routes/api/publ
 import { Route as ApiPublicChannelsWhatsappSessionStatusRouteImport } from './routes/api/public/channels/whatsapp/session-status'
 import { Route as ApiPublicChannelsWhatsappConnectRouteImport } from './routes/api/public/channels/whatsapp/connect'
 
+const TemplatesRoute = TemplatesRouteImport.update({
+  id: '/templates',
+  path: '/templates',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RelatoriosRoute = RelatoriosRouteImport.update({
   id: '/relatorios',
   path: '/relatorios',
@@ -129,6 +136,11 @@ const ConfiguracoesEnviosWhatsappRoute =
     path: '/configuracoes/envios-whatsapp',
     getParentRoute: () => rootRouteImport,
   } as any)
+const TemplatesEditorIdRoute = TemplatesEditorIdRouteImport.update({
+  id: '/editor/$id',
+  path: '/editor/$id',
+  getParentRoute: () => TemplatesRoute,
+} as any)
 const CanaisIdEditarRoute = CanaisIdEditarRouteImport.update({
   id: '/canais/$id/editar',
   path: '/canais/$id/editar',
@@ -222,6 +234,7 @@ export interface FileRoutesByFullPath {
   '/config-afiliados': typeof ConfigAfiliadosRoute
   '/instagram': typeof InstagramRouteWithChildren
   '/relatorios': typeof RelatoriosRoute
+  '/templates': typeof TemplatesRouteWithChildren
   '/configuracoes/envios-whatsapp': typeof ConfiguracoesEnviosWhatsappRoute
   '/configuracoes/sessoes-whatsapp': typeof ConfiguracoesSessoesWhatsappRoute
   '/g/$slug': typeof GSlugRoute
@@ -237,6 +250,7 @@ export interface FileRoutesByFullPath {
   '/api/ml/callback': typeof ApiMlCallbackRoute
   '/api/ml/probe': typeof ApiMlProbeRoute
   '/canais/$id/editar': typeof CanaisIdEditarRoute
+  '/templates/editor/$id': typeof TemplatesEditorIdRoute
   '/api/public/hooks/automation-tick': typeof ApiPublicHooksAutomationTickRoute
   '/api/public/hooks/instagram-tick': typeof ApiPublicHooksInstagramTickRoute
   '/api/public/hooks/products-validate': typeof ApiPublicHooksProductsValidateRoute
@@ -256,6 +270,7 @@ export interface FileRoutesByTo {
   '/config-afiliados': typeof ConfigAfiliadosRoute
   '/instagram': typeof InstagramRouteWithChildren
   '/relatorios': typeof RelatoriosRoute
+  '/templates': typeof TemplatesRouteWithChildren
   '/configuracoes/envios-whatsapp': typeof ConfiguracoesEnviosWhatsappRoute
   '/configuracoes/sessoes-whatsapp': typeof ConfiguracoesSessoesWhatsappRoute
   '/g/$slug': typeof GSlugRoute
@@ -271,6 +286,7 @@ export interface FileRoutesByTo {
   '/api/ml/callback': typeof ApiMlCallbackRoute
   '/api/ml/probe': typeof ApiMlProbeRoute
   '/canais/$id/editar': typeof CanaisIdEditarRoute
+  '/templates/editor/$id': typeof TemplatesEditorIdRoute
   '/api/public/hooks/automation-tick': typeof ApiPublicHooksAutomationTickRoute
   '/api/public/hooks/instagram-tick': typeof ApiPublicHooksInstagramTickRoute
   '/api/public/hooks/products-validate': typeof ApiPublicHooksProductsValidateRoute
@@ -291,6 +307,7 @@ export interface FileRoutesById {
   '/config-afiliados': typeof ConfigAfiliadosRoute
   '/instagram': typeof InstagramRouteWithChildren
   '/relatorios': typeof RelatoriosRoute
+  '/templates': typeof TemplatesRouteWithChildren
   '/configuracoes/envios-whatsapp': typeof ConfiguracoesEnviosWhatsappRoute
   '/configuracoes/sessoes-whatsapp': typeof ConfiguracoesSessoesWhatsappRoute
   '/g/$slug': typeof GSlugRoute
@@ -306,6 +323,7 @@ export interface FileRoutesById {
   '/api/ml/callback': typeof ApiMlCallbackRoute
   '/api/ml/probe': typeof ApiMlProbeRoute
   '/canais/$id/editar': typeof CanaisIdEditarRoute
+  '/templates/editor/$id': typeof TemplatesEditorIdRoute
   '/api/public/hooks/automation-tick': typeof ApiPublicHooksAutomationTickRoute
   '/api/public/hooks/instagram-tick': typeof ApiPublicHooksInstagramTickRoute
   '/api/public/hooks/products-validate': typeof ApiPublicHooksProductsValidateRoute
@@ -327,6 +345,7 @@ export interface FileRouteTypes {
     | '/config-afiliados'
     | '/instagram'
     | '/relatorios'
+    | '/templates'
     | '/configuracoes/envios-whatsapp'
     | '/configuracoes/sessoes-whatsapp'
     | '/g/$slug'
@@ -342,6 +361,7 @@ export interface FileRouteTypes {
     | '/api/ml/callback'
     | '/api/ml/probe'
     | '/canais/$id/editar'
+    | '/templates/editor/$id'
     | '/api/public/hooks/automation-tick'
     | '/api/public/hooks/instagram-tick'
     | '/api/public/hooks/products-validate'
@@ -361,6 +381,7 @@ export interface FileRouteTypes {
     | '/config-afiliados'
     | '/instagram'
     | '/relatorios'
+    | '/templates'
     | '/configuracoes/envios-whatsapp'
     | '/configuracoes/sessoes-whatsapp'
     | '/g/$slug'
@@ -376,6 +397,7 @@ export interface FileRouteTypes {
     | '/api/ml/callback'
     | '/api/ml/probe'
     | '/canais/$id/editar'
+    | '/templates/editor/$id'
     | '/api/public/hooks/automation-tick'
     | '/api/public/hooks/instagram-tick'
     | '/api/public/hooks/products-validate'
@@ -395,6 +417,7 @@ export interface FileRouteTypes {
     | '/config-afiliados'
     | '/instagram'
     | '/relatorios'
+    | '/templates'
     | '/configuracoes/envios-whatsapp'
     | '/configuracoes/sessoes-whatsapp'
     | '/g/$slug'
@@ -410,6 +433,7 @@ export interface FileRouteTypes {
     | '/api/ml/callback'
     | '/api/ml/probe'
     | '/canais/$id/editar'
+    | '/templates/editor/$id'
     | '/api/public/hooks/automation-tick'
     | '/api/public/hooks/instagram-tick'
     | '/api/public/hooks/products-validate'
@@ -430,6 +454,7 @@ export interface RootRouteChildren {
   ConfigAfiliadosRoute: typeof ConfigAfiliadosRoute
   InstagramRoute: typeof InstagramRouteWithChildren
   RelatoriosRoute: typeof RelatoriosRoute
+  TemplatesRoute: typeof TemplatesRouteWithChildren
   ConfiguracoesEnviosWhatsappRoute: typeof ConfiguracoesEnviosWhatsappRoute
   ConfiguracoesSessoesWhatsappRoute: typeof ConfiguracoesSessoesWhatsappRoute
   GSlugRoute: typeof GSlugRoute
@@ -452,6 +477,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/templates': {
+      id: '/templates'
+      path: '/templates'
+      fullPath: '/templates'
+      preLoaderRoute: typeof TemplatesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/relatorios': {
       id: '/relatorios'
       path: '/relatorios'
@@ -570,6 +602,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/configuracoes/envios-whatsapp'
       preLoaderRoute: typeof ConfiguracoesEnviosWhatsappRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/templates/editor/$id': {
+      id: '/templates/editor/$id'
+      path: '/editor/$id'
+      fullPath: '/templates/editor/$id'
+      preLoaderRoute: typeof TemplatesEditorIdRouteImport
+      parentRoute: typeof TemplatesRoute
     }
     '/canais/$id/editar': {
       id: '/canais/$id/editar'
@@ -707,12 +746,25 @@ const InstagramRouteWithChildren = InstagramRoute._addFileChildren(
   InstagramRouteChildren,
 )
 
+interface TemplatesRouteChildren {
+  TemplatesEditorIdRoute: typeof TemplatesEditorIdRoute
+}
+
+const TemplatesRouteChildren: TemplatesRouteChildren = {
+  TemplatesEditorIdRoute: TemplatesEditorIdRoute,
+}
+
+const TemplatesRouteWithChildren = TemplatesRoute._addFileChildren(
+  TemplatesRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthRoute: AuthRoute,
   ConfigAfiliadosRoute: ConfigAfiliadosRoute,
   InstagramRoute: InstagramRouteWithChildren,
   RelatoriosRoute: RelatoriosRoute,
+  TemplatesRoute: TemplatesRouteWithChildren,
   ConfiguracoesEnviosWhatsappRoute: ConfiguracoesEnviosWhatsappRoute,
   ConfiguracoesSessoesWhatsappRoute: ConfiguracoesSessoesWhatsappRoute,
   GSlugRoute: GSlugRoute,
