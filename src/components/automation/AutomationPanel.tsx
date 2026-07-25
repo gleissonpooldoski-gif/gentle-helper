@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Save, Play, Square, Loader2, Clock, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Save, Play, Square, Loader2, Clock, AlertTriangle, CheckCircle2, MessageCircle, Link2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
