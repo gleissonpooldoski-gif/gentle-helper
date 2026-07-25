@@ -183,21 +183,33 @@ function GroupCard({
     ? "bg-red-500/15 text-red-700"
     : "bg-muted text-muted-foreground";
 
+  // UI otimista: reflete a mudança na hora, reverte se falhar.
+  const [optimisticRunning, setOptimisticRunning] = useState<boolean | null>(null);
+  const effectiveRunning = optimisticRunning ?? isRunning;
+
   const doToggle = async () => {
     if (!item.configId) {
       onEdit();
       return;
     }
+    const nextRunning = !isRunning;
+    setOptimisticRunning(nextRunning);
     setBusy(true);
     try {
       await toggleFn({
         data: { channelId, groupId: item.groupId, pause: isRunning },
       });
       onToggled();
+    } catch (err) {
+      setOptimisticRunning(null); // reverte se falhar
+      throw err;
     } finally {
       setBusy(false);
+      // Limpa a preview quando o reload trouxer o estado real
+      setTimeout(() => setOptimisticRunning(null), 800);
     }
   };
+
 
   return (
     <article className="grid grid-cols-1 items-center gap-4 rounded-2xl border border-border/70 bg-card p-4 shadow-sm transition hover:border-primary/40 hover:shadow-md lg:grid-cols-[minmax(220px,1.1fr)_minmax(220px,1.4fr)_auto_auto_auto]">
