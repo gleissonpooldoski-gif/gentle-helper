@@ -55,6 +55,17 @@ export function GroupAutomationList({ channelId }: { channelId: string }) {
     setEditing(null);
     setError(null);
     reload();
+    const refreshVisibleCards = () => {
+      if (document.visibilityState === "visible") void reload();
+    };
+    window.addEventListener("focus", refreshVisibleCards);
+    document.addEventListener("visibilitychange", refreshVisibleCards);
+    const refreshTimer = window.setInterval(refreshVisibleCards, 30_000);
+    return () => {
+      window.removeEventListener("focus", refreshVisibleCards);
+      document.removeEventListener("visibilitychange", refreshVisibleCards);
+      window.clearInterval(refreshTimer);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channelId]);
 
