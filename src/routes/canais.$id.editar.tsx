@@ -744,12 +744,28 @@ function EditChannelPage() {
                 </p>
               </div>
 
-              {/* Frequência e Loop — uma configuração independente por grupo */}
-              <GroupAutomationList channelId={id} />
             </aside>
           </div>
           )}
+
+          {/* Frequência e Loop — largura total, um card por (WhatsApp × Grupo) */}
+          {tab !== "layout" && tab !== "site" && tab !== "instagram" && tab !== "instasched" && tab !== "instabot" && tab !== "wa-grupos" && tab !== "wa-monitor" && tab !== "ml" && tab !== "shopee" && (
+            <section className="mt-8">
+              <div className="mb-4 flex items-end justify-between gap-3">
+                <div>
+                  <h2 className="font-display text-lg font-bold text-foreground">
+                    Automação por grupo
+                  </h2>
+                  <p className="text-[12.5px] text-muted-foreground">
+                    Cada card representa uma dupla WhatsApp × Grupo, com métricas e ações próprias.
+                  </p>
+                </div>
+              </div>
+              <GroupAutomationList channelId={id} />
+            </section>
+          )}
         </main>
+
 
       </div>
     </div>
