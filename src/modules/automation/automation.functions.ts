@@ -62,15 +62,18 @@ async function countAvailableProducts(
   supabase: any,
   userId: string,
   channelId: string | null,
+  groupId: string | null,
   lojas: string[],
 ): Promise<number> {
   if (!channelId) return 0;
+  if (!groupId) return 0;
   if (!lojas || lojas.length === 0) return 0;
   const { count } = await supabase
     .from("products")
     .select("id", { count: "exact", head: true })
     .eq("user_id", userId)
     .eq("channel_id", channelId)
+    .eq("source_group_jid", groupId)
     .in("platform", lojas)
     .eq("availability", "active")
     .not("affiliate_link", "is", null);
@@ -109,6 +112,7 @@ async function buildStatus(supabase: any, row: any): Promise<AutomationConfigDTO
     supabase,
     row.user_id,
     row.channel_id,
+    row.group_id ?? null,
     row.lojas_ativas ?? [],
   );
   // "Produtos disponíveis" = ativos deste grupo ainda não enviados no ciclo atual.
@@ -257,7 +261,13 @@ export const startAutomation = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const cfg = await ensureConfig(supabase, userId, data.channelId, data.groupId, data.groupName);
 
-    const total = await countAvailableProducts(supabase, userId, data.channelId, cfg.lojas_ativas ?? []);
+    const total = await countAvailableProducts(
+      supabase,
+      userId,
+      data.channelId,
+      data.groupId,
+      cfg.lojas_ativas ?? [],
+    );
     if (total === 0) {
       throw new Error(
         "Nenhum produto disponível nas lojas selecionadas. Importe produtos ou ajuste o filtro de lojas.",
@@ -421,41 +431,26 @@ export const listAutomationGroups = createServerFn({ method: "POST" })
     const cfgMap = new Map<string, any>();
     for (const c of (cfgs ?? []) as any[]) if (c.group_id) cfgMap.set(c.group_id, c);
 
-    // Produtos sem grupo de origem são o estoque importado do canal. Eles
-    // pertencem somente ao grupo monitorado/vinculado a esse canal, e não a
-    // todos os grupos que porventura estejam selecionados na interface.
-    const { data: ownedGroups } = await supabase
-      .from("monitored_groups")
-      .select("group_jid")
-      .eq("user_id", userId)
-      .eq("channel_id", data.channelId)
-      .eq("is_active", true);
-    const ownedGroupJids = new Set(
-      (ownedGroups ?? []).map((row: any) => String(row.group_jid ?? "")).filter(Boolean),
-    );
-
-    // Contagem real por grupo: capturados diretamente no grupo + estoque
-    // importado do canal apenas quando este for o grupo proprietário.
+    // Contagem estrita por grupo. Produtos legados sem source_group_jid ficam
+    // pendentes e não entram em nenhum card até serem vinculados explicitamente.
     const countMap = new Map<string, { active: number; total: number }>();
     await Promise.all(
       jids.map(async (jid) => {
-        const sourceFilter = ownedGroupJids.has(jid)
-          ? `source_group_jid.eq.${jid},source_group_jid.is.null`
-          : `source_group_jid.eq.${jid}`;
         const [{ count: active }, { count: total }] = await Promise.all([
           supabase
             .from("products")
             .select("id", { count: "exact", head: true })
             .eq("user_id", userId)
             .eq("channel_id", data.channelId)
+            .eq("source_group_jid", jid)
             .eq("availability", "active")
-            .or(sourceFilter),
+            .not("affiliate_link", "is", null),
           supabase
             .from("products")
             .select("id", { count: "exact", head: true })
             .eq("user_id", userId)
             .eq("channel_id", data.channelId)
-            .or(sourceFilter),
+            .eq("source_group_jid", jid),
         ]);
         countMap.set(jid, { active: active ?? 0, total: total ?? 0 });
       }),
@@ -521,23 +516,12 @@ export const listGroupProducts = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<GroupProductDTO[]> => {
     const { supabase, userId } = context;
     if (!data.groupJid) return [];
-    const { data: ownership } = await supabase
-      .from("monitored_groups")
-      .select("id")
-      .eq("user_id", userId)
-      .eq("channel_id", data.channelId)
-      .eq("group_jid", data.groupJid)
-      .eq("is_active", true)
-      .limit(1);
-
-    let query = supabase
+    const query = supabase
       .from("products")
       .select("id, title, platform, promo_price, image_url, availability")
       .eq("user_id", userId)
-      .eq("channel_id", data.channelId);
-    query = ownership?.length
-      ? query.or(`source_group_jid.eq.${data.groupJid},source_group_jid.is.null`)
-      : query.eq("source_group_jid", data.groupJid);
+      .eq("channel_id", data.channelId)
+      .eq("source_group_jid", data.groupJid);
     const { data: rows, error } = await query
       .order("created_at", { ascending: false })
       .limit(200);

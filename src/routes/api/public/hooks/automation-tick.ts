@@ -133,22 +133,6 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
       if (r?.product_id) excluded.add(r.product_id);
     }
 
-    // Descobre se o grupo é o proprietário do canal. Somente esse vínculo
-    // pode consumir produtos importados sem source_group_jid; outros grupos
-    // usam exclusivamente produtos capturados na própria origem.
-    let ownsChannelInventory = false;
-    if (cfg.group_id) {
-      const { data: ownership } = await admin
-        .from("monitored_groups")
-        .select("id")
-        .eq("user_id", cfg.user_id)
-        .eq("channel_id", cfg.channel_id)
-        .eq("group_jid", cfg.group_id)
-        .eq("is_active", true)
-        .limit(1);
-      ownsChannelInventory = Boolean(ownership?.length);
-    }
-
     // Busca um lote de candidatos aleatorizados e valida em ordem.
     let q = admin
       .from("products")
@@ -161,11 +145,10 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
       .order("last_validated_at", { ascending: true, nullsFirst: true })
       .limit(30);
 
-    if (cfg.group_id) {
-      q = ownsChannelInventory
-        ? q.or(`source_group_jid.eq.${cfg.group_id},source_group_jid.is.null`)
-        : q.eq("source_group_jid", cfg.group_id);
-    }
+    // Inventário obrigatório por canal + grupo. Legados sem grupo ficam
+    // pendentes e jamais são enviados automaticamente.
+    if (!cfg.group_id) return null;
+    q = q.eq("source_group_jid", cfg.group_id);
 
     if (excluded.size > 0) {
       q = q.not("id", "in", `(${Array.from(excluded).join(",")})`);

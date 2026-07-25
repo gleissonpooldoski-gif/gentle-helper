@@ -3594,6 +3594,8 @@ function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {})
   const [bulkBusy, setBulkBusy] = useState(false);
   const [sendProduct, setSendProduct] = useState<SendProduct | null>(null);
   const [editTarget, setEditTarget] = useState<EditProductTarget | null>(null);
+  const [importGroups, setImportGroups] = useState<AutomationGroupDTO[]>([]);
+  const [importGroupJid, setImportGroupJid] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const importBatchFn = useServerFn(importShopeeBatch);
   const listPendingFn = useServerFn(listPendingShopeeImages);
@@ -3601,6 +3603,7 @@ function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {})
   const deleteByItemsFn = useServerFn(deleteProductsByItemIds);
   const deleteAllFn = useServerFn(deleteAllProducts);
   const listProductsFn = useServerFn(listChannelProducts);
+  const listImportGroupsFn = useServerFn(listAutomationGroups);
 
   const products = importedProducts.filter((p) => !deletedIds.has(p.id));
   const allChecked = products.length > 0 && products.every((p) => selected[p.id]);
@@ -3650,6 +3653,17 @@ function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {})
       });
     });
   }, [reloadProducts]);
+
+  useEffect(() => {
+    void listImportGroupsFn({ data: { channelId } })
+      .then((rows) => {
+        setImportGroups(rows);
+        setImportGroupJid((current) =>
+          rows.some((row) => row.groupId === current) ? current : "",
+        );
+      })
+      .catch(() => setImportGroups([]));
+  }, [channelId, listImportGroupsFn]);
 
   const handleExecute = async () => {
     if (bulkBusy) return;
@@ -3716,7 +3730,13 @@ function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {})
 
   const removeTag = (id: string) => setTags((t) => t.filter((x) => x.id !== id));
 
-  const handlePickCsv = () => fileInputRef.current?.click();
+  const handlePickCsv = () => {
+    if (!importGroupJid) {
+      toast.error("Escolha o grupo que receberá estes produtos.");
+      return;
+    }
+    fileInputRef.current?.click();
+  };
 
   const enrichImagesInBackground = async () => {
     try {
@@ -3792,7 +3812,9 @@ function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {})
 
       for (let i = 0; i < rows.length; i += BATCH) {
         const chunk = rows.slice(i, i + BATCH);
-        const outcome = await importBatchFn({ data: { channelId, rows: chunk } });
+        const outcome = await importBatchFn({
+          data: { channelId, sourceGroupJid: importGroupJid, rows: chunk },
+        });
         inserted += outcome.inserted;
         updated += outcome.updated;
         setProgress({ done: Math.min(i + chunk.length, rows.length), total: rows.length });
@@ -3936,6 +3958,30 @@ function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {})
           </p>
 
           <div className="mt-4 space-y-3">
+            <div>
+              <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Grupo de destino
+              </label>
+              <div className="relative">
+                <select
+                  value={importGroupJid}
+                  onChange={(event) => setImportGroupJid(event.target.value)}
+                  disabled={importing}
+                  className="h-10 w-full appearance-none rounded-md border border-input bg-background px-3 pr-9 text-sm"
+                >
+                  <option value="">Selecione um grupo</option>
+                  {importGroups.map((group) => (
+                    <option key={`${group.instanceId}:${group.groupId}`} value={group.groupId}>
+                      {group.groupName ?? group.groupId} · {group.instanceName}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              </div>
+              <p className="mt-1 text-[10.5px] text-muted-foreground">
+                Os produtos serão exclusivos deste grupo. Itens antigos sem grupo continuam pendentes.
+              </p>
+            </div>
             <input
               ref={fileInputRef}
               type="file"
@@ -3978,7 +4024,7 @@ function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {})
             </div>
             <Button
               type="button"
-              disabled={importing}
+              disabled={importing || !importGroupJid}
               onClick={handlePickCsv}
               className="w-full gap-2 rounded-full bg-primary hover:bg-primary/90"
             >
