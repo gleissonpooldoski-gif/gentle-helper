@@ -597,12 +597,14 @@ function OrdersTable({
   tableFilter,
   onTableFilterChange,
   loading,
+  onExportCsv,
 }: {
   orders: ConversionRow[];
   totalCount: number;
   tableFilter: string;
   onTableFilterChange: (v: string) => void;
   loading: boolean;
+  onExportCsv: () => void;
 }) {
   return (
     <section className="mt-6 overflow-hidden rounded-2xl border border-border/70 bg-card shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
@@ -633,6 +635,7 @@ function OrdersTable({
           <Button
             variant="outline"
             size="sm"
+            onClick={onExportCsv}
             className="h-9 rounded-lg border-[oklch(0.65_0.18_150)]/30 bg-[oklch(0.65_0.18_150)]/8 text-[oklch(0.4_0.16_150)] hover:bg-[oklch(0.65_0.18_150)]/15"
           >
             <Download className="mr-1.5 h-4 w-4" />
