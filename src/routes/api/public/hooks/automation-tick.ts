@@ -232,6 +232,38 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
 
   let groups: Array<{ group_jid: string; group_name: string | null }> = [];
   if (cfg.group_id) {
+    // Validação obrigatória de posse: o grupo destino precisa estar vinculado
+    // à instância desta config. Se não estiver, bloqueia envio.
+    if (inst) {
+      const { data: owns } = await admin
+        .from("whatsapp_group_selections")
+        .select("group_jid, group_name")
+        .eq("user_id", cfg.user_id)
+        .eq("instance_id", inst.id)
+        .eq("channel_id", cfg.channel_id)
+        .eq("group_jid", cfg.group_id)
+        .maybeSingle();
+      if (!owns) {
+        await admin.from("whatsapp_campaign_history").insert({
+          user_id: cfg.user_id,
+          config_id: cfg.id,
+          product_id: product.id,
+          product_name: product.title,
+          store: product.platform,
+          group_id: cfg.group_id,
+          group_name: cfg.group_name,
+          instance_name: instanceName,
+          status: "failed",
+          error_message: `Grupo bloqueado: ${cfg.group_id} não pertence à instância ${instanceName}`,
+        });
+        await admin.from("automation_configs").update({
+          status: "error",
+          last_error: `Grupo não pertence à instância ${instanceName}`,
+          next_run_at: new Date(Date.now() + cfg.intervalo_min * 60_000).toISOString(),
+        }).eq("id", cfg.id);
+        return;
+      }
+    }
     groups = [{ group_jid: cfg.group_id, group_name: cfg.group_name ?? null }];
   } else if (inst) {
     const { data: gsel } = await admin
