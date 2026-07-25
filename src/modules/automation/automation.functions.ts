@@ -200,9 +200,12 @@ export const saveAutomationConfig = createServerFn({ method: "POST" })
     intervaloMin: number;
     lojasAtivas: string[];
     postLoop: boolean;
+    instanceId?: string | null;
   }) => {
     const scope = parseScope(data);
     const intervalo = Math.max(1, Math.min(1440, Number(data?.intervaloMin ?? 15) || 15));
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const instId = data?.instanceId ? String(data.instanceId).trim() : "";
     return {
       ...scope,
       horaInicio: normalizeTime(data?.horaInicio, "07:00:00"),
@@ -210,6 +213,7 @@ export const saveAutomationConfig = createServerFn({ method: "POST" })
       intervaloMin: intervalo,
       lojasAtivas: normalizeStores(data?.lojasAtivas),
       postLoop: !!data?.postLoop,
+      instanceId: UUID_RE.test(instId) ? instId : null,
     };
   })
   .handler(async ({ data, context }): Promise<AutomationConfigDTO> => {
@@ -223,6 +227,7 @@ export const saveAutomationConfig = createServerFn({ method: "POST" })
         intervalo_min: data.intervaloMin,
         lojas_ativas: data.lojasAtivas,
         post_loop: data.postLoop,
+        instance_id: data.instanceId,
       })
       .eq("id", cfg.id)
       .select("*")
