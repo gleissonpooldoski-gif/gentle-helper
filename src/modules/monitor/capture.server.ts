@@ -117,6 +117,9 @@ function extractItemId(url: string, platform: Platform): string {
       // .../produto-i.<shopId>.<itemId>
       const m = path.match(/\.(\d+)\.(\d+)(?:\?|$|\/)/);
       if (m) return `${m[1]}.${m[2]}`;
+      // Formato atual dos redirects curtos: /nome-da-loja/<shopId>/<itemId>
+      const current = path.match(/\/(\d+)\/(\d+)\/?$/);
+      if (current) return `${current[1]}.${current[2]}`;
     }
     if (platform === "mercadolivre") {
       const m = path.match(/MLB-?(\d+)/i);
@@ -140,6 +143,39 @@ function extractItemId(url: string, platform: Platform): string {
 }
 
 type OgMeta = { title: string | null; image: string | null; price: number | null };
+
+type MessageMeta = {
+  title: string | null;
+  price: number | null;
+  priceBefore: number | null;
+};
+
+function parseBrazilianMoney(value: string): number | null {
+  const normalized = value.replace(/\s/g, "").replace(/\./g, "").replace(",", ".");
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+/** Usa o texto original da oferta quando a Shopee bloqueia preço/título no servidor. */
+function parseMessageMeta(text: string): MessageMeta {
+  const prices = Array.from(text.matchAll(/R\$\s*([\d.]+(?:,\d{1,2})?)/gi))
+    .map((match) => parseBrazilianMoney(match[1] ?? ""))
+    .filter((value): value is number => value !== null);
+  const uniquePrices = Array.from(new Set(prices));
+  const price = uniquePrices.length > 0 ? Math.min(...uniquePrices) : null;
+  const priceBefore = uniquePrices.length > 1 ? Math.max(...uniquePrices) : price;
+
+  const title = text
+    .split(/\r?\n/)
+    .map((line) => line.replace(URL_REGEX, "").replace(/^[\s🔥🚨⚡💥✅🛒📦🎁⭐*-]+/u, "").trim())
+    .find((line) =>
+      line.length >= 8 &&
+      !/^R\$/i.test(line) &&
+      !/^(de|por|cupom|compre|oferta|promoção|link|frete)\b/i.test(line),
+    ) ?? null;
+
+  return { title, price, priceBefore };
+}
 
 const OG_USER_AGENTS: Array<{ ua: string; tag: string }> = [
   { ua: "WhatsApp/2.24.0.85 A", tag: "wa" },
@@ -258,6 +294,13 @@ async function fetchShopeePdp(
       if (m2) {
         shopId = m2[1];
         itemId = m2[2];
+      } else {
+        // Redirect atual de s.shopee.com.br: /nome-da-loja/<shopId>/<itemId>
+        const m3 = path.match(/\/(\d+)\/(\d+)\/?$/);
+        if (m3) {
+          shopId = m3[1];
+          itemId = m3[2];
+        }
       }
     }
     if (!shopId || !itemId) return empty;
@@ -367,7 +410,11 @@ export type CaptureContext = {
   groupName: string | null;
 };
 
-async function captureOne(ctx: CaptureContext, rawUrl: string): Promise<"inserted" | "updated" | "skipped"> {
+async function captureOne(
+  ctx: CaptureContext,
+  rawUrl: string,
+  messageText: string,
+): Promise<"inserted" | "updated" | "skipped"> {
   const platform = detectPlatform(rawUrl);
   if (!platform) return "skipped";
 
@@ -390,16 +437,18 @@ async function captureOne(ctx: CaptureContext, rawUrl: string): Promise<"inserte
 
   // Enriquecimento (título/imagem/preço) via OpenGraph.
   const meta = await fetchOgMeta(resolved);
+  const messageMeta = parseMessageMeta(messageText);
   let image = meta.image;
-  let title = meta.title;
-  let price = meta.price;
-  let priceBefore: number | null = null;
+  let title = meta.title ?? messageMeta.title;
+  let price = meta.price ?? messageMeta.price;
+  let priceBefore: number | null = messageMeta.priceBefore;
 
   if (finalPlatform === "shopee") {
     const pdp = await fetchShopeePdp(resolved);
-    if (pdp.title && (!title || isGenericTitle(title))) title = pdp.title;
-    if (pdp.image && !image) image = pdp.image;
-    if (pdp.price && !price) price = pdp.price;
+    // A resposta estruturada da Shopee é sempre mais confiável que OG/mensagem.
+    if (pdp.title) title = pdp.title;
+    if (pdp.image) image = pdp.image;
+    if (pdp.price) price = pdp.price;
     if (pdp.priceBefore) priceBefore = pdp.priceBefore;
     if (!image) {
       image = await scrapeShopeeImage(resolved).catch(() => null);
@@ -530,6 +579,7 @@ export async function handleEvolutionMessage(
       const result = await captureOne(
         { supabase, userId, channelId, groupJid: jid, groupName: group.name },
         url,
+        text,
       );
       stats[result]++;
     }
