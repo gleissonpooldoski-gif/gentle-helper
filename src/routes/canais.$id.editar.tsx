@@ -30,7 +30,14 @@ import {
 import { WhatsAppInstancePanel } from "@/components/whatsapp/WhatsAppInstancePanel";
 import { SiteConfigPanel } from "@/components/site/SiteConfigPanel";
 import { SendToGroupsModal, type SendProduct } from "@/components/whatsapp/SendToGroupsModal";
-import { getPostLayout, savePostLayout } from "@/modules/posts/layout.functions";
+import {
+  getPostLayout,
+  savePostLayout,
+  listHeaderVariations,
+  addHeaderVariation,
+  deleteHeaderVariation,
+  type HeaderVariation,
+} from "@/modules/posts/layout.functions";
 import { DEFAULT_POST_LAYOUT, type PostLayout } from "@/modules/posts/render";
 import { GroupAutomationList } from "@/components/automation/GroupAutomationList";
 import { getChannel, updateChannel, getChannelProductCounts, type ChannelDTO, type ChannelProductCountsDTO } from "@/modules/channels/channels.functions";
@@ -942,25 +949,35 @@ function TemplateBlock({
 function LayoutPostPanel({ channelId }: { channelId: string }) {
   const getLayoutFn = useServerFn(getPostLayout);
   const saveLayoutFn = useServerFn(savePostLayout);
+  const listVariationsFn = useServerFn(listHeaderVariations);
+  const addVariationFn = useServerFn(addHeaderVariation);
+  const deleteVariationFn = useServerFn(deleteHeaderVariation);
 
   const [waPreview, setWaPreview] = useState(true);
   const [layout, setLayout] = useState<PostLayout>(DEFAULT_POST_LAYOUT);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [variations, setVariations] = useState<HeaderVariation[]>([]);
+  const [newVariation, setNewVariation] = useState("");
+  const [addingVar, setAddingVar] = useState(false);
 
   useEffect(() => {
     setLoading(true);
     (async () => {
       try {
-        const l = await getLayoutFn({ data: { channelId } });
+        const [l, vs] = await Promise.all([
+          getLayoutFn({ data: { channelId } }),
+          listVariationsFn().catch(() => [] as HeaderVariation[]),
+        ]);
         setLayout(l);
+        setVariations(vs);
       } catch (err) {
         console.warn("[layout] load failed:", err);
       } finally {
         setLoading(false);
       }
     })();
-  }, [getLayoutFn, channelId]);
+  }, [getLayoutFn, listVariationsFn, channelId]);
 
   const update = <K extends keyof PostLayout>(k: K, v: PostLayout[K]) =>
     setLayout((prev) => ({ ...prev, [k]: v }));
@@ -978,6 +995,31 @@ function LayoutPostPanel({ channelId }: { channelId: string }) {
     }
   };
 
+  const handleAddVariation = async () => {
+    const text = newVariation.trim();
+    if (!text) return;
+    setAddingVar(true);
+    try {
+      const row = await addVariationFn({ data: { text } });
+      setVariations((prev) => [...prev, row]);
+      setNewVariation("");
+      toast.success("Variação adicionada");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao adicionar variação");
+    } finally {
+      setAddingVar(false);
+    }
+  };
+
+  const handleDeleteVariation = async (id: string) => {
+    try {
+      await deleteVariationFn({ data: { id } });
+      setVariations((prev) => prev.filter((v) => v.id !== id));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao remover variação");
+    }
+  };
+
   return (
     <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
       {/* LEFT */}
@@ -991,12 +1033,84 @@ function LayoutPostPanel({ channelId }: { channelId: string }) {
             />
           </div>
 
-          <LayoutField
-            label="Cabeçalho Geral"
-            hint="Esse texto será exibido acima do título do produto"
-            value={layout.header}
-            onChange={(v) => update("header", v)}
-          />
+          <div className="rounded-xl border border-border/70 bg-muted/30 p-3 space-y-3">
+            <label className="block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Cabeçalho Geral
+            </label>
+            <div className="flex flex-wrap gap-4 text-sm">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name={`header-mode-${channelId}`}
+                  checked={layout.header_mode === "custom"}
+                  onChange={() => update("header_mode", "custom")}
+                />
+                <span>Usar cabeçalho personalizado</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name={`header-mode-${channelId}`}
+                  checked={layout.header_mode === "auto"}
+                  onChange={() => update("header_mode", "auto")}
+                />
+                <span>Usar cabeçalho automático</span>
+              </label>
+            </div>
+
+            {layout.header_mode === "custom" ? (
+              <LayoutField
+                label="Frase fixa"
+                hint="Essa frase será usada em todos os posts"
+                value={layout.header}
+                onChange={(v) => update("header", v)}
+              />
+            ) : (
+              <div className="space-y-2">
+                <p className="text-[11px] italic text-muted-foreground">
+                  Uma frase é escolhida aleatoriamente do banco abaixo a cada envio, evitando repetir as últimas usadas.
+                </p>
+                <div className="max-h-56 overflow-y-auto rounded-lg border border-border/60 bg-background divide-y divide-border/60">
+                  {variations.length === 0 && (
+                    <div className="px-3 py-2 text-[12px] text-muted-foreground">Nenhuma variação disponível.</div>
+                  )}
+                  {variations.map((v) => (
+                    <div key={v.id} className="flex items-center justify-between gap-2 px-3 py-1.5 text-[13px]">
+                      <span className="truncate">{v.text}</span>
+                      {v.user_id ? (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteVariation(v.id)}
+                          className="text-[11px] text-destructive hover:underline"
+                        >
+                          Remover
+                        </button>
+                      ) : (
+                        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">padrão</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    value={newVariation}
+                    onChange={(e) => setNewVariation(e.target.value)}
+                    placeholder="🚨 OFERTA EXCLUSIVA DO GRUPO!"
+                    className="h-10 flex-1 rounded-lg border border-border bg-background px-3 text-[13px] outline-none focus:border-primary"
+                  />
+                  <Button
+                    type="button"
+                    onClick={handleAddVariation}
+                    disabled={addingVar || !newVariation.trim()}
+                    className="h-10 rounded-lg"
+                  >
+                    + Adicionar
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+
 
           <LayoutField
             label="Texto do Título"

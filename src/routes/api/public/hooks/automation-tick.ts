@@ -260,10 +260,25 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
   }
 
   // Renderiza legenda
-  const { loadLayoutFor } = await import("@/modules/posts/layout.functions");
+  const { loadLayoutFor, resolveHeader } = await import("@/modules/posts/layout.functions");
   const { renderPost } = await import("@/modules/posts/render");
   const { loadSiteConfigByChannel, wrapLinkWithSite } = await import("@/modules/site/site-link");
   const layout = await loadLayoutFor(admin, cfg.user_id, cfg.channel_id);
+
+  // Anti-repetição de cabeçalho: últimos 5 usados neste config.
+  const { data: recent } = await admin
+    .from("whatsapp_campaign_history")
+    .select("caption")
+    .eq("config_id", cfg.id)
+    .eq("status", "sent")
+    .order("sent_at", { ascending: false })
+    .limit(5);
+  const recentHeaders = (recent ?? [])
+    .map((r: any) => String(r.caption ?? "").split("\n")[0].trim())
+    .filter(Boolean);
+  const chosenHeader = await resolveHeader(admin, cfg.user_id, layout, recentHeaders);
+  const effectiveLayout = { ...layout, header: chosenHeader };
+
   const siteCfg = cfg.channel_id
     ? await loadSiteConfigByChannel(admin as never, cfg.channel_id)
     : null;
@@ -276,8 +291,10 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
     vendas: product.sales,
     link: wrappedLink,
     image: product.image_url,
+    store: product.store_name ?? product.platform ?? null,
+    category: product.category ?? null,
   };
-  const caption = renderPost(layout, productDetail, "whatsapp");
+  const caption = renderPost(effectiveLayout, productDetail, "whatsapp");
 
 
   let anySent = false;

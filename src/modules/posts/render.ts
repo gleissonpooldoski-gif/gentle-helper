@@ -4,8 +4,11 @@
  * alterar o template no SaaS reflete em todos os canais automaticamente.
  */
 
+export type HeaderMode = "auto" | "custom";
+
 export interface PostLayout {
   header: string;
+  header_mode: HeaderMode;
   title_template: string;
   upper_title: boolean;
   hide_sales: boolean;
@@ -21,6 +24,7 @@ export interface PostLayout {
 
 export const DEFAULT_POST_LAYOUT: PostLayout = {
   header: "🚨 OFERTA RELÂMPAGO!!",
+  header_mode: "custom",
   title_template: "🔥🔥 <b>{title}</b> 🔥🔥",
   upper_title: true,
   hide_sales: false,
@@ -43,6 +47,9 @@ export interface PostProduct {
   vendas?: number | string | null;
   link: string;
   image?: string | null;
+  store?: string | null;
+  category?: string | null;
+  discount?: string | number | null;
 }
 
 const BRL = new Intl.NumberFormat("pt-BR", {
@@ -94,6 +101,10 @@ export function renderPost(
     parcelamento: product.parcelamento ?? "",
     vendas: product.vendas != null ? String(product.vendas) : "",
     link: product.link,
+    store: product.store ?? "",
+    category: product.category ?? "",
+    image: product.image ?? "",
+    discount: product.discount != null ? String(product.discount) : "",
   };
 
   const blocks: string[] = [];

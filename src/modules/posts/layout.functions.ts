@@ -7,6 +7,7 @@ function normalize(row: any | null | undefined): PostLayout {
   if (!row) return DEFAULT_POST_LAYOUT;
   return {
     header: row.header ?? DEFAULT_POST_LAYOUT.header,
+    header_mode: row.header_mode === "auto" ? "auto" : "custom",
     title_template: row.title_template ?? DEFAULT_POST_LAYOUT.title_template,
     upper_title: row.upper_title ?? DEFAULT_POST_LAYOUT.upper_title,
     hide_sales: row.hide_sales ?? DEFAULT_POST_LAYOUT.hide_sales,
@@ -106,4 +107,84 @@ export async function loadLayoutFor(
 ): Promise<PostLayout> {
   const row = await loadRow(supabase, userId, channelId ?? null);
   return normalize(row);
+}
+
+/* ==================== Header Variations ==================== */
+
+export interface HeaderVariation {
+  id: string;
+  user_id: string | null;
+  text: string;
+  active: boolean;
+}
+
+export const listHeaderVariations = createServerFn({ method: "GET" })
+  .middleware([apiClient, requireSupabaseAuth])
+  .handler(async ({ context }): Promise<HeaderVariation[]> => {
+    const { supabase } = context;
+    const { data, error } = await (supabase as any)
+      .from("post_header_variations")
+      .select("id, user_id, text, active")
+      .order("user_id", { ascending: true, nullsFirst: true })
+      .order("created_at", { ascending: true });
+    if (error) throw new Error(error.message);
+    return (data ?? []) as HeaderVariation[];
+  });
+
+export const addHeaderVariation = createServerFn({ method: "POST" })
+  .middleware([apiClient, requireSupabaseAuth])
+  .inputValidator((data: { text: string }) => ({
+    text: String(data?.text ?? "").trim(),
+  }))
+  .handler(async ({ data, context }): Promise<HeaderVariation> => {
+    if (!data.text) throw new Error("Texto obrigatório");
+    const { supabase, userId } = context;
+    const { data: row, error } = await (supabase as any)
+      .from("post_header_variations")
+      .insert({ user_id: userId, text: data.text, active: true })
+      .select("id, user_id, text, active")
+      .single();
+    if (error) throw new Error(error.message);
+    return row as HeaderVariation;
+  });
+
+export const deleteHeaderVariation = createServerFn({ method: "POST" })
+  .middleware([apiClient, requireSupabaseAuth])
+  .inputValidator((data: { id: string }) => ({ id: String(data?.id ?? "") }))
+  .handler(async ({ data, context }): Promise<{ ok: true }> => {
+    const { supabase, userId } = context;
+    const { error } = await (supabase as any)
+      .from("post_header_variations")
+      .delete()
+      .eq("id", data.id)
+      .eq("user_id", userId);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+/**
+ * Escolhe o cabeçalho a ser usado para um envio.
+ * - custom → usa layout.header exatamente como está.
+ * - auto   → escolhe aleatório entre variações ativas do usuário + globais,
+ *            evitando os últimos N já enviados (anti-repetição).
+ */
+export async function resolveHeader(
+  supabase: any,
+  userId: string,
+  layout: PostLayout,
+  recentHeaders: string[] = [],
+): Promise<string> {
+  if (layout.header_mode !== "auto") return layout.header;
+  const { data } = await supabase
+    .from("post_header_variations")
+    .select("text, active, user_id")
+    .or(`user_id.eq.${userId},user_id.is.null`);
+  const pool: string[] = (data ?? [])
+    .filter((r: any) => r.active !== false && typeof r.text === "string" && r.text.trim())
+    .map((r: any) => r.text as string);
+  if (pool.length === 0) return layout.header;
+  const recent = new Set(recentHeaders.filter(Boolean));
+  const candidates = pool.filter((t) => !recent.has(t));
+  const src = candidates.length > 0 ? candidates : pool;
+  return src[Math.floor(Math.random() * src.length)];
 }
