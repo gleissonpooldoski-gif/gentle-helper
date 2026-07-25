@@ -56,17 +56,57 @@ export async function testConnection(input: {
 }): Promise<{
   username: string;
   name?: string;
-  followers?: number;
-  mediaCount?: number;
+  pageName?: string;
+  webhookActive: boolean;
+  capabilities: { stories: boolean; comments: boolean; messages: boolean };
 }> {
-  // A Page token can query the linked Instagram account directly. Do not
-  // query the Facebook Page or request engagement fields during the health
-  // check: both add an unrelated pages_read_engagement requirement and can
-  // reject an otherwise valid Instagram connection with Meta error #10.
-  return gfetch(`/${input.igId}`, {
-    access_token: input.token,
-    fields: "id,username,name",
-  }) as any;
+  const ig = await gfetch<{ id: string; username: string; name?: string }>(
+    `/${input.igId}`,
+    { access_token: input.token, fields: "id,username,name" },
+  );
+
+  let pageName: string | undefined;
+  let webhookActive = false;
+  if (input.pageId) {
+    try {
+      const page = await gfetch<{ name?: string }>(`/${input.pageId}`, {
+        access_token: input.token,
+        fields: "name",
+      });
+      pageName = page.name;
+    } catch {}
+    try {
+      const sub = await gfetch<{ data: Array<{ subscribed_fields?: string[] }> }>(
+        `/${input.pageId}/subscribed_apps`,
+        { access_token: input.token },
+      );
+      webhookActive = (sub.data ?? []).length > 0;
+    } catch {}
+  }
+
+  const capabilities = { stories: true, comments: true, messages: true };
+  const appId = process.env.META_APP_ID;
+  const appSecret = process.env.META_APP_SECRET;
+  if (appId && appSecret) {
+    try {
+      const dbg = await gfetch<{ data?: { scopes?: string[] } }>(`/debug_token`, {
+        input_token: input.token,
+        access_token: `${appId}|${appSecret}`,
+      });
+      const scopes = new Set(dbg.data?.scopes ?? []);
+      capabilities.stories = scopes.has("instagram_content_publish");
+      capabilities.comments = scopes.has("instagram_manage_comments");
+      capabilities.messages = scopes.has("instagram_manage_messages");
+    } catch {}
+  }
+
+  return {
+    username: ig.username,
+    name: ig.name,
+    pageName,
+    webhookActive,
+    capabilities,
+  };
 }
 
 export async function publishStory(input: {
