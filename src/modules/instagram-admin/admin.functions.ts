@@ -232,13 +232,20 @@ export const listInstagramAdminConversations = createServerFn({ method: "GET" })
 
 export const listInstagramAutomations = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const { data, error } = await (context.supabase as any)
+  .inputValidator((d: { mediaId?: string } | undefined) =>
+    z.object({ mediaId: z.string().optional() }).optional().parse(d ?? {}),
+  )
+  .handler(async ({ data, context }) => {
+    let q = (context.supabase as any)
       .from("instagram_automations")
-      .select("id,keyword,message,enabled,created_at")
-      .order("created_at", { ascending: true });
+      .select(
+        "id,keyword,message,enabled,created_at,media_id,comment_reply,button_label,button_url,extra_links,scope,product_id",
+      )
+      .order("created_at", { ascending: false });
+    if (data?.mediaId) q = q.eq("media_id", data.mediaId);
+    const { data: rows, error } = await q;
     if (error) throw error;
-    return data ?? [];
+    return rows ?? [];
   });
 
 export const saveInstagramAutomation = createServerFn({ method: "POST" })
@@ -251,6 +258,11 @@ export const saveInstagramAutomation = createServerFn({ method: "POST" })
       enabled?: boolean;
       product_id?: string;
       scope?: "both" | "comment" | "message";
+      media_id?: string;
+      comment_reply?: string;
+      button_label?: string;
+      button_url?: string;
+      extra_links?: Array<{ label: string; url: string }>;
     }) =>
       z
         .object({
@@ -260,6 +272,13 @@ export const saveInstagramAutomation = createServerFn({ method: "POST" })
           enabled: z.boolean().optional(),
           product_id: z.string().uuid().optional(),
           scope: z.enum(["both", "comment", "message"]).optional(),
+          media_id: z.string().max(120).optional(),
+          comment_reply: z.string().max(1000).optional(),
+          button_label: z.string().max(80).optional(),
+          button_url: z.string().url().optional().or(z.literal("")),
+          extra_links: z
+            .array(z.object({ label: z.string().max(80), url: z.string().url() }))
+            .optional(),
         })
         .parse(d),
   )
@@ -270,6 +289,11 @@ export const saveInstagramAutomation = createServerFn({ method: "POST" })
       enabled: data.enabled ?? true,
       product_id: data.product_id ?? null,
       scope: data.scope ?? "both",
+      media_id: data.media_id ?? null,
+      comment_reply: data.comment_reply ?? null,
+      button_label: data.button_label ?? null,
+      button_url: data.button_url || null,
+      extra_links: data.extra_links ?? [],
     };
     if (data.id) {
       const { error } = await (context.supabase as any)
@@ -277,13 +301,15 @@ export const saveInstagramAutomation = createServerFn({ method: "POST" })
         .update(payload)
         .eq("id", data.id);
       if (error) throw error;
-    } else {
-      const { error } = await (context.supabase as any)
-        .from("instagram_automations")
-        .insert(payload);
-      if (error) throw error;
+      return { ok: true, id: data.id };
     }
-    return { ok: true };
+    const { data: row, error } = await (context.supabase as any)
+      .from("instagram_automations")
+      .insert(payload)
+      .select("id")
+      .single();
+    if (error) throw error;
+    return { ok: true, id: row.id };
   });
 
 export const deleteInstagramAutomation = createServerFn({ method: "POST" })
@@ -296,6 +322,70 @@ export const deleteInstagramAutomation = createServerFn({ method: "POST" })
       .eq("id", data.id);
     if (error) throw error;
     return { ok: true };
+  });
+
+/* ---- AI: preencher automaticamente palavra-chave/respostas/DM ---- */
+
+export const suggestAutomationCopy = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    (d: { caption?: string; mediaId?: string; hint?: string }) =>
+      z
+        .object({
+          caption: z.string().max(4000).optional(),
+          mediaId: z.string().max(120).optional(),
+          hint: z.string().max(500).optional(),
+        })
+        .parse(d),
+  )
+  .handler(async ({ data }) => {
+    const key = process.env.LOVABLE_API_KEY;
+    if (!key) throw new Error("LOVABLE_API_KEY ausente");
+
+    const system =
+      "Você é um copywriter especialista em Instagram para afiliados. Responda SEMPRE em JSON válido com as chaves: keyword (uma palavra-chave curta em minúsculas, sem #), comment_reply (uma resposta curta e amigável ao comentário, com emojis), dm_message (texto da DM em até 300 caracteres, com emojis, incluindo o marcador {{link}} onde entrará o link do afiliado), button_label (rótulo curto do botão, ex.: 'VER OFERTA'). Não escreva nada fora do JSON.";
+    const user = [
+      "Contexto do post do Instagram:",
+      data.caption ? `Legenda: """${data.caption}"""` : "(sem legenda)",
+      data.hint ? `Observação: ${data.hint}` : "",
+      "Gere copy em português do Brasil, tom brasileiro, com gatilhos de urgência e curiosidade.",
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${key}`,
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ],
+        response_format: { type: "json_object" },
+      }),
+    });
+    if (!res.ok) {
+      const t = await res.text();
+      throw new Error(`Lovable AI (${res.status}): ${t.slice(0, 200)}`);
+    }
+    const json = (await res.json()) as any;
+    const raw = json?.choices?.[0]?.message?.content ?? "{}";
+    let parsed: any;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      parsed = {};
+    }
+    return {
+      keyword: String(parsed.keyword ?? "eu quero").slice(0, 60).toLowerCase(),
+      comment_reply: String(parsed.comment_reply ?? "").slice(0, 500),
+      dm_message: String(parsed.dm_message ?? "").slice(0, 500),
+      button_label: String(parsed.button_label ?? "VER OFERTA").slice(0, 40),
+    };
   });
 
 export const listInstagramLogs = createServerFn({ method: "GET" })
