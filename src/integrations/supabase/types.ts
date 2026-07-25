@@ -1439,6 +1439,47 @@ export type Database = {
           },
         ]
       }
+      product_price_history: {
+        Row: {
+          changed_at: string
+          discount_percentage: number | null
+          id: string
+          new_original_price: number | null
+          new_price: number
+          old_original_price: number | null
+          old_price: number | null
+          product_id: string
+        }
+        Insert: {
+          changed_at?: string
+          discount_percentage?: number | null
+          id?: string
+          new_original_price?: number | null
+          new_price: number
+          old_original_price?: number | null
+          old_price?: number | null
+          product_id: string
+        }
+        Update: {
+          changed_at?: string
+          discount_percentage?: number | null
+          id?: string
+          new_original_price?: number | null
+          new_price?: number
+          old_original_price?: number | null
+          old_price?: number | null
+          product_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_price_history_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       products: {
         Row: {
           affiliate_link: string
@@ -1448,12 +1489,15 @@ export type Database = {
           commission_rate: number | null
           commission_value: number | null
           created_at: string
+          discount_percentage: number | null
           id: string
           image_url: string | null
+          is_discount: boolean
           item_id: string | null
           last_validated_at: string | null
           original_price: number | null
           platform: string
+          price_changed_at: string | null
           promo_price: number | null
           raw_link: string
           sales: number | null
@@ -1475,12 +1519,15 @@ export type Database = {
           commission_rate?: number | null
           commission_value?: number | null
           created_at?: string
+          discount_percentage?: number | null
           id?: string
           image_url?: string | null
+          is_discount?: boolean
           item_id?: string | null
           last_validated_at?: string | null
           original_price?: number | null
           platform?: string
+          price_changed_at?: string | null
           promo_price?: number | null
           raw_link: string
           sales?: number | null
@@ -1502,12 +1549,15 @@ export type Database = {
           commission_rate?: number | null
           commission_value?: number | null
           created_at?: string
+          discount_percentage?: number | null
           id?: string
           image_url?: string | null
+          is_discount?: boolean
           item_id?: string | null
           last_validated_at?: string | null
           original_price?: number | null
           platform?: string
+          price_changed_at?: string | null
           promo_price?: number | null
           raw_link?: string
           sales?: number | null
