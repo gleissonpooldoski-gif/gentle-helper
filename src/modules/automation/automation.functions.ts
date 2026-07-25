@@ -421,15 +421,27 @@ export const listAutomationGroups = createServerFn({ method: "POST" })
     const cfgMap = new Map<string, any>();
     for (const c of (cfgs ?? []) as any[]) if (c.group_id) cfgMap.set(c.group_id, c);
 
-    // Contagem real de produtos elegíveis para envio no grupo:
-    // - produtos capturados via WhatsApp desse grupo (source_group_jid = jid), OU
-    // - produtos importados no canal (source_group_jid IS NULL), que ficam
-    //   disponíveis para qualquer grupo do canal.
-    // Deve espelhar a query de elegibilidade em automation-tick.
+    // Produtos sem grupo de origem são o estoque importado do canal. Eles
+    // pertencem somente ao grupo monitorado/vinculado a esse canal, e não a
+    // todos os grupos que porventura estejam selecionados na interface.
+    const { data: ownedGroups } = await supabase
+      .from("monitored_groups")
+      .select("group_jid")
+      .eq("user_id", userId)
+      .eq("channel_id", data.channelId)
+      .eq("is_active", true);
+    const ownedGroupJids = new Set(
+      (ownedGroups ?? []).map((row: any) => String(row.group_jid ?? "")).filter(Boolean),
+    );
+
+    // Contagem real por grupo: capturados diretamente no grupo + estoque
+    // importado do canal apenas quando este for o grupo proprietário.
     const countMap = new Map<string, { active: number; total: number }>();
     await Promise.all(
       jids.map(async (jid) => {
-        const orFilter = `source_group_jid.eq.${jid},source_group_jid.is.null`;
+        const sourceFilter = ownedGroupJids.has(jid)
+          ? `source_group_jid.eq.${jid},source_group_jid.is.null`
+          : `source_group_jid.eq.${jid}`;
         const [{ count: active }, { count: total }] = await Promise.all([
           supabase
             .from("products")
@@ -437,13 +449,13 @@ export const listAutomationGroups = createServerFn({ method: "POST" })
             .eq("user_id", userId)
             .eq("channel_id", data.channelId)
             .eq("availability", "active")
-            .or(orFilter),
+            .or(sourceFilter),
           supabase
             .from("products")
             .select("id", { count: "exact", head: true })
             .eq("user_id", userId)
             .eq("channel_id", data.channelId)
-            .or(orFilter),
+            .or(sourceFilter),
         ]);
         countMap.set(jid, { active: active ?? 0, total: total ?? 0 });
       }),
@@ -509,11 +521,24 @@ export const listGroupProducts = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<GroupProductDTO[]> => {
     const { supabase, userId } = context;
     if (!data.groupJid) return [];
-    const { data: rows, error } = await supabase
+    const { data: ownership } = await supabase
+      .from("monitored_groups")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("channel_id", data.channelId)
+      .eq("group_jid", data.groupJid)
+      .eq("is_active", true)
+      .limit(1);
+
+    let query = supabase
       .from("products")
       .select("id, title, platform, promo_price, image_url, availability")
       .eq("user_id", userId)
-      .eq("source_group_jid", data.groupJid)
+      .eq("channel_id", data.channelId);
+    query = ownership?.length
+      ? query.or(`source_group_jid.eq.${data.groupJid},source_group_jid.is.null`)
+      : query.eq("source_group_jid", data.groupJid);
+    const { data: rows, error } = await query
       .order("created_at", { ascending: false })
       .limit(200);
     if (error) throw new Error(error.message);
