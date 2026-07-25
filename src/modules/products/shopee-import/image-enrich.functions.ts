@@ -61,3 +61,64 @@ export const enrichShopeeImageOne = createServerFn({ method: "POST" })
     if (error) return { id: data.id, itemId: data.itemId ?? null, found: false as const };
     return { id: data.id, itemId: data.itemId ?? null, found: true as const, image };
   });
+
+/**
+ * Enriquecimento em LOTE: raspa várias imagens em paralelo no servidor e
+ * grava tudo em uma única passada de UPDATEs. Reduz drasticamente o número
+ * de RPCs (de N para N/8) e o overhead de rede/HMR no cliente.
+ */
+export const enrichShopeeImagesBatch = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        channelId: z.string().uuid(),
+        items: z
+          .array(
+            z.object({
+              id: z.string().min(1),
+              itemId: z.string().nullish(),
+              productUrl: z.string().min(1),
+              offerUrl: z.string().nullish(),
+            }),
+          )
+          .min(1)
+          .max(12),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    // 1) Raspa todas as imagens do batch em paralelo (I/O bound).
+    const scraped = await Promise.all(
+      data.items.map(async (item) => {
+        try {
+          const image = await scrapeShopeeImage(item.productUrl, item.offerUrl ?? null);
+          return { item, image: image && isRealProductImage(image) ? image : null };
+        } catch {
+          return { item, image: null };
+        }
+      }),
+    );
+
+    // 2) Persiste em paralelo (uma UPDATE por linha, mas todas juntas).
+    const persisted = await Promise.all(
+      scraped.map(async ({ item, image }) => {
+        if (!image) {
+          return { id: item.id, itemId: item.itemId ?? null, found: false as const };
+        }
+        const { error } = await context.supabase
+          .from("products")
+          .update({ image_url: image })
+          .eq("id", item.id)
+          .eq("user_id", context.userId)
+          .eq("channel_id", data.channelId);
+        if (error) {
+          return { id: item.id, itemId: item.itemId ?? null, found: false as const };
+        }
+        return { id: item.id, itemId: item.itemId ?? null, found: true as const, image };
+      }),
+    );
+
+    return { results: persisted };
+  });
+
