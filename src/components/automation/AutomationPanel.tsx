@@ -14,6 +14,10 @@ import {
   type AutomationConfigDTO,
   type CampaignHistoryDTO,
 } from "@/modules/automation/automation.functions";
+import {
+  listWhatsAppInstances,
+  type WhatsAppInstanceDTO,
+} from "@/modules/whatsapp/instances.functions";
 
 
 const STORE_OPTIONS: Array<{ slug: string; label: string }> = [
