@@ -621,6 +621,7 @@ export const saveWhatsAppGroupSelection = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const row = await loadInstance(supabase, userId, data.id);
 
+    // 1) Limpa a seleção atual desta instância para este canal.
     await (supabase as any)
       .from("whatsapp_group_selections")
       .delete()
@@ -628,7 +629,19 @@ export const saveWhatsAppGroupSelection = createServerFn({ method: "POST" })
       .eq("instance_id", row.id)
       .eq("channel_id", data.channelId);
 
+    // 2) Regra "um grupo → uma instância": remove os mesmos JIDs de
+    //    QUALQUER outra instância deste canal, para não ficar duplicado
+    //    ("empilhado") na tela de automação por grupo.
     if (data.groups.length > 0) {
+      const jids = data.groups.map((g) => g.jid);
+      await (supabase as any)
+        .from("whatsapp_group_selections")
+        .delete()
+        .eq("user_id", userId)
+        .eq("channel_id", data.channelId)
+        .in("group_jid", jids)
+        .neq("instance_id", row.id);
+
       const rows = data.groups.map((g) => ({
         user_id: userId,
         instance_id: row.id,
@@ -638,6 +651,7 @@ export const saveWhatsAppGroupSelection = createServerFn({ method: "POST" })
       }));
       console.log("[WA][insert whatsapp_group_selections]", { count: rows.length, sample: rows[0] });
       const { error } = await (supabase as any)
+
         .from("whatsapp_group_selections")
         .upsert(rows, { onConflict: "user_id,channel_id,group_jid" });
       if (error) throw new Error(error.message);
