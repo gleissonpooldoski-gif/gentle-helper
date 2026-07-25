@@ -194,7 +194,7 @@ function ReportsPage() {
       toast.error("Nada para exportar com os filtros atuais.");
       return;
     }
-    downloadCsv(filteredRows);
+    downloadConversionsCsv(filteredRows);
     toast.success(`${filteredRows.length} linhas exportadas para CSV`);
   };
 
