@@ -577,12 +577,37 @@ export type Database = {
           },
         ]
       }
+      post_header_variations: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          text: string
+          user_id: string | null
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          text: string
+          user_id?: string | null
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          text?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       post_layouts: {
         Row: {
           channel_id: string | null
           description_template: string
           footer: string
           header: string
+          header_mode: string
           hide_original: boolean
           hide_sales: boolean
           id: string
@@ -601,6 +626,7 @@ export type Database = {
           description_template?: string
           footer?: string
           header?: string
+          header_mode?: string
           hide_original?: boolean
           hide_sales?: boolean
           id?: string
@@ -619,6 +645,7 @@ export type Database = {
           description_template?: string
           footer?: string
           header?: string
+          header_mode?: string
           hide_original?: boolean
           hide_sales?: boolean
           id?: string
