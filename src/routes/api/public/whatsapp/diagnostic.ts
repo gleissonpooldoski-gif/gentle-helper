@@ -4,8 +4,10 @@ export const Route = createFileRoute("/api/public/whatsapp/diagnostic")({
   server: {
     handlers: {
       GET: async () => {
-        const rawUrl = process.env.EVOLUTION_API_URL ?? "";
-        const apiKey = process.env.EVOLUTION_API_KEY ?? "";
+        const { getEvolutionConfig } = await import("@/modules/whatsapp/evolution/client.server");
+        const cfg = await getEvolutionConfig();
+        const rawUrl = cfg.baseUrl;
+        const apiKey = cfg.apiKey;
         const hasKey = apiKey.length > 0;
         let host = "";
         try {
@@ -77,6 +79,17 @@ export const Route = createFileRoute("/api/public/whatsapp/diagnostic")({
           };
         } catch (e: any) {
           result.fetchAllGroups = { error: e?.message ?? String(e) };
+        }
+
+        // 4) webhook/find
+        try {
+          const res = await fetch(`${baseUrl}/webhook/find/${encodeURIComponent("DIVULGA LINKS")}`, { headers });
+          const text = await res.text();
+          let parsed: any = null;
+          try { parsed = JSON.parse(text); } catch { parsed = text.slice(0, 500); }
+          result.webhook = { status: res.status, body: parsed };
+        } catch (e: any) {
+          result.webhook = { error: e?.message ?? String(e) };
         }
 
         return new Response(JSON.stringify(result, null, 2), {
