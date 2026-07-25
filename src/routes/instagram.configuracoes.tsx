@@ -170,6 +170,31 @@ function Field({
   );
 }
 
+function StatusPanel({ info, igId }: { info: any; igId: string }) {
+  const cap = info?.capabilities ?? { stories: true, comments: true, messages: true };
+  const dot = (ok: boolean) => (ok ? "🟢" : "🔴");
+  const Row = ({ label, value }: { label: string; value: React.ReactNode }) => (
+    <div className="flex items-baseline justify-between gap-4 text-sm">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="font-medium text-foreground text-right">{value}</span>
+    </div>
+  );
+  return (
+    <div className="space-y-3 rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4">
+      <div className="text-sm font-semibold text-emerald-700">🟢 Instagram conectado</div>
+      <div className="space-y-1.5">
+        <Row label="Conta" value={info?.username ? `@${info.username}` : "—"} />
+        <Row label="Instagram Business ID" value={igId || "—"} />
+        <Row label="Facebook Page" value={info?.pageName ?? "—"} />
+        <Row label="Webhook" value={`${dot(!!info?.webhookActive)} ${info?.webhookActive ? "Ativo" : "Inativo"}`} />
+        <Row label="Stories" value={`${dot(cap.stories)} ${cap.stories ? "Disponível" : "Indisponível"}`} />
+        <Row label="Comentários" value={`${dot(cap.comments)} ${cap.comments ? "Disponível" : "Indisponível"}`} />
+        <Row label="Mensagens" value={`${dot(cap.messages)} ${cap.messages ? "Disponível" : "Indisponível"}`} />
+      </div>
+    </div>
+  );
+}
+
 export const Route = createFileRoute("/instagram/configuracoes")({
   head: () => ({
     meta: [
