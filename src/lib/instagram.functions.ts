@@ -58,8 +58,10 @@ export const startInstagramOAuth = createServerFn({ method: "POST" })
     if (!clientId) throw new Error("META_APP_ID missing");
     const originUrl = new URL(data.origin);
     const isLocal = originUrl.hostname === "localhost" || originUrl.hostname === "127.0.0.1";
-    const isLovable = originUrl.protocol === "https:" && originUrl.hostname.endsWith(".lovable.app");
-    if (!isLocal && !isLovable) throw new Error("Origem inválida para conectar o Instagram");
+    const isHttps = originUrl.protocol === "https:";
+    const allowedSuffixes = [".lovable.app", ".vercel.app"];
+    const isAllowedHost = isHttps && allowedSuffixes.some((s) => originUrl.hostname.endsWith(s));
+    if (!isLocal && !isAllowedHost) throw new Error("Origem inválida para conectar o Instagram");
     const redirectUri = `${originUrl.origin}/api/public/instagram/callback`;
     const { buildOAuthAuthorizeUrl } = await import("./instagram-graph.server");
     const state = Buffer.from(JSON.stringify({ u: context.userId, c: data.channelId })).toString("base64url");
