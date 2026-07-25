@@ -382,6 +382,16 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
       header_mode: layout.header_mode,
       chosen_header: chosenHeader,
     });
+    console.log("[COMPARE_POST_PIPELINE]", {
+      source: "automation",
+      title: product.title,
+      sales: product.sales,
+      sales_label: (product as { sales_label?: string | null }).sales_label,
+      vendas_final: (product as { sales_label?: string | null }).sales_label ?? product.sales,
+      price: product.promo_price,
+      original: product.original_price,
+      layout_channel: cfg.channel_id,
+    });
   } catch { /* noop */ }
   const caption = renderPost(effectiveLayout, productDetail, "whatsapp");
 
