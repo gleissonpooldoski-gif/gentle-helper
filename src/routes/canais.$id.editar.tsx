@@ -3658,9 +3658,11 @@ function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {})
     void listImportGroupsFn({ data: { channelId } })
       .then((rows) => {
         setImportGroups(rows);
-        setImportGroupJid((current) =>
-          rows.some((row) => row.groupId === current) ? current : "",
-        );
+        // Grupo base = grupo já vinculado a este canal. Auto-seleciona sem UI.
+        setImportGroupJid((current) => {
+          if (rows.some((row) => row.groupId === current)) return current;
+          return rows[0]?.groupId ?? "";
+        });
       })
       .catch(() => setImportGroups([]));
   }, [channelId, listImportGroupsFn]);
@@ -3732,7 +3734,7 @@ function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {})
 
   const handlePickCsv = () => {
     if (!importGroupJid) {
-      toast.error("Escolha o grupo que receberá estes produtos.");
+      toast.error("Nenhum grupo vinculado a este canal. Vincule um grupo antes de importar.");
       return;
     }
     fileInputRef.current?.click();
@@ -3958,30 +3960,7 @@ function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {})
           </p>
 
           <div className="mt-4 space-y-3">
-            <div>
-              <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Grupo de destino
-              </label>
-              <div className="relative">
-                <select
-                  value={importGroupJid}
-                  onChange={(event) => setImportGroupJid(event.target.value)}
-                  disabled={importing}
-                  className="h-10 w-full appearance-none rounded-md border border-input bg-background px-3 pr-9 text-sm"
-                >
-                  <option value="">Selecione um grupo</option>
-                  {importGroups.map((group) => (
-                    <option key={`${group.instanceId}:${group.groupId}`} value={group.groupId}>
-                      {group.groupName ?? group.groupId} · {group.instanceName}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              </div>
-              <p className="mt-1 text-[10.5px] text-muted-foreground">
-                Os produtos serão exclusivos deste grupo. Itens antigos sem grupo continuam pendentes.
-              </p>
-            </div>
+
             <input
               ref={fileInputRef}
               type="file"
