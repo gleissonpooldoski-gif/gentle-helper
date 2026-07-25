@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useRouterState } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { AppSidebar } from "@/components/app-sidebar";
 import { cn } from "@/lib/utils";
 import { FileImage, Image as ImageIcon, MessageCircle, MessageSquare, Settings2, Zap } from "lucide-react";
