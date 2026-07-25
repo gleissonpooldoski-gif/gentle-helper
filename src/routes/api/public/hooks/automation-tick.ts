@@ -355,7 +355,27 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
 
 
   let anySent = false;
+  const productSourceJid: string | null = (product as { source_group_jid?: string | null }).source_group_jid ?? null;
   for (const g of groups) {
+    // Bloqueio de isolamento: se o produto foi capturado de outro grupo,
+    // cancela o envio para este destino e registra o motivo.
+    if (productSourceJid && productSourceJid !== g.group_jid) {
+      await admin.from("whatsapp_campaign_history").insert({
+        user_id: cfg.user_id,
+        config_id: cfg.id,
+        product_id: product.id,
+        product_name: product.title,
+        store: product.platform,
+        group_id: g.group_jid,
+        group_name: g.group_name,
+        instance_name: instanceName,
+        media_url: productDetail.image,
+        caption,
+        status: "blocked",
+        error_message: `Produto bloqueado: pertence a outro grupo (${(product as { source_group_name?: string | null }).source_group_name ?? productSourceJid})`,
+      });
+      continue;
+    }
     let ok = true;
     let err: string | null = null;
     try {
