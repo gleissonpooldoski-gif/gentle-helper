@@ -60,15 +60,7 @@ export const Route = createFileRoute("/instagram")({
   }),
   component: () => (
     <InstagramLayout>
-      <RedirectToConfig />
+      <Outlet />
     </InstagramLayout>
   ),
 });
-
-function RedirectToConfig() {
-  return (
-    <div className="rounded-xl border border-border/70 bg-card p-6 text-sm text-muted-foreground">
-      Selecione uma aba acima para começar.
-    </div>
-  );
-}
