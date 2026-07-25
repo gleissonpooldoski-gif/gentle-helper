@@ -3,12 +3,24 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
+  Bar,
+  BarChart,
+  Cell,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import {
   BarChart3,
   Calendar,
   Download,
   Filter,
   Info,
   Package,
+  PieChart as PieChartIcon,
   RefreshCcw,
   Search,
   ShoppingBag,
@@ -18,6 +30,7 @@ import {
   TrendingUp,
   User,
 } from "lucide-react";
+
 
 import { AppSidebar } from "@/components/app-sidebar";
 import { Button } from "@/components/ui/button";
