@@ -29,18 +29,30 @@ export const listChannelProducts = createServerFn({ method: "POST" })
   .middleware([apiClient, requireSupabaseAuth])
   .inputValidator((input: unknown) => ListSchema.parse(input))
   .handler(async ({ data, context }): Promise<ChannelProductDTO[]> => {
-    const { data: rows, error } = await context.supabase
-      .from("products")
-      .select(
-        "id,channel_id,platform,item_id,title,image_url,raw_link,affiliate_link,original_price,promo_price,commission_rate,sales,availability,created_at",
-      )
-      .eq("user_id", context.userId)
-      .eq("channel_id", data.channelId)
-      .eq("platform", data.platform)
-      .eq("availability", "active")
-      .order("created_at", { ascending: false });
+    // Pagina em blocos de 1000 para ultrapassar o limite padrão do PostgREST
+    // e suportar canais com dezenas de milhares de produtos.
+    const pageSize = 1000;
+    const rows: any[] = [];
+    for (let i = 0; i < 100; i++) {
+      const from = i * pageSize;
+      const { data: batch, error } = await context.supabase
+        .from("products")
+        .select(
+          "id,channel_id,platform,item_id,title,image_url,raw_link,affiliate_link,original_price,promo_price,commission_rate,sales,availability,created_at",
+        )
+        .eq("user_id", context.userId)
+        .eq("channel_id", data.channelId)
+        .eq("platform", data.platform)
+        .eq("availability", "active")
+        .order("created_at", { ascending: false })
+        .range(from, from + pageSize - 1);
+      if (error) throw new Error(error.message);
+      const b = batch ?? [];
+      rows.push(...b);
+      if (b.length < pageSize) break;
+    }
 
-    if (error) throw new Error(error.message);
+
 
     return (rows ?? []).map((row) => ({
       id: row.id,
