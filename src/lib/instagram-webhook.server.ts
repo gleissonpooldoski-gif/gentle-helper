@@ -47,7 +47,7 @@ export async function handleInstagramWebhook(payload: any): Promise<void> {
           await sendDirectMessage({
             igId: conn.instagram_account_id, token, recipientId: fromId,
             text: buildProductText(product),
-            buttonUrl: product.affiliate_link ?? product.raw_link ?? undefined,
+            buttonUrl: (product.affiliate_link ?? product.raw_link) || undefined,
             buttonTitle: "VER PARA COMPRAR",
           });
           await supabaseAdmin.from("instagram_events").insert({
@@ -75,7 +75,7 @@ export async function handleInstagramWebhook(payload: any): Promise<void> {
         await sendDirectMessage({
           igId: conn.instagram_account_id, token, recipientId: senderId,
           text: buildProductText(product),
-          buttonUrl: product.affiliate_link ?? product.raw_link ?? undefined,
+          buttonUrl: (product.affiliate_link ?? product.raw_link) || undefined,
           buttonTitle: "VER PARA COMPRAR",
         });
         await supabaseAdmin.from("instagram_events").insert({
