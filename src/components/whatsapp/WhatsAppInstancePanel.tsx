@@ -872,24 +872,47 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
                     .filter((g) =>
                       g.name.toLowerCase().includes(groupsModal.filter.toLowerCase()),
                     )
-                    .map((g) => (
-                      <li key={g.jid}>
-                        <label className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 hover:bg-muted/50">
-                          <input
-                            type="checkbox"
-                            checked={g.selected}
-                            onChange={() => toggleGroup(g.jid)}
-                            className="h-4 w-4 accent-emerald-600"
-                          />
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-medium">{g.name}</p>
-                            <p className="truncate text-[11px] text-muted-foreground">
-                              {g.participants ? `${g.participants} membros` : g.jid}
-                            </p>
-                          </div>
-                        </label>
-                      </li>
-                    ))}
+                    .map((g) => {
+                      const usedElsewhere = (g.usedBy?.length ?? 0) > 0;
+                      return (
+                        <li key={g.jid}>
+                          <label
+                            className={`flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 hover:bg-muted/50 ${
+                              usedElsewhere && !g.selected ? "opacity-70" : ""
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={g.selected}
+                              onChange={() => toggleGroup(g.jid)}
+                              className="h-4 w-4 accent-emerald-600"
+                            />
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2">
+                                <p className="truncate text-sm font-medium">{g.name}</p>
+                                {g.selected && (
+                                  <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                                    Selecionado
+                                  </span>
+                                )}
+                                {usedElsewhere && (
+                                  <span
+                                    className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
+                                    title={`Já em uso por: ${g.usedBy.map((u) => u.instanceName).join(", ")}`}
+                                  >
+                                    Já em uso · {g.usedBy.map((u) => u.instanceName).join(", ")}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="truncate text-[11px] text-muted-foreground">
+                                {g.participants ? `${g.participants} membros` : g.jid}
+                              </p>
+                            </div>
+                          </label>
+                        </li>
+                      );
+                    })}
+
                 </ul>
               )}
             </div>
