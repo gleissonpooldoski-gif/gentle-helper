@@ -305,7 +305,7 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
     description: null,
     price: product.promo_price,
     price_original: product.original_price,
-    vendas: product.sales,
+    vendas: (product as { sales_label?: string | null }).sales_label ?? product.sales,
     link: wrappedLink,
     image: product.image_url,
     store: product.store_name ?? product.platform ?? null,
