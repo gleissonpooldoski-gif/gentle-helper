@@ -139,6 +139,54 @@ export type Database = {
           },
         ]
       }
+      automation_failures: {
+        Row: {
+          attempt_count: number
+          config_id: string | null
+          created_at: string
+          error_code: string | null
+          error_message: string
+          group_id: string | null
+          id: string
+          instance_id: string | null
+          next_retry_at: string | null
+          product_id: string | null
+          resolved_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          attempt_count?: number
+          config_id?: string | null
+          created_at?: string
+          error_code?: string | null
+          error_message: string
+          group_id?: string | null
+          id?: string
+          instance_id?: string | null
+          next_retry_at?: string | null
+          product_id?: string | null
+          resolved_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          attempt_count?: number
+          config_id?: string | null
+          created_at?: string
+          error_code?: string | null
+          error_message?: string
+          group_id?: string | null
+          id?: string
+          instance_id?: string | null
+          next_retry_at?: string | null
+          product_id?: string | null
+          resolved_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       automation_group_sends: {
         Row: {
           config_id: string
@@ -1158,6 +1206,36 @@ export type Database = {
           },
         ]
       }
+      instance_circuit_breakers: {
+        Row: {
+          failure_count: number
+          instance_id: string
+          last_error: string | null
+          next_attempt_at: string | null
+          opened_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          failure_count?: number
+          instance_id: string
+          last_error?: string | null
+          next_attempt_at?: string | null
+          opened_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          failure_count?: number
+          instance_id?: string
+          last_error?: string | null
+          next_attempt_at?: string | null
+          opened_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       manual_posts: {
         Row: {
           channel_id: string
@@ -1881,6 +1959,30 @@ export type Database = {
           },
         ]
       }
+      webhook_events: {
+        Row: {
+          event_id: string
+          id: string
+          payload_hash: string | null
+          provider: string
+          received_at: string
+        }
+        Insert: {
+          event_id: string
+          id?: string
+          payload_hash?: string | null
+          provider: string
+          received_at?: string
+        }
+        Update: {
+          event_id?: string
+          id?: string
+          payload_hash?: string | null
+          provider?: string
+          received_at?: string
+        }
+        Relationships: []
+      }
       whatsapp_campaign_history: {
         Row: {
           caption: string | null
@@ -2152,6 +2254,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      cleanup_old_webhook_events: { Args: never; Returns: undefined }
       dispatch_automation_tick: { Args: never; Returns: number }
       try_lock_automation_config: {
         Args: { _config_id: string }
