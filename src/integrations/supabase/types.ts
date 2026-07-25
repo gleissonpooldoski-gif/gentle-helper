@@ -565,6 +565,66 @@ export type Database = {
           },
         ]
       }
+      instagram_automations: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          id: string
+          keyword: string
+          message: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          keyword: string
+          message: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          keyword?: string
+          message?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      instagram_comments: {
+        Row: {
+          comment: string
+          comment_id: string
+          created_at: string
+          id: string
+          media_id: string | null
+          replied_at: string | null
+          reply: string | null
+          username: string | null
+        }
+        Insert: {
+          comment: string
+          comment_id: string
+          created_at?: string
+          id?: string
+          media_id?: string | null
+          replied_at?: string | null
+          reply?: string | null
+          username?: string | null
+        }
+        Update: {
+          comment?: string
+          comment_id?: string
+          created_at?: string
+          id?: string
+          media_id?: string | null
+          replied_at?: string | null
+          reply?: string | null
+          username?: string | null
+        }
+        Relationships: []
+      }
       instagram_connections: {
         Row: {
           access_token_ciphertext: string | null
@@ -744,6 +804,27 @@ export type Database = {
           },
         ]
       }
+      instagram_logs: {
+        Row: {
+          created_at: string
+          id: string
+          payload: Json | null
+          type: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          payload?: Json | null
+          type: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          payload?: Json | null
+          type?: string
+        }
+        Relationships: []
+      }
       instagram_posts: {
         Row: {
           caption: string | null
@@ -800,6 +881,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      instagram_settings: {
+        Row: {
+          access_token_ciphertext: string
+          created_at: string
+          facebook_page_id: string
+          id: string
+          instagram_business_id: string
+          updated_at: string
+        }
+        Insert: {
+          access_token_ciphertext: string
+          created_at?: string
+          facebook_page_id: string
+          id?: string
+          instagram_business_id: string
+          updated_at?: string
+        }
+        Update: {
+          access_token_ciphertext?: string
+          created_at?: string
+          facebook_page_id?: string
+          id?: string
+          instagram_business_id?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       instagram_story_schedule: {
         Row: {
