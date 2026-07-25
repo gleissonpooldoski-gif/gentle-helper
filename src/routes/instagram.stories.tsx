@@ -238,10 +238,12 @@ function PublishBox() {
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  // Compose preview — matches the "Divulga Links" reference layout:
-  //  · Product photo centered in the template's white frame
-  //  · Title (up to 2 lines) below the product
-  //  · Colored bar with "POR R$ XX,XX" (+ small strike "DE R$ Y") at the bottom
+  // Compose preview — matches the "Segredo das Promoções" reference layout:
+  //  · Yellow background (from template image)
+  //  · White frame with product image + title
+  //  · Purple price bar (DE small strike + POR big) attached under the frame
+  //  · Purple CTA bar with 2 lines
+  //  · White disclaimer pill at the bottom
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -250,10 +252,23 @@ function PublishBox() {
     canvas.width = W;
     canvas.height = H;
 
-    const FRAME = { x: 90, y: 340, w: 900, h: 1240 };
-    const PROD = { x: FRAME.x + 40, y: FRAME.y + 40, w: FRAME.w - 80, h: 760 };
-    const TITLE_Y = PROD.y + PROD.h + 60;
-    const BAR = { x: FRAME.x + 30, y: FRAME.y + FRAME.h - 210, w: FRAME.w - 60, h: 170 };
+    // Layout blocks
+    const FRAME = { x: 60, y: 340, w: 960, h: 1100 };
+    const PROD = { x: FRAME.x + 60, y: FRAME.y + 40, w: FRAME.w - 120, h: 780 };
+    const TITLE_Y = PROD.y + PROD.h + 30;
+    const PRICE_BAR = { x: 60, y: 1470, w: 960, h: 200 };
+    const CTA_BAR = { x: 60, y: 1690, w: 960, h: 170 };
+    const DISCLAIMER = { x: 260, y: 1870, w: 560, h: 60 };
+
+    const roundRect = (x: number, y: number, w: number, h: number, r: number) => {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + w, y, x + w, y + h, r);
+      ctx.arcTo(x + w, y + h, x, y + h, r);
+      ctx.arcTo(x, y + h, x, y, r);
+      ctx.arcTo(x, y, x + w, y, r);
+      ctx.closePath();
+    };
 
     const drawText = () => {
       const promo = product?.promo_price ?? null;
@@ -262,14 +277,15 @@ function PublishBox() {
       const originalStr =
         promo && original && Number(original) > Number(promo) ? formatBRL(original) : "";
       const title = product?.title ?? "Selecione um produto";
+      const purple = template?.price_color ?? "#6d28d9";
 
-      // TITLE
+      // TITLE (bold, up to 2 lines, dark)
       ctx.fillStyle = template?.title_color ?? "#111111";
       ctx.textAlign = "center";
       ctx.textBaseline = "top";
-      ctx.font = "700 60px Inter, system-ui, sans-serif";
+      ctx.font = "800 58px Inter, system-ui, sans-serif";
       const words = title.split(" ");
-      const maxLineWidth = FRAME.w - 100;
+      const maxLineWidth = FRAME.w - 80;
       const lines: string[] = [];
       let line = "";
       for (const w of words) {
@@ -280,55 +296,66 @@ function PublishBox() {
         } else line = test;
       }
       if (line) lines.push(line);
-      lines.slice(0, 2).forEach((ln, i) => ctx.fillText(ln, W / 2, TITLE_Y + i * 72));
+      lines.slice(0, 2).forEach((ln, i) => ctx.fillText(ln, W / 2, TITLE_Y + i * 70));
 
-      // PRICE BAR (rounded rectangle in priceColor)
+      // PRICE BAR (purple, rounded)
       if (priceStr) {
-        const barColor = template?.price_color ?? "#6d28d9";
-        const r = 24;
-        ctx.fillStyle = barColor;
-        ctx.beginPath();
-        ctx.moveTo(BAR.x + r, BAR.y);
-        ctx.arcTo(BAR.x + BAR.w, BAR.y, BAR.x + BAR.w, BAR.y + BAR.h, r);
-        ctx.arcTo(BAR.x + BAR.w, BAR.y + BAR.h, BAR.x, BAR.y + BAR.h, r);
-        ctx.arcTo(BAR.x, BAR.y + BAR.h, BAR.x, BAR.y, r);
-        ctx.arcTo(BAR.x, BAR.y, BAR.x + BAR.w, BAR.y, r);
-        ctx.closePath();
+        ctx.fillStyle = purple;
+        roundRect(PRICE_BAR.x, PRICE_BAR.y, PRICE_BAR.w, PRICE_BAR.h, 28);
         ctx.fill();
-
-        let priceY = BAR.y + BAR.h / 2;
-        if (originalStr) {
-          ctx.fillStyle = "rgba(255,255,255,0.92)";
-          ctx.font = "600 34px Inter, system-ui, sans-serif";
-          ctx.textBaseline = "middle";
-          const deLabel = `DE ${originalStr}`;
-          const dy = BAR.y + 44;
-          ctx.fillText(deLabel, W / 2, dy);
-          const tw = ctx.measureText(deLabel).width;
-          ctx.strokeStyle = "rgba(255,255,255,0.92)";
-          ctx.lineWidth = 3;
-          ctx.beginPath();
-          ctx.moveTo(W / 2 - tw / 2, dy);
-          ctx.lineTo(W / 2 + tw / 2, dy);
-          ctx.stroke();
-          priceY = BAR.y + BAR.h - 58;
-        }
 
         ctx.fillStyle = "#ffffff";
         ctx.textBaseline = "middle";
-        ctx.font = "700 44px Inter, system-ui, sans-serif";
-        const porW = ctx.measureText("POR ").width;
-        ctx.font = "900 96px Inter, system-ui, sans-serif";
-        const priceW = ctx.measureText(priceStr).width;
-        const totalW = porW + priceW;
-        const startX = (W - totalW) / 2;
+
+        // "DE R$ xxx" small with strikethrough
+        if (originalStr) {
+          ctx.textAlign = "left";
+          ctx.font = "700 40px Inter, system-ui, sans-serif";
+          const deLabel = "DE";
+          const deX = PRICE_BAR.x + 60;
+          const deY = PRICE_BAR.y + 55;
+          ctx.fillText(deLabel, deX, deY);
+          ctx.font = "600 40px Inter, system-ui, sans-serif";
+          const valX = deX + 90;
+          ctx.fillText(originalStr, valX, deY);
+          const vw = ctx.measureText(originalStr).width;
+          ctx.strokeStyle = "#ffffff";
+          ctx.lineWidth = 4;
+          ctx.beginPath();
+          ctx.moveTo(valX, deY);
+          ctx.lineTo(valX + vw, deY);
+          ctx.stroke();
+        }
+
+        // "POR R$ xxx" big
         ctx.textAlign = "left";
-        ctx.font = "700 44px Inter, system-ui, sans-serif";
-        ctx.fillText("POR ", startX, priceY);
+        const porY = originalStr ? PRICE_BAR.y + 135 : PRICE_BAR.y + PRICE_BAR.h / 2;
+        ctx.font = "800 52px Inter, system-ui, sans-serif";
+        const porX = PRICE_BAR.x + 60;
+        ctx.fillText("POR", porX, porY);
         ctx.font = "900 96px Inter, system-ui, sans-serif";
-        ctx.fillText(priceStr, startX + porW, priceY);
-        ctx.textAlign = "center";
+        ctx.fillText(priceStr, porX + 150, porY);
       }
+
+      // CTA BAR (purple, rounded)
+      ctx.fillStyle = purple;
+      roundRect(CTA_BAR.x, CTA_BAR.y, CTA_BAR.w, CTA_BAR.h, 28);
+      ctx.fill();
+      ctx.fillStyle = "#ffffff";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.font = "800 40px Inter, system-ui, sans-serif";
+      ctx.fillText("🚨 CORRE QUE VAI ACABAR!", W / 2, CTA_BAR.y + 55);
+      ctx.font = "700 36px Inter, system-ui, sans-serif";
+      ctx.fillText("COMENTE: EU QUERO E RECEBA O LINK", W / 2, CTA_BAR.y + 115);
+
+      // DISCLAIMER (white pill)
+      ctx.fillStyle = "#ffffff";
+      roundRect(DISCLAIMER.x, DISCLAIMER.y, DISCLAIMER.w, DISCLAIMER.h, 30);
+      ctx.fill();
+      ctx.fillStyle = "#111111";
+      ctx.font = "700 26px Inter, system-ui, sans-serif";
+      ctx.fillText("VALOR SUJEITO A ALTERAÇÃO", W / 2, DISCLAIMER.y + DISCLAIMER.h / 2);
     };
 
     const drawProduct = (img: HTMLImageElement) => {
@@ -344,10 +371,16 @@ function PublishBox() {
       ctx.fillStyle = "#fde047";
       ctx.fillRect(0, 0, W, H);
       ctx.fillStyle = "#ffffff";
-      ctx.fillRect(FRAME.x, FRAME.y, FRAME.w, FRAME.h);
+      roundRect(FRAME.x, FRAME.y, FRAME.w, FRAME.h, 12);
+      ctx.fill();
     };
 
     const drawContent = () => {
+      // Ensure white frame is always on top of the template background
+      ctx.fillStyle = "#ffffff";
+      roundRect(FRAME.x, FRAME.y, FRAME.w, FRAME.h, 12);
+      ctx.fill();
+
       if (product?.image_url) {
         const pi = new Image();
         pi.crossOrigin = "anonymous";
@@ -377,6 +410,7 @@ function PublishBox() {
       drawContent();
     }
   }, [product, template]);
+
 
   const mut = useMutation({
     mutationFn: async () => {
