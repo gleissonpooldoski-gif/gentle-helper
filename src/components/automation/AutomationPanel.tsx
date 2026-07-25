@@ -257,28 +257,71 @@ export function AutomationPanel({ channelId, groupId = null, groupName = null, t
             </div>
           </div>
 
-          <div className="mt-4">
-            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Número WhatsApp que envia
-            </label>
-            <select
-              value={instanceId}
-              onChange={(e) => setInstanceId(e.target.value)}
-              className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20"
-            >
-              <option value="">Padrão (DIVULGA LINKS)</option>
-              {instances.map((i) => (
-                <option key={i.id} value={i.id}>
-                  {i.instanceName}
-                  {i.phone ? ` · ${i.phone}` : ""}
-                  {i.status === "connected" ? " 🟢" : " ⚪"}
-                </option>
-              ))}
-            </select>
-            <p className="mt-1 text-[11px] text-muted-foreground">
-              Escolha qual número WhatsApp conectado será usado para disparar os posts deste grupo.
-            </p>
+          <div className="mt-5 rounded-xl border border-border/70 bg-background">
+            <div className="flex items-center gap-2 border-b border-border/60 px-4 py-2.5">
+              <span className="grid h-6 w-6 place-items-center rounded-full bg-emerald-500/15 text-emerald-600">
+                <MessageCircle className="h-3.5 w-3.5" />
+              </span>
+              <p className="text-[13px] font-semibold text-foreground">Sessão WhatsApp</p>
+            </div>
+            <div className="space-y-3 px-4 py-3">
+              {(() => {
+                const linked = instances.find((i) => i.id === cfg?.instanceId);
+                return linked ? (
+                  <p className="text-[12.5px] text-foreground">
+                    Sessão vinculada:{" "}
+                    <span className="font-semibold">
+                      {linked.phone ?? linked.instanceName}
+                    </span>{" "}
+                    <span className="text-muted-foreground">— {linked.instanceName}</span>
+                  </p>
+                ) : (
+                  <p className="text-[12.5px] text-muted-foreground">
+                    Nenhuma sessão WhatsApp vinculada a este grupo/canal.
+                  </p>
+                );
+              })()}
+
+              <div>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Usar número existente:
+                </label>
+                <div className="flex gap-2">
+                  <select
+                    value={instanceId}
+                    onChange={(e) => setInstanceId(e.target.value)}
+                    className="h-10 flex-1 rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20"
+                  >
+                    <option value="">Selecione…</option>
+                    {instances.map((i) => (
+                      <option key={i.id} value={i.id}>
+                        {i.phone ?? i.instanceName}
+                        {i.phone ? ` — ${i.instanceName}` : ""}
+                        {i.status === "connected" ? " ✅ Conectado" : " ⚪"}
+                      </option>
+                    ))}
+                  </select>
+                  <Button
+                    type="button"
+                    onClick={handleSave}
+                    disabled={saving || !instanceId || instanceId === (cfg?.instanceId ?? "")}
+                    className="h-10 gap-1.5 bg-sky-500 hover:bg-sky-600"
+                  >
+                    {saving ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Link2 className="h-4 w-4" />
+                    )}
+                    Vincular
+                  </Button>
+                </div>
+                <p className="mt-1.5 text-[11px] text-muted-foreground">
+                  Escolha qual número WhatsApp conectado será usado para disparar os posts deste grupo.
+                </p>
+              </div>
+            </div>
           </div>
+
 
 
           <label className="mt-4 flex items-center gap-2 text-sm text-foreground">
