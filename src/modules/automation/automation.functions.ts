@@ -307,18 +307,19 @@ export const listCampaignHistory = createServerFn({ method: "POST" })
       .order("sent_at", { ascending: false })
       .limit(data.limit);
     if (data.channelId) {
-      // A automação é do módulo (canal). Todos os grupos compartilham a mesma
-      // config; o histórico é filtrado por config_id do canal.
-      const { data: cfg } = await supabase
+      // Cada grupo tem sua própria config; o histórico é filtrado pela
+      // config específica (canal + grupo) para não misturar disparos.
+      let cfgQ = supabase
         .from("automation_configs")
         .select("id")
         .eq("user_id", userId)
-        .eq("channel_id", data.channelId)
-        .is("group_id", null)
-        .maybeSingle();
+        .eq("channel_id", data.channelId);
+      cfgQ = data.groupId ? cfgQ.eq("group_id", data.groupId) : cfgQ.is("group_id", null);
+      const { data: cfg } = await cfgQ.maybeSingle();
       if (cfg) q = q.eq("config_id", cfg.id);
       else return [];
     }
+
     const { data: rows, error } = await q;
     if (error) throw new Error(error.message);
     return (rows ?? []).map((r: any) => ({
