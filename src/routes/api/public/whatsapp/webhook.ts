@@ -53,7 +53,10 @@ export const Route = createFileRoute("/api/public/whatsapp/webhook")({
           payload?.instance ?? payload?.instanceName ?? payload?.data?.instance;
         if (!instanceName) return json({ ok: true, ignored: "no_instance" });
 
-        const event: string = (payload?.event ?? "").toString().toUpperCase();
+        const event: string = (payload?.event ?? "")
+          .toString()
+          .toUpperCase()
+          .replace(/[.\-\s]/g, "_");
         const data = payload?.data ?? payload;
 
         const patch: Record<string, unknown> = {};

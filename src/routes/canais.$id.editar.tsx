@@ -2491,7 +2491,7 @@ function WhatsAppMonitorPanel({ channelId }: { channelId: string }) {
             >
               {count}/{MAX_MONITOR}
             </span>
-            grupos selecionados
+            grupos monitorados
           </span>
 
           <Button

@@ -42,6 +42,7 @@ export interface WhatsAppProvider {
   disconnect(instanceName: string): Promise<void>;
   deleteInstance(instanceName: string): Promise<void>;
   fetchGroups(instanceName: string): Promise<WhatsAppGroup[]>;
+  setWebhook?(instanceName: string, webhookUrl: string, events?: string[]): Promise<void>;
   sendText(instanceName: string, jid: string, text: string): Promise<{ id?: string }>;
   sendMedia(
     instanceName: string,
