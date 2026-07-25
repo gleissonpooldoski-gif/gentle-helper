@@ -365,8 +365,15 @@ async function fetchShopeePdp(
           price_max_before_discount?: number;
           images?: string[];
           historical_sold?: number;
+          historical_sold_count?: number;
           global_sold_count?: number;
           sold?: number;
+          sold_count?: number;
+          item_card_display_sold_count?: {
+            placement_sold_count?: number | string;
+            historical_sold_count?: number;
+            monthly_sold_count?: number;
+          };
         };
       };
     };
@@ -383,15 +390,57 @@ async function fetchShopeePdp(
     // Se o "de" for igual (ou menor) ao "por", não é desconto real — descarta.
     if (priceBefore != null && price != null && priceBefore <= price) priceBefore = null;
     const image = item.images?.[0] ? `https://down-br.img.susercontent.com/file/${item.images[0]}` : null;
-    const soldRaw = item.historical_sold ?? item.global_sold_count ?? item.sold ?? null;
+
+    // Shopee expõe a contagem de vendas em múltiplos campos, com granularidades
+    // diferentes: `sold` = últimos ~30 dias (baixo), `historical_sold` /
+    // `global_sold_count` / `item_card_display_sold_count.*` = acumulado real
+    // (o que a UI mostra como "6 mil vendidos"). Se pegarmos o primeiro que
+    // aparece, corremos o risco de salvar 6 quando o real é 6000. Regra:
+    // escolher o MAIOR valor numérico disponível entre os campos conhecidos.
+    const display = item.item_card_display_sold_count;
+    const displayPlacementNum =
+      typeof display?.placement_sold_count === "number" ? display.placement_sold_count : null;
+    const soldCandidates: number[] = [
+      item.historical_sold,
+      item.historical_sold_count,
+      item.global_sold_count,
+      item.sold_count,
+      item.sold,
+      display?.historical_sold_count,
+      display?.monthly_sold_count,
+      displayPlacementNum,
+    ]
+      .filter((v): v is number => typeof v === "number" && Number.isFinite(v) && v > 0);
+    const soldRaw = soldCandidates.length > 0 ? Math.max(...soldCandidates) : null;
+
+    // Log temporário para diagnóstico (remover após confirmar em produção).
+    // Mostra todos os campos brutos + valor escolhido + label final.
+    console.log("[shopee-pdp:sold]", {
+      itemId: `${item.title?.slice(0, 40) ?? ""}`,
+      raw: {
+        historical_sold: item.historical_sold,
+        historical_sold_count: item.historical_sold_count,
+        global_sold_count: item.global_sold_count,
+        sold_count: item.sold_count,
+        sold: item.sold,
+        display_placement: display?.placement_sold_count,
+        display_historical: display?.historical_sold_count,
+        display_monthly: display?.monthly_sold_count,
+      },
+      soldRaw,
+      soldLabel: soldRaw != null ? formatSoldLabel(soldRaw) : null,
+      source: "shopee_pdp_v4",
+    });
+
     return {
       title: item.title ?? null,
       image,
       price: Number.isFinite(price) && (price ?? 0) > 0 ? price : null,
       priceBefore: Number.isFinite(priceBefore) && (priceBefore ?? 0) > 0 ? priceBefore : null,
-      sold: typeof soldRaw === "number" && soldRaw > 0 ? soldRaw : null,
-      soldLabel: typeof soldRaw === "number" && soldRaw > 0 ? formatSoldLabel(soldRaw) : null,
+      sold: soldRaw,
+      soldLabel: soldRaw != null ? formatSoldLabel(soldRaw) : null,
     };
+
   } catch {
     return empty;
   }
