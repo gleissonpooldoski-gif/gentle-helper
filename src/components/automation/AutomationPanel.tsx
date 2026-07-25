@@ -14,6 +14,10 @@ import {
   type AutomationConfigDTO,
   type CampaignHistoryDTO,
 } from "@/modules/automation/automation.functions";
+import {
+  listWhatsAppInstances,
+  type WhatsAppInstanceDTO,
+} from "@/modules/whatsapp/instances.functions";
 
 
 const STORE_OPTIONS: Array<{ slug: string; label: string }> = [
@@ -69,6 +73,8 @@ export function AutomationPanel({ channelId, groupId = null, groupName = null, t
   const stopFn = useServerFn(stopAutomation);
   const histFn = useServerFn(listCampaignHistory);
 
+  const listInstFn = useServerFn(listWhatsAppInstances);
+
   const scope = { channelId, groupId, groupName };
 
   const [cfg, setCfg] = useState<AutomationConfigDTO | null>(null);
@@ -77,6 +83,8 @@ export function AutomationPanel({ channelId, groupId = null, groupName = null, t
   const [intervalo, setIntervalo] = useState(15);
   const [postLoop, setPostLoop] = useState(true);
   const [lojas, setLojas] = useState<string[]>(["shopee", "mercadolivre"]);
+  const [instanceId, setInstanceId] = useState<string>("");
+  const [instances, setInstances] = useState<WhatsAppInstanceDTO[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -89,6 +97,7 @@ export function AutomationPanel({ channelId, groupId = null, groupName = null, t
     setIntervalo(c.intervaloMin);
     setPostLoop(c.postLoop);
     setLojas(c.lojasAtivas);
+    setInstanceId(c.instanceId ?? "");
   };
 
   const refresh = async () => {
@@ -116,8 +125,12 @@ export function AutomationPanel({ channelId, groupId = null, groupName = null, t
     (async () => {
       setLoading(true);
       try {
-        const c = await getFn({ data: scope });
+        const [c, inst] = await Promise.all([
+          getFn({ data: scope }),
+          listInstFn({ data: { channelId } }).catch(() => [] as WhatsAppInstanceDTO[]),
+        ]);
         if (cancelled) return;
+        setInstances(inst);
         applyCfg(c);
         const h = await histFn({ data: { ...scope, limit: 5 } });
         if (cancelled) return;
@@ -151,6 +164,7 @@ export function AutomationPanel({ channelId, groupId = null, groupName = null, t
           intervaloMin: intervalo,
           lojasAtivas: lojas,
           postLoop,
+          instanceId: instanceId || null,
         },
       });
       applyCfg(c);
@@ -173,6 +187,7 @@ export function AutomationPanel({ channelId, groupId = null, groupName = null, t
           intervaloMin: intervalo,
           lojasAtivas: lojas,
           postLoop,
+          instanceId: instanceId || null,
         },
       });
       const c = await startFn({ data: scope });
@@ -241,6 +256,30 @@ export function AutomationPanel({ channelId, groupId = null, groupName = null, t
               />
             </div>
           </div>
+
+          <div className="mt-4">
+            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Número WhatsApp que envia
+            </label>
+            <select
+              value={instanceId}
+              onChange={(e) => setInstanceId(e.target.value)}
+              className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20"
+            >
+              <option value="">Padrão (DIVULGA LINKS)</option>
+              {instances.map((i) => (
+                <option key={i.id} value={i.id}>
+                  {i.instanceName}
+                  {i.phone ? ` · ${i.phone}` : ""}
+                  {i.status === "connected" ? " 🟢" : " ⚪"}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Escolha qual número WhatsApp conectado será usado para disparar os posts deste grupo.
+            </p>
+          </div>
+
 
           <label className="mt-4 flex items-center gap-2 text-sm text-foreground">
             <input

@@ -18,6 +18,7 @@ export interface AutomationConfigDTO {
   channelId: string;
   groupId: string | null;
   groupName: string | null;
+  instanceId: string | null;
   horaInicio: string;
   horaFim: string;
   intervaloMin: number;
@@ -121,6 +122,7 @@ async function buildStatus(supabase: any, row: any): Promise<AutomationConfigDTO
     channelId: row.channel_id,
     groupId: row.group_id ?? null,
     groupName: row.group_name ?? null,
+    instanceId: row.instance_id ?? null,
     horaInicio: String(row.hora_inicio).slice(0, 5),
     horaFim: String(row.hora_fim).slice(0, 5),
     intervaloMin: row.intervalo_min,
@@ -198,9 +200,12 @@ export const saveAutomationConfig = createServerFn({ method: "POST" })
     intervaloMin: number;
     lojasAtivas: string[];
     postLoop: boolean;
+    instanceId?: string | null;
   }) => {
     const scope = parseScope(data);
     const intervalo = Math.max(1, Math.min(1440, Number(data?.intervaloMin ?? 15) || 15));
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const instId = data?.instanceId ? String(data.instanceId).trim() : "";
     return {
       ...scope,
       horaInicio: normalizeTime(data?.horaInicio, "07:00:00"),
@@ -208,6 +213,7 @@ export const saveAutomationConfig = createServerFn({ method: "POST" })
       intervaloMin: intervalo,
       lojasAtivas: normalizeStores(data?.lojasAtivas),
       postLoop: !!data?.postLoop,
+      instanceId: UUID_RE.test(instId) ? instId : null,
     };
   })
   .handler(async ({ data, context }): Promise<AutomationConfigDTO> => {
@@ -221,6 +227,7 @@ export const saveAutomationConfig = createServerFn({ method: "POST" })
         intervalo_min: data.intervaloMin,
         lojas_ativas: data.lojasAtivas,
         post_loop: data.postLoop,
+        instance_id: data.instanceId,
       })
       .eq("id", cfg.id)
       .select("*")
