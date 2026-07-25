@@ -484,7 +484,9 @@ export interface WhatsAppGroupDTO {
   participants: number | null;
   pictureUrl: string | null;
   selected: boolean;
+  usedBy: Array<{ instanceId: string; instanceName: string }>;
 }
+
 
 /** Busca grupos da instância e marca os já selecionados. */
 export const fetchWhatsAppGroups = createServerFn({ method: "POST" })
