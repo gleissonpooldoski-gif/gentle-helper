@@ -543,19 +543,30 @@ export const fetchWhatsAppGroups = createServerFn({ method: "POST" })
     // 2b) Seleções deste canal em OUTRAS instâncias — para exibir "já em uso".
     const { data: otherSel } = await (supabase as any)
       .from("whatsapp_group_selections")
-      .select("group_jid, instance_id, whatsapp_instances!inner(instance_name)")
+      .select("group_jid, instance_id")
       .eq("user_id", userId)
       .eq("channel_id", data.channelId)
       .neq("instance_id", row.id);
+    const otherRows: Array<{ group_jid: string; instance_id: string }> = otherSel ?? [];
+    const otherInstIds = Array.from(new Set(otherRows.map((r) => r.instance_id)));
+    const instNameMap = new Map<string, string>();
+    if (otherInstIds.length > 0) {
+      const { data: insts } = await (supabase as any)
+        .from("whatsapp_instances")
+        .select("id, instance_name")
+        .in("id", otherInstIds);
+      for (const i of (insts ?? []) as any[]) instNameMap.set(i.id, i.instance_name);
+    }
     const usedByMap = new Map<string, Array<{ instanceId: string; instanceName: string }>>();
-    for (const r of (otherSel ?? []) as any[]) {
+    for (const r of otherRows) {
       const list = usedByMap.get(r.group_jid) ?? [];
       list.push({
         instanceId: r.instance_id,
-        instanceName: r.whatsapp_instances?.instance_name ?? "outra instância",
+        instanceName: instNameMap.get(r.instance_id) ?? "outra instância",
       });
       usedByMap.set(r.group_jid, list);
     }
+
 
     // Grupos salvos que não voltaram da Evolution continuam visíveis
     // para permitir desmarcar.
