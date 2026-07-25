@@ -338,11 +338,17 @@ const DEFAULT_INSTANCE = "DIVULGA LINKS";
 export interface AutomationGroupDTO {
   groupId: string;
   groupName: string | null;
+  instanceId: string;
+  instanceName: string;
+  instancePhone: string | null;
+  instanceStatus: string | null;
 }
 
 /**
- * Lista os grupos disponíveis para automação no canal (grupos selecionados
- * na instância padrão DIVULGA LINKS). Cada grupo é editado independentemente.
+ * Lista TODOS os grupos que o usuário selecionou em QUALQUER instância
+ * WhatsApp para este canal. Assim, cada número conectado aparece com seus
+ * próprios grupos escolhidos — cada grupo edita sua config independente,
+ * pré-vinculada à instância correspondente.
  */
 export const listAutomationGroups = createServerFn({ method: "POST" })
   .middleware([apiClient, requireSupabaseAuth])
@@ -353,25 +359,33 @@ export const listAutomationGroups = createServerFn({ method: "POST" })
   })
   .handler(async ({ data, context }): Promise<AutomationGroupDTO[]> => {
     const { supabase, userId } = context;
-    const { data: inst } = await supabase
+    const { data: insts } = await supabase
       .from("whatsapp_instances")
-      .select("id")
-      .eq("user_id", userId)
-      .eq("instance_name", DEFAULT_INSTANCE)
-      .maybeSingle();
-    if (!inst) return [];
+      .select("id, instance_name, phone, status")
+      .eq("user_id", userId);
+    const instMap = new Map<string, any>();
+    for (const i of insts ?? []) instMap.set(i.id, i);
+    if (instMap.size === 0) return [];
+
     const { data: sel, error } = await supabase
       .from("whatsapp_group_selections")
-      .select("group_jid, group_name")
+      .select("group_jid, group_name, instance_id")
       .eq("user_id", userId)
-      .eq("instance_id", inst.id)
       .eq("channel_id", data.channelId)
+      .in("instance_id", Array.from(instMap.keys()))
       .order("group_name", { ascending: true });
     if (error) throw new Error(error.message);
-    return (sel ?? []).map((r: any) => ({
-      groupId: r.group_jid,
-      groupName: r.group_name ?? null,
-    }));
+    return (sel ?? []).map((r: any) => {
+      const inst = instMap.get(r.instance_id);
+      return {
+        groupId: r.group_jid,
+        groupName: r.group_name ?? null,
+        instanceId: r.instance_id,
+        instanceName: inst?.instance_name ?? "—",
+        instancePhone: inst?.phone ?? null,
+        instanceStatus: inst?.status ?? null,
+      };
+    });
   });
 
 export interface ChannelFlowSummaryDTO {
