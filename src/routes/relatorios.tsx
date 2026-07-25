@@ -300,6 +300,10 @@ function ReportsPage() {
             />
           </section>
 
+          <ChartsSection statusBreakdown={statusBreakdown} topProducts={topProducts} loading={query.isLoading} />
+
+
+
           <OrdersTable
             orders={filteredRows}
             totalCount={rows.length}
