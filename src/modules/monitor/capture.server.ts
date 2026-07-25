@@ -141,41 +141,99 @@ function extractItemId(url: string, platform: Platform): string {
 
 type OgMeta = { title: string | null; image: string | null; price: number | null };
 
-async function fetchOgMeta(url: string): Promise<OgMeta> {
+const OG_USER_AGENTS: Array<{ ua: string; tag: string }> = [
+  { ua: "WhatsApp/2.24.0.85 A", tag: "wa" },
+  { ua: "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)", tag: "fb" },
+  { ua: "TelegramBot (like TwitterBot)", tag: "tg" },
+  {
+    ua: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.6478.127 Safari/537.36",
+    tag: "desktop",
+  },
+];
+
+async function fetchHtml(url: string, ua: string): Promise<string | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8_000);
   try {
     const res = await fetch(url, {
       redirect: "follow",
+      signal: controller.signal,
       headers: {
-        "user-agent":
-          "Mozilla/5.0 (Linux; U) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Mobile Safari/537.36 (compatible; WhatsApp/2.24)",
-        accept: "text/html,application/xhtml+xml",
+        "user-agent": ua,
+        accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "accept-language": "pt-BR,pt;q=0.9,en;q=0.7",
       },
     });
-    if (!res.ok) return { title: null, image: null, price: null };
-    const html = (await res.text()).slice(0, 200_000);
-    const pick = (re: RegExp) => {
-      const m = html.match(re);
-      return m ? m[1].trim() : null;
-    };
-    const title =
-      pick(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i) ??
-      pick(/<meta[^>]+name=["']twitter:title["'][^>]+content=["']([^"']+)["']/i) ??
-      pick(/<title>([^<]+)<\/title>/i);
-    const image =
-      pick(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i) ??
-      pick(/<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i);
-    const priceRaw =
-      pick(/<meta[^>]+property=["']product:price:amount["'][^>]+content=["']([^"']+)["']/i) ??
-      pick(/<meta[^>]+property=["']og:price:amount["'][^>]+content=["']([^"']+)["']/i);
-    let price: number | null = null;
-    if (priceRaw) {
-      const n = Number(priceRaw.replace(/\./g, "").replace(",", "."));
-      if (Number.isFinite(n) && n > 0) price = n;
-    }
-    return { title, image, price };
+    if (!res.ok) return null;
+    return (await res.text()).slice(0, 300_000);
   } catch {
-    return { title: null, image: null, price: null };
+    return null;
+  } finally {
+    clearTimeout(timer);
   }
+}
+
+function parseOg(html: string): OgMeta {
+  const pick = (re: RegExp) => {
+    const m = html.match(re);
+    return m ? m[1].trim() : null;
+  };
+  const decode = (s: string | null) =>
+    s
+      ? s
+          .replace(/&amp;/g, "&")
+          .replace(/&quot;/g, '"')
+          .replace(/&#39;/g, "'")
+          .replace(/&lt;/g, "<")
+          .replace(/&gt;/g, ">")
+          .replace(/\s+/g, " ")
+          .trim()
+      : null;
+  const title =
+    decode(pick(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i)) ??
+    decode(pick(/<meta[^>]+name=["']twitter:title["'][^>]+content=["']([^"']+)["']/i)) ??
+    decode(pick(/<title>([^<]+)<\/title>/i));
+  const image =
+    pick(/<meta[^>]+property=["']og:image(?::secure_url)?["'][^>]+content=["']([^"']+)["']/i) ??
+    pick(/<meta[^>]+name=["']twitter:image(?::src)?["'][^>]+content=["']([^"']+)["']/i);
+  const priceRaw =
+    pick(/<meta[^>]+property=["']product:price:amount["'][^>]+content=["']([^"']+)["']/i) ??
+    pick(/<meta[^>]+property=["']og:price:amount["'][^>]+content=["']([^"']+)["']/i);
+  let price: number | null = null;
+  if (priceRaw) {
+    const n = Number(priceRaw.replace(/\./g, "").replace(",", "."));
+    if (Number.isFinite(n) && n > 0) price = n;
+  }
+  return { title, image, price };
+}
+
+function isGenericTitle(t: string | null): boolean {
+  if (!t) return true;
+  const low = t.toLowerCase().trim();
+  if (low.length < 5) return true;
+  return (
+    low === "shopee" ||
+    low.startsWith("shopee brasil") ||
+    low.startsWith("shopee | ") ||
+    low === "mercado livre" ||
+    low === "magazine luiza" ||
+    low === "amazon.com.br"
+  );
+}
+
+async function fetchOgMeta(url: string): Promise<OgMeta> {
+  let best: OgMeta = { title: null, image: null, price: null };
+  for (const { ua } of OG_USER_AGENTS) {
+    const html = await fetchHtml(url, ua);
+    if (!html) continue;
+    const meta = parseOg(html);
+    if (!best.title && meta.title) best.title = meta.title;
+    if (!best.image && meta.image) best.image = meta.image;
+    if (!best.price && meta.price) best.price = meta.price;
+    if (best.title && !isGenericTitle(best.title) && best.image && best.price) break;
+  }
+  if (isGenericTitle(best.title)) best.title = null;
+  return best;
 }
 
 function tagShopee(url: string, affiliateId: string): string {
