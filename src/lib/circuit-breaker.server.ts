@@ -30,19 +30,17 @@ export async function isBreakerOpen(instanceId: string): Promise<boolean> {
 }
 
 export async function recordSuccess(instanceId: string): Promise<void> {
+  // Se não existir linha, só ignora (nunca falhou).
   await supabaseAdmin
     .from("instance_circuit_breakers")
-    .upsert(
-      {
-        instance_id: instanceId,
-        failure_count: 0,
-        opened_at: null,
-        next_attempt_at: null,
-        last_error: null,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "instance_id" },
-    );
+    .update({
+      failure_count: 0,
+      opened_at: null,
+      next_attempt_at: null,
+      last_error: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("instance_id", instanceId);
 }
 
 export async function recordFailure(
