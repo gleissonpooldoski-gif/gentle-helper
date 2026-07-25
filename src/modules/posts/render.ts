@@ -31,9 +31,9 @@ export const DEFAULT_POST_LAYOUT: PostLayout = {
   sales_template: "🛒 <i>{vendas} vendidos</i> 🛒",
   description_template: "<pre>{description}</pre>",
   hide_original: false,
-  original_price_template: "💸 <b>DE:</b> <s>{price_original}</s>",
+  original_price_template: "❌❌ <s>{price_original}</s> ❌❌",
   installment_template: "💳💳 {parcelamento} 💳💳",
-  price_template: "✅ <b>POR:</b> <b>{price}</b>",
+  price_template: "💵💵 <b>{price}</b> 💵💵",
   link_template: "🔗COMPRE AQUI {link}",
   footer: "🚨 Promoção sujeita a alteração a qualquer momento!",
 };
