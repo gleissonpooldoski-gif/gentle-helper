@@ -413,7 +413,7 @@ export const listAutomationGroups = createServerFn({ method: "POST" })
     const { data: cfgs } = jids.length
       ? await supabase
           .from("automation_configs")
-          .select("id, group_id, status, last_sent_at, instance_id")
+          .select("id, group_id, status, last_sent_at, instance_id, intervalo_min")
           .eq("user_id", userId)
           .eq("channel_id", data.channelId)
           .in("group_id", jids)
