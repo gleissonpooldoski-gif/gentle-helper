@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -37,7 +37,36 @@ import {
   type ConversionRow,
   type ReportFilters,
 } from "@/modules/reports/reports.functions";
+import { listChannels, type ChannelDTO } from "@/modules/channels/channels.functions";
 import { toast } from "sonner";
+
+function downloadConversionsCsv(rows: ConversionRow[]) {
+  const headers = [
+    "order_id","order_date","status","platform","store_name","product_name",
+    "value","commission","commission_pct","qty","buyer_type","device",
+  ];
+  const escape = (v: unknown) => {
+    const s = v == null ? "" : String(v);
+    return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const lines = [headers.join(",")];
+  for (const r of rows) {
+    lines.push([
+      r.order_id, r.order_date, r.status, r.platform, r.store_name ?? "",
+      r.product_name, r.value, r.commission, r.commission_pct, r.qty,
+      r.buyer_type, r.device,
+    ].map(escape).join(","));
+  }
+  const blob = new Blob(["\ufeff" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `relatorio-shopee-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
 
 export const Route = createFileRoute("/relatorios")({
   head: () => ({
@@ -82,6 +111,8 @@ const fmtDate = (iso: string) => {
 };
 
 interface DraftFilters {
+  channelId: string;
+  platform: string;
   dateFrom: string;
   dateTo: string;
   status: string;
@@ -98,6 +129,8 @@ const defaultDraft = (): DraftFilters => {
   const first = new Date(today.getFullYear(), today.getMonth(), 1);
   const iso = (d: Date) => d.toISOString().slice(0, 10);
   return {
+    channelId: "all",
+    platform: "all",
     dateFrom: iso(first),
     dateTo: iso(today),
     status: "all",
@@ -114,12 +147,30 @@ function ReportsPage() {
   const [draft, setDraft] = useState<DraftFilters>(defaultDraft);
   const [applied, setApplied] = useState<DraftFilters>(draft);
   const [tableFilter, setTableFilter] = useState("");
+  const [channels, setChannels] = useState<ChannelDTO[]>([]);
 
   const fetchReports = useServerFn(listReports);
   const runSync = useServerFn(syncReports);
+  const listChannelsFn = useServerFn(listChannels);
+
+  useEffect(() => {
+    let cancelled = false;
+    void listChannelsFn()
+      .then((rows) => {
+        if (!cancelled) setChannels(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setChannels([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [listChannelsFn]);
 
   const filters: ReportFilters = useMemo(
     () => ({
+      channelId: applied.channelId && applied.channelId !== "all" ? applied.channelId : null,
+      platform: applied.platform,
       dateFrom: applied.dateFrom || null,
       dateTo: applied.dateTo || null,
       status: applied.status,
@@ -166,6 +217,15 @@ function ReportsPage() {
     );
   }, [rows, tableFilter]);
 
+  const handleExportCsv = () => {
+    if (filteredRows.length === 0) {
+      toast.error("Nada para exportar com os filtros atuais.");
+      return;
+    }
+    downloadConversionsCsv(filteredRows);
+    toast.success(`${filteredRows.length} linhas exportadas para CSV`);
+  };
+
   return (
     <div className="min-h-screen bg-background font-sans text-foreground antialiased lg:flex">
       <AppSidebar />
@@ -181,6 +241,7 @@ function ReportsPage() {
             onSync={() => sync.mutate()}
             syncing={sync.isPending}
             lastSyncAt={lastSyncAt ?? null}
+            channels={channels}
           />
 
           <section className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
@@ -228,6 +289,7 @@ function ReportsPage() {
             tableFilter={tableFilter}
             onTableFilterChange={setTableFilter}
             loading={query.isLoading}
+            onExportCsv={handleExportCsv}
           />
         </main>
       </div>
@@ -273,6 +335,7 @@ function FiltersPanel({
   onSync,
   syncing,
   lastSyncAt,
+  channels,
 }: {
   draft: DraftFilters;
   onDraftChange: (d: DraftFilters) => void;
@@ -280,6 +343,7 @@ function FiltersPanel({
   onSync: () => void;
   syncing: boolean;
   lastSyncAt: string | null;
+  channels: ChannelDTO[];
 }) {
   const set = <K extends keyof DraftFilters>(k: K, v: DraftFilters[K]) =>
     onDraftChange({ ...draft, [k]: v });
@@ -376,6 +440,34 @@ function FiltersPanel({
 
       {/* Row 2 */}
       <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
+        <Field label="Canal / Grupo" icon={<Filter className="h-3.5 w-3.5" />}>
+          <Select value={draft.channelId} onValueChange={(v) => set("channelId", v)}>
+            <SelectTrigger className="h-10">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              {channels.map((c) => (
+                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field label="Plataforma" icon={<ShoppingBag className="h-3.5 w-3.5" />}>
+          <Select value={draft.platform} onValueChange={(v) => set("platform", v)}>
+            <SelectTrigger className="h-10">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas</SelectItem>
+              <SelectItem value="shopee">Shopee</SelectItem>
+              <SelectItem value="mercadolivre">Mercado Livre</SelectItem>
+              <SelectItem value="amazon">Amazon</SelectItem>
+              <SelectItem value="aliexpress">AliExpress</SelectItem>
+              <SelectItem value="magalu">Magalu</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
         <Field label="Nome da Loja" icon={<Store className="h-3.5 w-3.5" />}>
           <Input
             value={draft.store}
@@ -413,17 +505,18 @@ function FiltersPanel({
             </SelectContent>
           </Select>
         </Field>
-        <div className="flex items-end">
-          <Button
-            variant="outline"
-            onClick={onSync}
-            disabled={syncing}
-            className="h-10 w-full rounded-lg border-border/70"
-          >
-            <RefreshCcw className={cn("mr-1.5 h-4 w-4", syncing && "animate-spin")} />
-            {syncing ? "Sincronizando..." : "Atualizar"}
-          </Button>
-        </div>
+      </div>
+
+      <div className="mt-3 flex justify-end">
+        <Button
+          variant="outline"
+          onClick={onSync}
+          disabled={syncing}
+          className="h-10 rounded-lg border-border/70"
+        >
+          <RefreshCcw className={cn("mr-1.5 h-4 w-4", syncing && "animate-spin")} />
+          {syncing ? "Sincronizando..." : "Atualizar dados"}
+        </Button>
       </div>
     </section>
   );
@@ -532,12 +625,14 @@ function OrdersTable({
   tableFilter,
   onTableFilterChange,
   loading,
+  onExportCsv,
 }: {
   orders: ConversionRow[];
   totalCount: number;
   tableFilter: string;
   onTableFilterChange: (v: string) => void;
   loading: boolean;
+  onExportCsv: () => void;
 }) {
   return (
     <section className="mt-6 overflow-hidden rounded-2xl border border-border/70 bg-card shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
@@ -568,6 +663,7 @@ function OrdersTable({
           <Button
             variant="outline"
             size="sm"
+            onClick={onExportCsv}
             className="h-9 rounded-lg border-[oklch(0.65_0.18_150)]/30 bg-[oklch(0.65_0.18_150)]/8 text-[oklch(0.4_0.16_150)] hover:bg-[oklch(0.65_0.18_150)]/15"
           >
             <Download className="mr-1.5 h-4 w-4" />

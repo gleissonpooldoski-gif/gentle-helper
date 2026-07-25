@@ -3,6 +3,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 export interface ReportFilters {
   channelId?: string | null;
+  platform?: string | null;
   dateFrom?: string | null;
   dateTo?: string | null;
   status?: string | null;
@@ -66,6 +67,7 @@ export const listReports = createServerFn({ method: "POST" })
       .limit(limit);
 
     if (data.channelId) q = q.eq("channel_id", data.channelId);
+    if (data.platform && data.platform !== "all") q = q.eq("platform", data.platform);
     if (data.dateFrom) q = q.gte("order_date", data.dateFrom);
     if (data.dateTo) q = q.lte("order_date", `${data.dateTo}T23:59:59`);
     if (data.status && data.status !== "all") q = q.eq("status", data.status);

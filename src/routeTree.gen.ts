@@ -15,6 +15,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as GSlugRouteImport } from './routes/g.$slug'
 import { Route as ConfiguracoesSessoesWhatsappRouteImport } from './routes/configuracoes.sessoes-whatsapp'
+import { Route as ConfiguracoesEnviosWhatsappRouteImport } from './routes/configuracoes.envios-whatsapp'
 import { Route as CanaisIdEditarRouteImport } from './routes/canais.$id.editar'
 import { Route as ApiMlProbeRouteImport } from './routes/api/ml/probe'
 import { Route as ApiMlCallbackRouteImport } from './routes/api/ml/callback'
@@ -55,6 +56,12 @@ const ConfiguracoesSessoesWhatsappRoute =
   ConfiguracoesSessoesWhatsappRouteImport.update({
     id: '/configuracoes/sessoes-whatsapp',
     path: '/configuracoes/sessoes-whatsapp',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ConfiguracoesEnviosWhatsappRoute =
+  ConfiguracoesEnviosWhatsappRouteImport.update({
+    id: '/configuracoes/envios-whatsapp',
+    path: '/configuracoes/envios-whatsapp',
     getParentRoute: () => rootRouteImport,
   } as any)
 const CanaisIdEditarRoute = CanaisIdEditarRouteImport.update({
@@ -120,6 +127,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/config-afiliados': typeof ConfigAfiliadosRoute
   '/relatorios': typeof RelatoriosRoute
+  '/configuracoes/envios-whatsapp': typeof ConfiguracoesEnviosWhatsappRoute
   '/configuracoes/sessoes-whatsapp': typeof ConfiguracoesSessoesWhatsappRoute
   '/g/$slug': typeof GSlugRoute
   '/api/ml/callback': typeof ApiMlCallbackRoute
@@ -138,6 +146,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/config-afiliados': typeof ConfigAfiliadosRoute
   '/relatorios': typeof RelatoriosRoute
+  '/configuracoes/envios-whatsapp': typeof ConfiguracoesEnviosWhatsappRoute
   '/configuracoes/sessoes-whatsapp': typeof ConfiguracoesSessoesWhatsappRoute
   '/g/$slug': typeof GSlugRoute
   '/api/ml/callback': typeof ApiMlCallbackRoute
@@ -157,6 +166,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/config-afiliados': typeof ConfigAfiliadosRoute
   '/relatorios': typeof RelatoriosRoute
+  '/configuracoes/envios-whatsapp': typeof ConfiguracoesEnviosWhatsappRoute
   '/configuracoes/sessoes-whatsapp': typeof ConfiguracoesSessoesWhatsappRoute
   '/g/$slug': typeof GSlugRoute
   '/api/ml/callback': typeof ApiMlCallbackRoute
@@ -177,6 +187,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/config-afiliados'
     | '/relatorios'
+    | '/configuracoes/envios-whatsapp'
     | '/configuracoes/sessoes-whatsapp'
     | '/g/$slug'
     | '/api/ml/callback'
@@ -195,6 +206,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/config-afiliados'
     | '/relatorios'
+    | '/configuracoes/envios-whatsapp'
     | '/configuracoes/sessoes-whatsapp'
     | '/g/$slug'
     | '/api/ml/callback'
@@ -213,6 +225,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/config-afiliados'
     | '/relatorios'
+    | '/configuracoes/envios-whatsapp'
     | '/configuracoes/sessoes-whatsapp'
     | '/g/$slug'
     | '/api/ml/callback'
@@ -232,6 +245,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   ConfigAfiliadosRoute: typeof ConfigAfiliadosRoute
   RelatoriosRoute: typeof RelatoriosRoute
+  ConfiguracoesEnviosWhatsappRoute: typeof ConfiguracoesEnviosWhatsappRoute
   ConfiguracoesSessoesWhatsappRoute: typeof ConfiguracoesSessoesWhatsappRoute
   GSlugRoute: typeof GSlugRoute
   ApiMlCallbackRoute: typeof ApiMlCallbackRoute
@@ -288,6 +302,13 @@ declare module '@tanstack/react-router' {
       path: '/configuracoes/sessoes-whatsapp'
       fullPath: '/configuracoes/sessoes-whatsapp'
       preLoaderRoute: typeof ConfiguracoesSessoesWhatsappRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/configuracoes/envios-whatsapp': {
+      id: '/configuracoes/envios-whatsapp'
+      path: '/configuracoes/envios-whatsapp'
+      fullPath: '/configuracoes/envios-whatsapp'
+      preLoaderRoute: typeof ConfiguracoesEnviosWhatsappRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/canais/$id/editar': {
@@ -368,6 +389,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   ConfigAfiliadosRoute: ConfigAfiliadosRoute,
   RelatoriosRoute: RelatoriosRoute,
+  ConfiguracoesEnviosWhatsappRoute: ConfiguracoesEnviosWhatsappRoute,
   ConfiguracoesSessoesWhatsappRoute: ConfiguracoesSessoesWhatsappRoute,
   GSlugRoute: GSlugRoute,
   ApiMlCallbackRoute: ApiMlCallbackRoute,
@@ -385,13 +407,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
