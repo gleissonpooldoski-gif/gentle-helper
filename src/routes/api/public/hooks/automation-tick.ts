@@ -489,8 +489,13 @@ export const Route = createFileRoute("/api/public/hooks/automation-tick")({
           return Response.json({ ok: false, error: error.message }, { status: 500 });
         }
 
+        // Processa configs em paralelo com concorrência limitada, evitando
+        // que um tick com muitos grupos estoure o timeout do Worker.
+        const CONCURRENCY = 5;
+        const queue = [...(configs ?? [])];
         const results: Array<{ id: string; ok: boolean; skipped?: boolean; error?: string }> = [];
-        for (const cfg of configs ?? []) {
+
+        async function processOne(cfg: any) {
           try {
             const r = await withConfigLock(supabaseAdmin, cfg.id, () => tickOne(supabaseAdmin, cfg));
             if (r && typeof r === "object" && "skipped" in r) {
@@ -508,6 +513,15 @@ export const Route = createFileRoute("/api/public/hooks/automation-tick")({
             }).eq("id", cfg.id);
           }
         }
+
+        const workers = Array.from({ length: Math.min(CONCURRENCY, queue.length) }, async () => {
+          while (queue.length > 0) {
+            const cfg = queue.shift();
+            if (!cfg) return;
+            await processOne(cfg);
+          }
+        });
+        await Promise.all(workers);
         return Response.json({ ok: true, processed: results.length, results });
       },
       GET: async () => Response.json({ ok: true, hint: "POST with x-cron-secret header to trigger" }),
