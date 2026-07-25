@@ -1463,6 +1463,19 @@ function InstagramPanel({ channelId }: { channelId: string }) {
 
   return (
     <div className="mt-6 space-y-6">
+      {/* Admin (conta única) shortcut */}
+      <div className="rounded-2xl border border-border/70 bg-card p-4 sm:flex sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold">Instagram do administrador (conta única)</p>
+          <p className="text-xs text-muted-foreground">Configurações, Publicações, Stories, Comentários, Mensagens e Automações via Meta Graph API.</p>
+        </div>
+        <Link
+          to="/instagram/configuracoes"
+          className="mt-3 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 sm:mt-0"
+        >
+          <Instagram className="h-4 w-4" /> Abrir módulo Instagram
+        </Link>
+      </div>
       {/* Instagram gradient banner */}
       <div className="relative overflow-hidden rounded-2xl border border-border/70 p-6 text-white shadow-[0_1px_2px_rgba(15,23,42,0.04),0_18px_40px_-24px_rgba(220,50,120,0.55)]">
         <div className="absolute inset-0 bg-[linear-gradient(115deg,#feda75_0%,#fa7e1e_25%,#d62976_55%,#962fbf_80%,#4f5bd5_100%)]" />
