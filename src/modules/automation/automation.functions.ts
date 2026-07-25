@@ -122,6 +122,7 @@ async function buildStatus(supabase: any, row: any): Promise<AutomationConfigDTO
     channelId: row.channel_id,
     groupId: row.group_id ?? null,
     groupName: row.group_name ?? null,
+    instanceId: row.instance_id ?? null,
     horaInicio: String(row.hora_inicio).slice(0, 5),
     horaFim: String(row.hora_fim).slice(0, 5),
     intervaloMin: row.intervalo_min,
