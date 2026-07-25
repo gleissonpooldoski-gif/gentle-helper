@@ -145,27 +145,27 @@ async function ensureConfig(
   supabase: any,
   userId: string,
   channelId: string,
-  _groupId: string | null,
-  _groupName: string | null,
+  groupId: string | null,
+  groupName: string | null,
 ) {
-  // Distribuição por nicho: a automação pertence ao MÓDULO (canal), não a um
-  // grupo específico. Todos os grupos selecionados no canal compartilham a
-  // mesma base de produtos, janela, intervalo e proteção anti-repetição.
-  // O worker (tick) faz fan-out para cada grupo via whatsapp_group_selections
-  // filtrado por channel_id — o mesmo produto é enviado a todos os grupos.
+  // Cada grupo tem sua PRÓPRIA config (frequência, janela, loop, lojas,
+  // instância). O worker de tick, quando encontra cfg.group_id preenchido,
+  // dispara apenas para aquele grupo. Isso permite Grupo 1, Grupo 2, …
+  // com configurações independentes no mesmo canal.
   const { data: row, error } = await supabase
     .from("automation_configs")
     .upsert({
       user_id: userId,
       channel_id: channelId,
-      group_id: null,
-      group_name: null,
+      group_id: groupId,
+      group_name: groupName,
     }, { onConflict: "user_id,channel_id,group_scope" })
     .select("*")
     .single();
   if (error) throw new Error(error.message);
   return row;
 }
+
 
 interface ScopeInput {
   channelId: string;
@@ -307,18 +307,19 @@ export const listCampaignHistory = createServerFn({ method: "POST" })
       .order("sent_at", { ascending: false })
       .limit(data.limit);
     if (data.channelId) {
-      // A automação é do módulo (canal). Todos os grupos compartilham a mesma
-      // config; o histórico é filtrado por config_id do canal.
-      const { data: cfg } = await supabase
+      // Cada grupo tem sua própria config; o histórico é filtrado pela
+      // config específica (canal + grupo) para não misturar disparos.
+      let cfgQ = supabase
         .from("automation_configs")
         .select("id")
         .eq("user_id", userId)
-        .eq("channel_id", data.channelId)
-        .is("group_id", null)
-        .maybeSingle();
+        .eq("channel_id", data.channelId);
+      cfgQ = data.groupId ? cfgQ.eq("group_id", data.groupId) : cfgQ.is("group_id", null);
+      const { data: cfg } = await cfgQ.maybeSingle();
       if (cfg) q = q.eq("config_id", cfg.id);
       else return [];
     }
+
     const { data: rows, error } = await q;
     if (error) throw new Error(error.message);
     return (rows ?? []).map((r: any) => ({
