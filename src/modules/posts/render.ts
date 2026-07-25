@@ -108,7 +108,9 @@ export function renderPost(
     price: money(effectivePrice),
     price_original: money(effectiveOriginal),
     parcelamento: product.parcelamento ?? "",
-    vendas: product.vendas != null ? String(product.vendas) : "",
+    vendas: product.vendas != null
+      ? String(product.vendas).replace(/\s*vendid[oa]s?\s*$/i, "").trim()
+      : "",
     link: product.link,
     store: product.store ?? "",
     category: product.category ?? "",
