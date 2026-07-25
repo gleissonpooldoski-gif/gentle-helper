@@ -412,20 +412,25 @@ export function AutomationPanel({
             Nenhum produto é repetido antes que todos tenham sido publicados neste grupo.
           </p>
 
-          <div className="mt-5 flex gap-2">
-            <Button onClick={handleSave} disabled={saving} className="flex-1 h-10">
+          <div className="mt-5 flex flex-wrap gap-2">
+            {onCancel && (
+              <Button type="button" variant="ghost" onClick={onCancel} className="h-10">
+                Cancelar
+              </Button>
+            )}
+            <Button onClick={handleSave} disabled={saving} variant="outline" className="flex-1 h-10">
               {saving ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Save className="mr-1.5 h-4 w-4" />}
-              Salvar
+              Salvar alterações
             </Button>
             {cfg?.status === "running" || cfg?.status === "waiting" || cfg?.status === "error" ? (
-              <Button onClick={handleStop} disabled={busy} variant="outline" className="flex-1 h-10">
+              <Button onClick={handleStop} disabled={busy} variant="destructive" className="flex-1 h-10">
                 {busy ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Square className="mr-1.5 h-4 w-4" />}
-                Parar
+                Parar automação
               </Button>
             ) : (
               <Button onClick={handleStart} disabled={busy} className="flex-1 h-10 bg-emerald-600 hover:bg-emerald-700">
                 {busy ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Play className="mr-1.5 h-4 w-4" />}
-                Iniciar
+                Iniciar automação
               </Button>
             )}
           </div>
