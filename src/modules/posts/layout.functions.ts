@@ -7,6 +7,7 @@ function normalize(row: any | null | undefined): PostLayout {
   if (!row) return DEFAULT_POST_LAYOUT;
   return {
     header: row.header ?? DEFAULT_POST_LAYOUT.header,
+    header_mode: row.header_mode === "auto" ? "auto" : "custom",
     title_template: row.title_template ?? DEFAULT_POST_LAYOUT.title_template,
     upper_title: row.upper_title ?? DEFAULT_POST_LAYOUT.upper_title,
     hide_sales: row.hide_sales ?? DEFAULT_POST_LAYOUT.hide_sales,
