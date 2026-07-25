@@ -136,3 +136,111 @@ function buildProductText(p: any): string {
   ].filter(Boolean);
   return parts.join("\n");
 }
+
+async function tryInstabot(input: {
+  supabaseAdmin: any;
+  conn: any;
+  igId: string;
+  token: string;
+  mediaId: string;
+  commentId: string | null | undefined;
+  fromId: string | null | undefined;
+  username: string | null | undefined;
+  text: string;
+}): Promise<boolean> {
+  const { supabaseAdmin, conn, igId, token, mediaId, commentId, fromId, username, text } = input;
+  const { data: auto } = await supabaseAdmin
+    .from("instabot_automations")
+    .select("*")
+    .eq("channel_id", conn.channel_id)
+    .eq("ig_media_id", mediaId)
+    .eq("enabled", true)
+    .maybeSingle();
+  if (!auto) return false;
+
+  const kws: string[] = (auto.keywords ?? []).map((s: string) => s.toLowerCase());
+  const t = String(text ?? "").toLowerCase();
+  const hit = kws.some((k) => {
+    if (!k) return false;
+    return new RegExp(`\\b${k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(t);
+  });
+  if (!hit) return false;
+
+  let commentReply: string | null = null;
+  const mode = auto.comment_reply_mode ?? "list";
+  if (mode === "auto") {
+    commentReply = await aiCommentReply(text).catch(() => null);
+  }
+  if (!commentReply) {
+    const list: string[] = (auto.comment_replies ?? []).filter(Boolean);
+    if (list.length) commentReply = list[Math.floor(Math.random() * list.length)];
+  }
+  if (commentReply && commentId && !conn.disable_comment_reply) {
+    try { await replyToComment({ commentId, token, message: commentReply }); } catch (e) { console.error(e); }
+  }
+
+  // Insert event first so we get an id for the trackable button
+  const { data: ev } = await supabaseAdmin
+    .from("instabot_events")
+    .insert({
+      user_id: conn.user_id,
+      automation_id: auto.id,
+      channel_id: conn.channel_id,
+      ig_user_id: fromId ?? null,
+      ig_username: username ?? null,
+      comment_id: commentId ?? null,
+      comment_text: text,
+      comment_reply: commentReply,
+      dm_sent: false,
+      dm_message: auto.dm_message,
+      button_url: auto.button_url,
+      status: "ok",
+    })
+    .select("id")
+    .single();
+
+  if (fromId) {
+    const host = process.env.PUBLIC_BASE_URL ?? "https://project--c8d0a9f8-2712-4d4d-b2f8-6b9530849b41.lovable.app";
+    const trackable = ev?.id ? `${host}/api/public/instabot/r/${ev.id}` : auto.button_url;
+    try {
+      await sendDirectMessage({
+        igId, token, recipientId: fromId,
+        text: auto.dm_message || "Confira o produto abaixo 👇",
+        buttonUrl: trackable,
+        buttonTitle: (auto.button_label || "VER PRODUTO").slice(0, 20),
+      });
+      if (ev?.id) {
+        await supabaseAdmin.from("instabot_events").update({ dm_sent: true }).eq("id", ev.id);
+      }
+    } catch (e) {
+      console.error("instabot-dm-fail", e);
+      if (ev?.id) {
+        await supabaseAdmin
+          .from("instabot_events")
+          .update({ status: "error", error: String(e) })
+          .eq("id", ev.id);
+      }
+    }
+  }
+  return true;
+}
+
+async function aiCommentReply(commentText: string): Promise<string | null> {
+  const apiKey = process.env.LOVABLE_API_KEY;
+  if (!apiKey) return null;
+  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    method: "POST",
+    headers: { "content-type": "application/json", Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      model: "google/gemini-3.6-flash",
+      messages: [
+        { role: "system", content: "Responda comentários de Instagram em português, curto (máx 60 caracteres), simpático, avisando que enviou no Direct. Sem hashtags. Só a frase." },
+        { role: "user", content: `Comentário: ${commentText}` },
+      ],
+    }),
+  });
+  if (!res.ok) return null;
+  const body: any = await res.json().catch(() => ({}));
+  const txt = body?.choices?.[0]?.message?.content;
+  return typeof txt === "string" ? txt.trim().slice(0, 100) : null;
+}
