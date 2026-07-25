@@ -442,8 +442,17 @@ async function captureOne(
     .limit(1)
     .maybeSingle();
 
+  // Para Shopee, construímos uma URL canônica limpa (sem tracking) a partir do
+  // shopId/itemId. Isso aumenta muito a taxa de sucesso do OG e da PDP API,
+  // que costumam falhar quando a URL carrega parâmetros como mmp_pid/gads_t_sig.
+  let canonicalUrl = resolved;
+  if (finalPlatform === "shopee" && itemId.includes(".")) {
+    const [shopId, iid] = itemId.split(".");
+    canonicalUrl = `https://shopee.com.br/product/${shopId}/${iid}`;
+  }
+
   // Enriquecimento (título/imagem/preço) via OpenGraph.
-  const meta = await fetchOgMeta(resolved);
+  const meta = await fetchOgMeta(canonicalUrl);
   const messageMeta = parseMessageMeta(messageText);
   let image = meta.image;
   let title = meta.title ?? messageMeta.title;
@@ -451,14 +460,15 @@ async function captureOne(
   let priceBefore: number | null = messageMeta.priceBefore;
 
   if (finalPlatform === "shopee") {
-    const pdp = await fetchShopeePdp(resolved);
+    const pdp = await fetchShopeePdp(canonicalUrl);
     // A resposta estruturada da Shopee é sempre mais confiável que OG/mensagem.
     if (pdp.title) title = pdp.title;
     if (pdp.image) image = pdp.image;
     if (pdp.price) price = pdp.price;
     if (pdp.priceBefore) priceBefore = pdp.priceBefore;
     if (!image) {
-      image = await scrapeShopeeImage(resolved).catch(() => null);
+      // Fallback dedicado com WhatsApp-UA + validação de CDN Shopee.
+      image = await scrapeShopeeImage(canonicalUrl, resolved).catch(() => null);
     }
   }
 
