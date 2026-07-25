@@ -285,8 +285,8 @@ async function fetchOgMeta(url: string): Promise<OgMeta> {
  */
 async function fetchShopeePdp(
   url: string,
-): Promise<{ title: string | null; image: string | null; price: number | null; priceBefore: number | null }> {
-  const empty = { title: null, image: null, price: null, priceBefore: null };
+): Promise<{ title: string | null; image: string | null; price: number | null; priceBefore: number | null; sold: number | null; soldLabel: string | null }> {
+  const empty = { title: null, image: null, price: null, priceBefore: null, sold: null, soldLabel: null };
   try {
     const u = new URL(url);
     const path = u.pathname;
@@ -334,26 +334,56 @@ async function fetchShopeePdp(
           price?: number;
           price_before_discount?: number;
           images?: string[];
+          historical_sold?: number;
+          global_sold_count?: number;
+          sold?: number;
         };
       };
     };
     const item = json?.data?.item;
     if (!item) return empty;
     const price = item.price ? item.price / 100000 : null;
-    const priceBefore =
+    let priceBefore =
       item.price_before_discount && item.price_before_discount > 0
         ? item.price_before_discount / 100000
         : null;
+    // Se o "de" for igual (ou menor) ao "por", não é desconto real — descarta.
+    if (priceBefore != null && price != null && priceBefore <= price) priceBefore = null;
     const image = item.images?.[0] ? `https://down-br.img.susercontent.com/file/${item.images[0]}` : null;
+    const soldRaw = item.historical_sold ?? item.global_sold_count ?? item.sold ?? null;
     return {
       title: item.title ?? null,
       image,
       price: Number.isFinite(price) && (price ?? 0) > 0 ? price : null,
       priceBefore: Number.isFinite(priceBefore) && (priceBefore ?? 0) > 0 ? priceBefore : null,
+      sold: typeof soldRaw === "number" && soldRaw > 0 ? soldRaw : null,
+      soldLabel: typeof soldRaw === "number" && soldRaw > 0 ? formatSoldLabel(soldRaw) : null,
     };
   } catch {
     return empty;
   }
+}
+
+/**
+ * Humaniza a contagem de vendas no padrão que a Shopee exibe:
+ * 30 → "30+", 300 → "300+", 1500 → "1,5 mil+", 30000 → "30 mil+".
+ */
+function formatSoldLabel(n: number): string {
+  if (n < 1000) {
+    // Arredonda para baixo para múltiplos de 10 (30, 40, 100, 300).
+    const rounded = n >= 100 ? Math.floor(n / 100) * 100 : Math.floor(n / 10) * 10;
+    return `${Math.max(rounded, 10)}+`;
+  }
+  const mil = n / 1000;
+  if (mil < 10) {
+    // 1,5 mil+ / 2 mil+
+    const rounded = Math.floor(mil * 10) / 10;
+    const text = Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1).replace(".", ",");
+    return `${text} mil+`;
+  }
+  // 10 mil+, 30 mil+, 100 mil+
+  const rounded = Math.floor(mil / 10) * 10 || Math.floor(mil);
+  return `${rounded} mil+`;
 }
 
 function tagShopee(url: string, affiliateId: string): string {
@@ -458,6 +488,8 @@ async function captureOne(
   let title = meta.title ?? messageMeta.title;
   let price = meta.price ?? messageMeta.price;
   let priceBefore: number | null = messageMeta.priceBefore;
+  let sold: number | null = null;
+  let soldLabel: string | null = null;
 
   if (finalPlatform === "shopee") {
     const pdp = await fetchShopeePdp(canonicalUrl);
@@ -466,11 +498,16 @@ async function captureOne(
     if (pdp.image) image = pdp.image;
     if (pdp.price) price = pdp.price;
     if (pdp.priceBefore) priceBefore = pdp.priceBefore;
+    if (pdp.sold) sold = pdp.sold;
+    if (pdp.soldLabel) soldLabel = pdp.soldLabel;
     if (!image) {
       // Fallback dedicado com WhatsApp-UA + validação de CDN Shopee.
       image = await scrapeShopeeImage(canonicalUrl, resolved).catch(() => null);
     }
   }
+
+  // Se DE e POR forem iguais, não é desconto real — descarta o "DE".
+  if (priceBefore != null && price != null && priceBefore <= price) priceBefore = null;
 
   const affiliate = await buildAffiliateLink(ctx.supabase, ctx.userId, finalPlatform, resolved);
   const finalTitle = (title ?? existing?.title ?? "Produto capturado").slice(0, 300);
@@ -484,8 +521,10 @@ async function captureOne(
     image_url: image ?? existing?.image_url ?? null,
     raw_link: resolved,
     affiliate_link: affiliate,
-    original_price: priceBefore ?? price,
+    original_price: priceBefore,
     promo_price: price,
+    sales: sold,
+    sales_label: soldLabel,
     availability: "active" as const,
     source: "monitor",
     source_group_jid: ctx.groupJid,

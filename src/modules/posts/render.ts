@@ -28,12 +28,12 @@ export const DEFAULT_POST_LAYOUT: PostLayout = {
   title_template: "🔥🔥 <b>{title}</b> 🔥🔥",
   upper_title: true,
   hide_sales: false,
-  sales_template: "🛒 <i>{vendas} pedidos</i> 🛒",
+  sales_template: "🛒 <i>{vendas} vendidos</i> 🛒",
   description_template: "<pre>{description}</pre>",
   hide_original: false,
-  original_price_template: "❌❌ <s>{price_original}</s> ❌❌",
+  original_price_template: "💸 <b>DE:</b> <s>{price_original}</s>",
   installment_template: "💳💳 {parcelamento} 💳💳",
-  price_template: "💵💵 <b>{price}</b> 💵💵",
+  price_template: "✅ <b>POR:</b> <b>{price}</b>",
   link_template: "🔗COMPRE AQUI {link}",
   footer: "🚨 Promoção sujeita a alteração a qualquer momento!",
 };
@@ -116,7 +116,18 @@ export function renderPost(
   if (vars.description && layout.description_template) {
     blocks.push(fill(layout.description_template, vars));
   }
-  if (!layout.hide_original && vars.price_original && layout.original_price_template) {
+  // Só mostra a linha "DE:" quando o preço original for maior que o promocional.
+  // Evita "DE: R$ 69,90" isolado (sem POR) ou "DE == POR", que confunde o cliente.
+  const originalNum = Number(String(product.price_original ?? "").replace(/[^\d.,-]/g, "").replace(",", "."));
+  const promoNum = Number(String(product.price ?? "").replace(/[^\d.,-]/g, "").replace(",", "."));
+  const showOriginal =
+    !layout.hide_original &&
+    vars.price_original &&
+    vars.price &&
+    Number.isFinite(originalNum) &&
+    Number.isFinite(promoNum) &&
+    originalNum > promoNum;
+  if (showOriginal && layout.original_price_template) {
     blocks.push(fill(layout.original_price_template, vars));
   }
   if (vars.parcelamento && layout.installment_template) {
