@@ -188,7 +188,12 @@ function EditChannelPage() {
       .catch(() => {
         /* mantém último snapshot */
       });
-  }, [getFlowSummaryFn, id]);
+    void listAutomationGroupsFn({ data: { channelId: id } })
+      .then(setFlowGroups)
+      .catch(() => {
+        /* mantém último snapshot */
+      });
+  }, [getFlowSummaryFn, listAutomationGroupsFn, id]);
 
   const refreshProductCounts = useCallback(() => {
     void getProductCountsFn({ data: { channelId: id } })
