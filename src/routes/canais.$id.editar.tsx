@@ -36,6 +36,7 @@ import {
   listHeaderVariations,
   addHeaderVariation,
   deleteHeaderVariation,
+  sendLayoutTestMessage,
   type HeaderVariation,
 } from "@/modules/posts/layout.functions";
 import { DEFAULT_POST_LAYOUT, type PostLayout } from "@/modules/posts/render";
@@ -958,6 +959,7 @@ function LayoutPostPanel({ channelId }: { channelId: string }) {
   const listVariationsFn = useServerFn(listHeaderVariations);
   const addVariationFn = useServerFn(addHeaderVariation);
   const deleteVariationFn = useServerFn(deleteHeaderVariation);
+  const sendTestFn = useServerFn(sendLayoutTestMessage);
 
   const [waPreview, setWaPreview] = useState(true);
   const [layout, setLayout] = useState<PostLayout>(DEFAULT_POST_LAYOUT);
@@ -966,6 +968,8 @@ function LayoutPostPanel({ channelId }: { channelId: string }) {
   const [variations, setVariations] = useState<HeaderVariation[]>([]);
   const [newVariation, setNewVariation] = useState("");
   const [addingVar, setAddingVar] = useState(false);
+  const [testPhone, setTestPhone] = useState("");
+  const [testing, setTesting] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -1023,6 +1027,23 @@ function LayoutPostPanel({ channelId }: { channelId: string }) {
       setVariations((prev) => prev.filter((v) => v.id !== id));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Falha ao remover variação");
+    }
+  };
+
+  const handleSendTest = async () => {
+    const phone = testPhone.trim();
+    if (!phone) {
+      toast.error("Informe seu número (com DDD)");
+      return;
+    }
+    setTesting(true);
+    try {
+      const res = await sendTestFn({ data: { channelId, phone, layout } });
+      toast.success(`Teste enviado no WhatsApp para ${res.jid.split("@")[0]} usando "${res.productTitle}".`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao enviar teste");
+    } finally {
+      setTesting(false);
     }
   };
 
@@ -1187,6 +1208,33 @@ function LayoutPostPanel({ channelId }: { channelId: string }) {
             onChange={(v) => update("footer", v)}
             rows={2}
           />
+
+          <div className="mt-3 rounded-xl border border-dashed border-primary/40 bg-primary/5 p-3">
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-primary/80">
+              Testar no seu WhatsApp
+            </div>
+            <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
+              Envia uma mensagem real usando o produto mais recente do canal e o layout acima (mesmo sem salvar).
+            </p>
+            <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+              <input
+                type="tel"
+                inputMode="numeric"
+                placeholder="Seu número com DDD (ex.: 11987654321)"
+                value={testPhone}
+                onChange={(e) => setTestPhone(e.target.value)}
+                className="h-10 flex-1 rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-primary"
+              />
+              <Button
+                onClick={handleSendTest}
+                disabled={testing || loading}
+                variant="outline"
+                className="h-10 rounded-lg px-4"
+              >
+                {testing ? "Enviando…" : "Enviar teste"}
+              </Button>
+            </div>
+          </div>
 
           <div className="flex justify-end pt-2">
             <Button
