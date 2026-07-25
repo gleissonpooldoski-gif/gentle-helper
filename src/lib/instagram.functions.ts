@@ -1,9 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
-import { getRequestHost } from "@tanstack/react-start/server";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 
 const channelInput = z.object({ channelId: z.string().uuid() });
+const oauthInput = z.object({
+  channelId: z.string().uuid(),
+  origin: z.string().url(),
+});
 
 export type IgConnectionView = {
   id: string;
@@ -49,13 +52,15 @@ export const getInstagramConnection = createServerFn({ method: "POST" })
 
 export const startInstagramOAuth = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { channelId: string }) => channelInput.parse(d))
+  .inputValidator((d: { channelId: string; origin: string }) => oauthInput.parse(d))
   .handler(async ({ data, context }): Promise<{ url: string }> => {
     const clientId = process.env.META_APP_ID;
     if (!clientId) throw new Error("META_APP_ID missing");
-    const host = getRequestHost();
-    const proto = host.includes("localhost") ? "http" : "https";
-    const redirectUri = `${proto}://${host}/api/public/instagram/callback`;
+    const originUrl = new URL(data.origin);
+    const isLocal = originUrl.hostname === "localhost" || originUrl.hostname === "127.0.0.1";
+    const isLovable = originUrl.protocol === "https:" && originUrl.hostname.endsWith(".lovable.app");
+    if (!isLocal && !isLovable) throw new Error("Origem inválida para conectar o Instagram");
+    const redirectUri = `${originUrl.origin}/api/public/instagram/callback`;
     const { buildOAuthAuthorizeUrl } = await import("./instagram-graph.server");
     const state = Buffer.from(JSON.stringify({ u: context.userId, c: data.channelId })).toString("base64url");
     return { url: buildOAuthAuthorizeUrl({ clientId, redirectUri, state }) };
