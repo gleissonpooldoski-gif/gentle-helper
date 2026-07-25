@@ -370,6 +370,19 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
     store: product.store_name ?? product.platform ?? null,
     category: product.category ?? null,
   };
+  try {
+    console.log("[automation-post-product]", {
+      config_id: cfg.id,
+      channel_id: cfg.channel_id,
+      group_id: groups.map((g) => g.group_jid),
+      title: productDetail.title,
+      vendas: productDetail.vendas,
+      price: productDetail.price,
+      price_original: productDetail.price_original,
+      header_mode: layout.header_mode,
+      chosen_header: chosenHeader,
+    });
+  } catch { /* noop */ }
   const caption = renderPost(effectiveLayout, productDetail, "whatsapp");
 
 
