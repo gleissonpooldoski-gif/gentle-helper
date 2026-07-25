@@ -399,6 +399,172 @@ export type Database = {
         }
         Relationships: []
       }
+      instabot_automations: {
+        Row: {
+          button_label: string
+          button_url: string
+          caption: string | null
+          channel_id: string
+          comment_replies: string[]
+          comment_reply_mode: string
+          created_at: string
+          dm_message: string
+          enabled: boolean
+          id: string
+          ig_media_id: string
+          ig_media_url: string | null
+          keywords: string[]
+          posted_at: string | null
+          thumbnail_url: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          button_label?: string
+          button_url?: string
+          caption?: string | null
+          channel_id: string
+          comment_replies?: string[]
+          comment_reply_mode?: string
+          created_at?: string
+          dm_message?: string
+          enabled?: boolean
+          id?: string
+          ig_media_id: string
+          ig_media_url?: string | null
+          keywords?: string[]
+          posted_at?: string | null
+          thumbnail_url?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          button_label?: string
+          button_url?: string
+          caption?: string | null
+          channel_id?: string
+          comment_replies?: string[]
+          comment_reply_mode?: string
+          created_at?: string
+          dm_message?: string
+          enabled?: boolean
+          id?: string
+          ig_media_id?: string
+          ig_media_url?: string | null
+          keywords?: string[]
+          posted_at?: string | null
+          thumbnail_url?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "instabot_automations_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      instabot_clicks: {
+        Row: {
+          automation_id: string
+          created_at: string
+          event_id: string | null
+          id: string
+        }
+        Insert: {
+          automation_id: string
+          created_at?: string
+          event_id?: string | null
+          id?: string
+        }
+        Update: {
+          automation_id?: string
+          created_at?: string
+          event_id?: string | null
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "instabot_clicks_automation_id_fkey"
+            columns: ["automation_id"]
+            isOneToOne: false
+            referencedRelation: "instabot_automations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "instabot_clicks_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "instabot_events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      instabot_events: {
+        Row: {
+          automation_id: string
+          button_url: string | null
+          channel_id: string
+          comment_id: string | null
+          comment_reply: string | null
+          comment_text: string | null
+          created_at: string
+          dm_message: string | null
+          dm_sent: boolean
+          error: string | null
+          id: string
+          ig_user_id: string | null
+          ig_username: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          automation_id: string
+          button_url?: string | null
+          channel_id: string
+          comment_id?: string | null
+          comment_reply?: string | null
+          comment_text?: string | null
+          created_at?: string
+          dm_message?: string | null
+          dm_sent?: boolean
+          error?: string | null
+          id?: string
+          ig_user_id?: string | null
+          ig_username?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          automation_id?: string
+          button_url?: string | null
+          channel_id?: string
+          comment_id?: string | null
+          comment_reply?: string | null
+          comment_text?: string | null
+          created_at?: string
+          dm_message?: string | null
+          dm_sent?: boolean
+          error?: string | null
+          id?: string
+          ig_user_id?: string | null
+          ig_username?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "instabot_events_automation_id_fkey"
+            columns: ["automation_id"]
+            isOneToOne: false
+            referencedRelation: "instabot_automations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       instagram_connections: {
         Row: {
           access_token_ciphertext: string | null
