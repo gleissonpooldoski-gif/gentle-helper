@@ -415,6 +415,162 @@ function PublishBox() {
   );
 }
 
+const WEEKDAYS = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
+
+function ScheduleCard({ templates }: { templates: any[] }) {
+  const getFn = useServerFn(getAdminStorySchedule);
+  const saveFn = useServerFn(saveAdminStorySchedule);
+  const q = useQuery({ queryKey: ["ig-admin", "schedule"], queryFn: () => getFn() });
+
+  const [days, setDays] = useState<number[]>([]);
+  const [hours, setHours] = useState<number[]>([]);
+  const [active, setActive] = useState(true);
+  const [templateId, setTemplateId] = useState<string>("");
+
+  useEffect(() => {
+    if (q.data) {
+      setDays(q.data.days ?? []);
+      setHours(q.data.hours ?? []);
+      setActive(q.data.active ?? true);
+      setTemplateId(q.data.templateId ?? "");
+    }
+  }, [q.data]);
+
+  const toggle = (arr: number[], set: (v: number[]) => void, v: number) =>
+    set(arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v].sort((a, b) => a - b));
+
+  const mut = useMutation({
+    mutationFn: () =>
+      saveFn({ data: { days, hours, active, templateId: templateId || null } }),
+    onSuccess: () => toast.success("Agendamento salvo"),
+    onError: (e: any) => toast.error(e?.message ?? "Falha ao salvar"),
+  });
+
+  return (
+    <div className="space-y-4">
+      <div className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm">
+        <header className="flex items-center gap-2 border-b border-border/60 bg-muted/40 px-4 py-3">
+          <CalendarClock className="h-4 w-4 text-primary" />
+          <h3 className="text-sm font-semibold">Agendamento Recorrente do Story</h3>
+        </header>
+
+        <div className="space-y-6 p-5">
+          <section>
+            <p className="mb-3 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+              📅 Dias da semana
+            </p>
+            <div className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3 lg:grid-cols-4">
+              {WEEKDAYS.map((label, i) => (
+                <label key={i} className="flex cursor-pointer items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    className="peer sr-only"
+                    checked={days.includes(i)}
+                    onChange={() => toggle(days, setDays, i)}
+                  />
+                  <span className="relative inline-flex h-5 w-9 rounded-full bg-muted transition peer-checked:bg-primary">
+                    <span className="absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow transition peer-checked:translate-x-4" />
+                  </span>
+                  {label}
+                </label>
+              ))}
+            </div>
+          </section>
+
+          <section>
+            <p className="mb-3 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+              ⏰ Horários (hora cheia)
+            </p>
+            <div className="grid grid-cols-4 gap-x-6 gap-y-3 sm:grid-cols-6 lg:grid-cols-8">
+              {Array.from({ length: 24 }, (_, h) => (
+                <label key={h} className="flex cursor-pointer items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    className="peer sr-only"
+                    checked={hours.includes(h)}
+                    onChange={() => toggle(hours, setHours, h)}
+                  />
+                  <span className="relative inline-flex h-5 w-9 rounded-full bg-muted transition peer-checked:bg-primary">
+                    <span className="absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow transition peer-checked:translate-x-4" />
+                  </span>
+                  {h}
+                </label>
+              ))}
+            </div>
+          </section>
+
+          <section className="flex flex-wrap items-end gap-4">
+            <label className="flex cursor-pointer items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="peer sr-only"
+                checked={active}
+                onChange={(e) => setActive(e.target.checked)}
+              />
+              <span className="relative inline-flex h-5 w-9 rounded-full bg-muted transition peer-checked:bg-primary">
+                <span className="absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow transition peer-checked:translate-x-4" />
+              </span>
+              Ativo?
+            </label>
+
+            <label className="block flex-1 min-w-[220px]">
+              <span className="mb-1 block text-[10px] font-semibold uppercase text-muted-foreground">
+                Template
+              </span>
+              <select
+                value={templateId}
+                onChange={(e) => setTemplateId(e.target.value)}
+                className="w-full rounded-lg border border-border/70 bg-background px-3 py-2 text-sm"
+              >
+                <option value="">— usar imagem do produto —</option>
+                {templates.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name} {t.is_default ? "★" : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </section>
+
+          <button
+            type="button"
+            onClick={() => mut.mutate()}
+            disabled={mut.isPending}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-fuchsia-500 via-rose-500 to-orange-400 px-5 py-3 text-sm font-semibold text-white shadow-md transition hover:opacity-95 disabled:opacity-50"
+          >
+            {mut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            Salvar Agendamento
+          </button>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-border/70 bg-card p-5">
+        <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
+          💡 <span>Dicas</span>
+        </div>
+        <ul className="space-y-2 text-xs text-muted-foreground">
+          <li className="flex items-start gap-2">
+            <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500" />
+            Contas do Instagram podem publicar até 25 posts automáticos por 24 horas.
+          </li>
+          <li className="flex items-start gap-2">
+            <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500" />
+            O template do Story deve ter proporção 9:16 (1080×1920px).
+          </li>
+          <li className="flex items-start gap-2">
+            <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500" />
+            Use o agendamento recorrente para manter seus stories ativos automaticamente.
+          </li>
+          <li className="flex items-start gap-2">
+            <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500" />
+            Se o Instagram desconectar, reconecte usando 4G ao invés de Wi-Fi.
+          </li>
+        </ul>
+      </div>
+    </div>
+  );
+}
+
 function Page() {
   const qc = useQueryClient();
   const listTemplates = useServerFn(listStoryTemplates);
