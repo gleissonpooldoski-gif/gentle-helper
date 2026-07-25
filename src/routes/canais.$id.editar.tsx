@@ -959,6 +959,7 @@ function LayoutPostPanel({ channelId }: { channelId: string }) {
   const listVariationsFn = useServerFn(listHeaderVariations);
   const addVariationFn = useServerFn(addHeaderVariation);
   const deleteVariationFn = useServerFn(deleteHeaderVariation);
+  const sendTestFn = useServerFn(sendLayoutTestMessage);
 
   const [waPreview, setWaPreview] = useState(true);
   const [layout, setLayout] = useState<PostLayout>(DEFAULT_POST_LAYOUT);
@@ -967,6 +968,8 @@ function LayoutPostPanel({ channelId }: { channelId: string }) {
   const [variations, setVariations] = useState<HeaderVariation[]>([]);
   const [newVariation, setNewVariation] = useState("");
   const [addingVar, setAddingVar] = useState(false);
+  const [testPhone, setTestPhone] = useState("");
+  const [testing, setTesting] = useState(false);
 
   useEffect(() => {
     setLoading(true);
