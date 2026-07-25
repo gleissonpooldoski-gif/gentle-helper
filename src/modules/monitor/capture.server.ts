@@ -536,6 +536,12 @@ async function captureOne(
     }
   }
 
+  // Fallback de vendas via texto original (quando PDP não retornou).
+  if (sold == null && messageMeta.sold != null) {
+    sold = messageMeta.sold;
+    soldLabel = messageMeta.soldLabel;
+  }
+
   // Se DE e POR forem iguais, não é desconto real — descarta o "DE".
   if (priceBefore != null && price != null && priceBefore <= price) priceBefore = null;
 
