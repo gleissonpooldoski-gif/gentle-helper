@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { parseShopeeCsv, type ShopeeCsvRow } from "@/modules/products/shopee-import/csv.processor";
 import { importShopeeBatch } from "@/modules/products/shopee-import/shopee-import.controller.functions";
 import { deleteProductsByItemIds, deleteAllProducts } from "@/modules/products/shopee-import/product-delete.functions";
-import { listPendingShopeeImages, enrichShopeeImageOne } from "@/modules/products/shopee-import/image-enrich.functions";
+import { listPendingShopeeImages, enrichShopeeImagesBatch } from "@/modules/products/shopee-import/image-enrich.functions";
 import { addMLProductByLink, searchMLProducts, addMLProductsByIds } from "@/modules/products/mercadolivre/controller.functions";
 import {
   getWhatsAppConnection,
@@ -3599,7 +3599,7 @@ function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {})
   const fileInputRef = useRef<HTMLInputElement>(null);
   const importBatchFn = useServerFn(importShopeeBatch);
   const listPendingFn = useServerFn(listPendingShopeeImages);
-  const enrichOneFn = useServerFn(enrichShopeeImageOne);
+  const enrichBatchFn = useServerFn(enrichShopeeImagesBatch);
   const deleteByItemsFn = useServerFn(deleteProductsByItemIds);
   const deleteAllFn = useServerFn(deleteAllProducts);
   const listProductsFn = useServerFn(listChannelProducts);
@@ -3750,37 +3750,64 @@ function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {})
       const toastId = toast.loading("Buscando imagens dos produtos...", {
         description: `0 / ${total}`,
       });
-      const CONC = 5;
+
+      // Divide em chunks de 8 e roda 3 chunks em paralelo (=24 scrapes simultâneos).
+      const CHUNK = 8;
+      const PARALLEL_CHUNKS = 3;
+      const chunks: (typeof pending)[] = [];
+      for (let i = 0; i < pending.length; i += CHUNK) {
+        chunks.push(pending.slice(i, i + CHUNK));
+      }
+
+      // Buffers para não re-renderizar a lista/toast a cada resposta.
+      const pendingUpdates = new Map<string, string>(); // itemId → url
+      let lastFlush = 0;
+      const flush = (force = false) => {
+        const now = Date.now();
+        if (!force && now - lastFlush < 350) return;
+        lastFlush = now;
+        if (pendingUpdates.size > 0) {
+          const patch = new Map(pendingUpdates);
+          pendingUpdates.clear();
+          setImportedProducts((prev) =>
+            prev.map((p) => {
+              const id = extractItemId(p.id);
+              const img = id ? patch.get(id) : undefined;
+              return img ? { ...p, imageUrl: img } : p;
+            }),
+          );
+        }
+        toast.loading("Buscando imagens dos produtos...", {
+          id: toastId,
+          description: `Imagens encontradas: ${found} / ${done} (de ${total})`,
+        });
+      };
+
       let cursor = 0;
       const worker = async (): Promise<void> => {
-        while (cursor < pending.length) {
+        while (cursor < chunks.length) {
           const idx = cursor++;
-          const item = pending[idx]!;
+          const chunk = chunks[idx]!;
           try {
-            const res = await enrichOneFn({ data: { ...item, channelId } });
-            if (res.found) {
-              found += 1;
-              const newImg = res.image;
-              const itemId = res.itemId;
-              if (newImg && itemId) {
-                setImportedProducts((prev) =>
-                  prev.map((p) =>
-                    extractItemId(p.id) === itemId ? { ...p, imageUrl: newImg } : p,
-                  ),
-                );
+            const res = await enrichBatchFn({ data: { channelId, items: chunk } });
+            for (const r of res.results) {
+              if (r.found) {
+                found += 1;
+                if (r.itemId && r.image) pendingUpdates.set(r.itemId, r.image);
               }
             }
           } catch {
-            /* ignore individual failures */
+            /* ignora falhas de chunk individual */
           }
-          done += 1;
-          toast.loading("Buscando imagens dos produtos...", {
-            id: toastId,
-            description: `Imagens encontradas: ${found} / ${done} (de ${total})`,
-          });
+          done += chunk.length;
+          flush();
         }
       };
-      await Promise.all(Array.from({ length: Math.min(CONC, total) }, () => worker()));
+
+      await Promise.all(
+        Array.from({ length: Math.min(PARALLEL_CHUNKS, chunks.length) }, () => worker()),
+      );
+      flush(true);
       toast.success("Busca de imagens concluída", {
         id: toastId,
         description: `Imagens encontradas: ${found} / ${total}`,
@@ -3789,6 +3816,7 @@ function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {})
       console.error("Enrichment failed", err);
     }
   };
+
 
   const handleCsvFile = async (file: File | null | undefined) => {
     if (!file) return;
@@ -3808,19 +3836,33 @@ function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {})
       }
 
       const BATCH = 200;
+      const PARALLEL = 3; // até 3 chunks em voo (600 linhas por rodada)
       let inserted = 0;
       let updated = 0;
+      let processed = 0;
       setProgress({ done: 0, total: rows.length });
 
-      for (let i = 0; i < rows.length; i += BATCH) {
-        const chunk = rows.slice(i, i + BATCH);
-        const outcome = await importBatchFn({
-          data: { channelId, sourceGroupJid: importGroupJid, rows: chunk },
-        });
-        inserted += outcome.inserted;
-        updated += outcome.updated;
-        setProgress({ done: Math.min(i + chunk.length, rows.length), total: rows.length });
-      }
+      const chunks: (typeof rows)[] = [];
+      for (let i = 0; i < rows.length; i += BATCH) chunks.push(rows.slice(i, i + BATCH));
+
+      let cursor = 0;
+      const runner = async () => {
+        while (cursor < chunks.length) {
+          const idx = cursor++;
+          const chunk = chunks[idx]!;
+          const outcome = await importBatchFn({
+            data: { channelId, sourceGroupJid: importGroupJid, rows: chunk },
+          });
+          inserted += outcome.inserted;
+          updated += outcome.updated;
+          processed += chunk.length;
+          setProgress({ done: processed, total: rows.length });
+        }
+      };
+      await Promise.all(
+        Array.from({ length: Math.min(PARALLEL, chunks.length) }, () => runner()),
+      );
+
 
       await reloadProducts();
 
