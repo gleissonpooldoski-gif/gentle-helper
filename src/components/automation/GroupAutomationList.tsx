@@ -468,5 +468,4 @@ function VirtualProductList({ items }: { items: GroupProductDTO[] }) {
     </div>
   );
 }
-  );
-}
+
