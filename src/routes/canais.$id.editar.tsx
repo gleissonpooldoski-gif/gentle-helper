@@ -52,6 +52,7 @@ import {
   listInstagramKeywords, saveInstagramKeyword, getInstagramTemplate, saveInstagramTemplate,
   getInstagramSchedule, saveInstagramSchedule, type IgConnectionView,
 } from "@/lib/instagram.functions";
+import { InstaBotHelpPanel } from "@/components/instabot/InstaBotHelpPanel";
 
 
 
