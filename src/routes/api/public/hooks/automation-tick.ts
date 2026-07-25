@@ -133,11 +133,23 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
       if (r?.product_id) excluded.add(r.product_id);
     }
 
+    // Descobre se o grupo é o proprietário do canal. Somente esse vínculo
+    // pode consumir produtos importados sem source_group_jid; outros grupos
+    // usam exclusivamente produtos capturados na própria origem.
+    let ownsChannelInventory = false;
+    if (cfg.group_id) {
+      const { data: ownership } = await admin
+        .from("monitored_groups")
+        .select("id")
+        .eq("user_id", cfg.user_id)
+        .eq("channel_id", cfg.channel_id)
+        .eq("group_jid", cfg.group_id)
+        .eq("is_active", true)
+        .limit(1);
+      ownsChannelInventory = Boolean(ownership?.length);
+    }
+
     // Busca um lote de candidatos aleatorizados e valida em ordem.
-    // ISOLAMENTO OBRIGATÓRIO: quando a config é por grupo (`cfg.group_id`),
-    // só considera produtos capturados a partir do mesmo grupo destino
-    // (`products.source_group_jid = cfg.group_id`). Isso impede que um
-    // WhatsApp/grupo dispare produtos que pertencem a outro grupo.
     let q = admin
       .from("products")
       .select("*")
@@ -150,8 +162,9 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
       .limit(30);
 
     if (cfg.group_id) {
-      // Elegíveis: capturados do próprio grupo OU importados no canal (sem grupo de origem).
-      q = q.or(`source_group_jid.eq.${cfg.group_id},source_group_jid.is.null`);
+      q = ownsChannelInventory
+        ? q.or(`source_group_jid.eq.${cfg.group_id},source_group_jid.is.null`)
+        : q.eq("source_group_jid", cfg.group_id);
     }
 
     if (excluded.size > 0) {
