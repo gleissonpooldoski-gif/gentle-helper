@@ -388,27 +388,38 @@ async function captureOne(ctx: CaptureContext, rawUrl: string): Promise<"inserte
     .limit(1)
     .maybeSingle();
 
-  // Enriquecimento (título/imagem/preço).
+  // Enriquecimento (título/imagem/preço) via OpenGraph.
   const meta = await fetchOgMeta(resolved);
   let image = meta.image;
-  if (!image && finalPlatform === "shopee") {
-    image = await scrapeShopeeImage(resolved).catch(() => null);
+  let title = meta.title;
+  let price = meta.price;
+  let priceBefore: number | null = null;
+
+  if (finalPlatform === "shopee") {
+    const pdp = await fetchShopeePdp(resolved);
+    if (pdp.title && (!title || isGenericTitle(title))) title = pdp.title;
+    if (pdp.image && !image) image = pdp.image;
+    if (pdp.price && !price) price = pdp.price;
+    if (pdp.priceBefore) priceBefore = pdp.priceBefore;
+    if (!image) {
+      image = await scrapeShopeeImage(resolved).catch(() => null);
+    }
   }
 
   const affiliate = await buildAffiliateLink(ctx.supabase, ctx.userId, finalPlatform, resolved);
-  const title = (meta.title ?? existing?.title ?? "Produto capturado").slice(0, 300);
+  const finalTitle = (title ?? existing?.title ?? "Produto capturado").slice(0, 300);
 
   const payload = {
     user_id: ctx.userId,
     channel_id: ctx.channelId,
     platform: finalPlatform,
     item_id: itemId,
-    title,
+    title: finalTitle,
     image_url: image ?? existing?.image_url ?? null,
     raw_link: resolved,
     affiliate_link: affiliate,
-    original_price: meta.price,
-    promo_price: meta.price,
+    original_price: priceBefore ?? price,
+    promo_price: price,
     availability: "active" as const,
     source: "monitor",
     source_group_jid: ctx.groupJid,
