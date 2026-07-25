@@ -383,13 +383,29 @@ export const listAutomationGroups = createServerFn({ method: "POST" })
 
     const { data: sel, error } = await supabase
       .from("whatsapp_group_selections")
-      .select("group_jid, group_name, instance_id")
+      .select("group_jid, group_name, instance_id, updated_at")
       .eq("user_id", userId)
       .eq("channel_id", data.channelId)
       .in("instance_id", Array.from(instMap.keys()))
-      .order("group_name", { ascending: true });
+      .order("updated_at", { ascending: false });
     if (error) throw new Error(error.message);
-    return (sel ?? []).map((r: any) => {
+
+    // Dedupe defensivo: cada grupo (JID) só aparece UMA vez,
+    // vinculado à instância que o selecionou por último. Evita a
+    // "pilha" de cards duplicados quando o mesmo grupo estava salvo
+    // em mais de uma instância no histórico.
+    const seen = new Set<string>();
+    const unique: any[] = [];
+    for (const r of (sel ?? []) as any[]) {
+      if (seen.has(r.group_jid)) continue;
+      seen.add(r.group_jid);
+      unique.push(r);
+    }
+    unique.sort((a, b) =>
+      String(a.group_name ?? "").localeCompare(String(b.group_name ?? ""), "pt-BR"),
+    );
+
+    return unique.map((r: any) => {
       const inst = instMap.get(r.instance_id);
       return {
         groupId: r.group_jid,
@@ -401,6 +417,7 @@ export const listAutomationGroups = createServerFn({ method: "POST" })
       };
     });
   });
+
 
 export interface ChannelFlowSummaryDTO {
   activeProducts: number;
