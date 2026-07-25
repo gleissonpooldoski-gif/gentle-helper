@@ -56,28 +56,22 @@ function isExistingDivulgaLinksInstance(instanceName: string): boolean {
   return instanceName.trim().toUpperCase() === EXISTING_DIVULGA_LINKS_INSTANCE;
 }
 
-/** Lista instâncias do usuário (opcionalmente do canal). */
+/** Lista TODAS as instâncias do usuário (compartilhadas entre todos os modais). */
 export const listWhatsAppInstances = createServerFn({ method: "POST" })
   .middleware([apiClient, requireSupabaseAuth])
   .inputValidator((data: { channelId?: string } = {}) => ({
     channelId: toUuidOrNull(data?.channelId),
   }))
-  .handler(async ({ data, context }): Promise<WhatsAppInstanceDTO[]> => {
+  .handler(async ({ data: _data, context }): Promise<WhatsAppInstanceDTO[]> => {
     const { supabase, userId } = context;
-    let q = (supabase as any)
+    // Todas as instâncias conectadas na conta devem aparecer em qualquer modal
+    // de grupo/canal — a seleção de grupos permanece isolada por channel_id
+    // + instance_id em whatsapp_group_selections.
+    const { data: rows, error } = await (supabase as any)
       .from("whatsapp_instances")
       .select("*")
       .eq("user_id", userId)
       .order("created_at", { ascending: false });
-    // A instância provisionada DIVULGA LINKS é compartilhada pela conta. Ela
-    // precisa aparecer em todos os modais, enquanto as seleções continuam
-    // isoladas por channel_id + instance_id.
-    if (data.channelId) {
-      q = q.or(
-        `channel_id.eq.${data.channelId},instance_name.eq.${EXISTING_DIVULGA_LINKS_INSTANCE}`,
-      );
-    }
-    const { data: rows, error } = await q;
     if (error) throw new Error(error.message);
     return (rows ?? []).map(rowToDTO);
   });
