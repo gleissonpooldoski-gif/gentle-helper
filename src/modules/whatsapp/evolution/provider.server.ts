@@ -126,16 +126,12 @@ export const evolutionProvider: WhatsAppProvider = {
       qrcode: true,
     };
     if (webhookUrl) {
-      body.webhook = {
-        url: webhookUrl,
-        byEvents: false,
-        base64: true,
-        events: ["QRCODE_UPDATED", "CONNECTION_UPDATE"],
-      };
+      const events = ["QRCODE_UPDATED", "CONNECTION_UPDATE", "MESSAGES_UPSERT"];
+      body.webhook = { url: webhookUrl, byEvents: false, base64: true, events };
       // compat: algumas versões usam webhookUrl no root
       body.webhookUrl = webhookUrl;
       body.webhook_by_events = false;
-      body.events = ["QRCODE_UPDATED", "CONNECTION_UPDATE"];
+      body.events = events;
     }
 
     const created = await evolutionJson<any>(`/instance/create`, {
