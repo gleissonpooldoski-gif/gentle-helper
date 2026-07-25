@@ -1439,6 +1439,7 @@ export type Database = {
           promo_price: number | null
           raw_link: string
           sales: number | null
+          sales_label: string | null
           source: string | null
           source_group_jid: string | null
           source_group_name: string | null
@@ -1465,6 +1466,7 @@ export type Database = {
           promo_price?: number | null
           raw_link: string
           sales?: number | null
+          sales_label?: string | null
           source?: string | null
           source_group_jid?: string | null
           source_group_name?: string | null
@@ -1491,6 +1493,7 @@ export type Database = {
           promo_price?: number | null
           raw_link?: string
           sales?: number | null
+          sales_label?: string | null
           source?: string | null
           source_group_jid?: string | null
           source_group_name?: string | null
