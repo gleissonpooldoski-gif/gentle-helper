@@ -333,7 +333,7 @@ export const listCampaignHistory = createServerFn({ method: "POST" })
     }));
   });
 
-const DEFAULT_INSTANCE = "DIVULGA LINKS";
+
 
 export interface AutomationGroupDTO {
   groupId: string;
