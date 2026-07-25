@@ -23,18 +23,18 @@ export interface PostLayout {
 }
 
 export const DEFAULT_POST_LAYOUT: PostLayout = {
-  header: "🔥🔥 <b>OFERTA ENCONTRADA</b> 🔥🔥",
-  header_mode: "custom",
-  title_template: "<b>{title}</b>",
+  header: "<b>🚨 OFERTA RELÂMPAGO!!</b>",
+  header_mode: "auto",
+  title_template: "🔥🔥 <b>{title}</b> 🔥🔥",
   upper_title: true,
   hide_sales: false,
-  sales_template: "🛒 <i>{vendas} vendidos</i>",
-  description_template: "📌 {description}",
+  sales_template: "🛒 <i>{vendas} vendidos</i> 🛒",
+  description_template: "{description}",
   hide_original: false,
-  original_price_template: "❌ De: <s>{price_original}</s>",
-  installment_template: "💳 {parcelamento}",
-  price_template: "🔥 Agora por: <b>{price}</b>",
-  link_template: "🔗 <b>COMPRAR AGORA:</b>\n{link}",
+  original_price_template: "❌❌ <s>{price_original}</s> ❌❌",
+  installment_template: "💳💳 {parcelamento} 💳💳",
+  price_template: "💵💵 <b>{price}</b> 💵💵",
+  link_template: "🔗 COMPRE AQUI:\n{link}",
   footer: "🚨 Promoção sujeita a alteração a qualquer momento!",
 };
 
@@ -150,19 +150,9 @@ export function renderPost(
   if (vars.price && layout.price_template) {
     blocks.push(fill(layout.price_template, vars));
   }
-  // Linha de "% OFF" — só quando há desconto real.
-  // Prioriza o discount vindo do produto (calculado na captura); calcula on-the-fly quando ausente.
-  let discountPct: number | null = null;
-  if (product.discount != null && String(product.discount) !== "") {
-    const d = Number(String(product.discount).replace(/[^\d.-]/g, ""));
-    if (Number.isFinite(d) && d > 0) discountPct = Math.round(d);
-  } else if (hasRealDiscount) {
-    discountPct = Math.round(((originalNum - promoNum) / originalNum) * 100);
-  }
-  if (discountPct != null && discountPct > 0 && hasRealDiscount) {
-    blocks.push(`🏷️ <b>${discountPct}% OFF</b>`);
-    blocks.push("🚨 Oferta por tempo limitado\n⚡ Aproveite antes que acabe");
-  }
+  // Regra: nunca calcular ou exibir percentual de desconto automaticamente.
+  // O "DE:" (preço original riscado) já é exibido acima quando há preço maior real;
+  // qualquer selo de OFF/oportunidade fica a cargo do template visual do canal.
 
 
   if (vars.link && layout.link_template) {
