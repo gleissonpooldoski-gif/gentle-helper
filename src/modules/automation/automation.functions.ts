@@ -361,6 +361,8 @@ export interface AutomationGroupDTO {
   productCount: number;
   productTotal: number;
   lastSentAt: string | null;
+  intervalMin: number;
+  postsPerHour: number;
 }
 
 
