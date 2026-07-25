@@ -426,10 +426,53 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
 }
 
 
+function timingSafeEqualStr(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
+/**
+ * Advisory lock por config: impede execução concorrente do mesmo tickOne
+ * (dupla execução por retry do pg_cron ou disparo manual paralelo).
+ * Retorna true se conseguiu o lock; libera automaticamente no finally.
+ */
+async function withConfigLock<T>(admin: any, configId: string, fn: () => Promise<T>): Promise<T | { skipped: true }> {
+  const { data: acquired, error: lockErr } = await admin.rpc("try_lock_automation_config", {
+    _config_id: configId,
+  });
+  if (lockErr) {
+    // Se a função RPC não existir ainda, executa sem lock (fail-open p/ não travar operação).
+    if (String(lockErr.message || "").includes("does not exist")) {
+      return fn();
+    }
+    throw new Error(`lock: ${lockErr.message}`);
+  }
+  if (!acquired) return { skipped: true };
+  try {
+    return await fn();
+  } finally {
+    await admin.rpc("unlock_automation_config", { _config_id: configId }).catch(() => {});
+  }
+}
+
 export const Route = createFileRoute("/api/public/hooks/automation-tick")({
   server: {
     handlers: {
-      POST: async () => {
+      POST: async ({ request }) => {
+        // Autenticação obrigatória: header x-cron-secret OU Authorization: Bearer <secret>
+        const expected = process.env.CRON_SECRET;
+        if (!expected) {
+          return Response.json({ ok: false, error: "CRON_SECRET não configurado no servidor" }, { status: 500 });
+        }
+        const provided =
+          request.headers.get("x-cron-secret") ??
+          (request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "");
+        if (!provided || !timingSafeEqualStr(provided, expected)) {
+          return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
+        }
+
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
         const { data: configs, error } = await supabaseAdmin
@@ -440,11 +483,15 @@ export const Route = createFileRoute("/api/public/hooks/automation-tick")({
           return Response.json({ ok: false, error: error.message }, { status: 500 });
         }
 
-        const results: Array<{ id: string; ok: boolean; error?: string }> = [];
+        const results: Array<{ id: string; ok: boolean; skipped?: boolean; error?: string }> = [];
         for (const cfg of configs ?? []) {
           try {
-            await tickOne(supabaseAdmin, cfg);
-            results.push({ id: cfg.id, ok: true });
+            const r = await withConfigLock(supabaseAdmin, cfg.id, () => tickOne(supabaseAdmin, cfg));
+            if (r && typeof r === "object" && "skipped" in r) {
+              results.push({ id: cfg.id, ok: true, skipped: true });
+            } else {
+              results.push({ id: cfg.id, ok: true });
+            }
           } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
             results.push({ id: cfg.id, ok: false, error: msg });
@@ -457,7 +504,7 @@ export const Route = createFileRoute("/api/public/hooks/automation-tick")({
         }
         return Response.json({ ok: true, processed: results.length, results });
       },
-      GET: async () => Response.json({ ok: true, hint: "POST to trigger" }),
+      GET: async () => Response.json({ ok: true, hint: "POST with x-cron-secret header to trigger" }),
     },
   },
 });
