@@ -434,7 +434,7 @@ function EditChannelPage() {
           ) : tab === "instasched" ? (
             <InstaSchedPanel />
           ) : tab === "instabot" ? (
-            <InstaBotHelpPanel />
+            <InstaBotHelpPanel channelId={id} />
           ) : tab === "wa-grupos" ? (
             <WhatsAppGroupsPanel />
           ) : tab === "wa-monitor" ? (
