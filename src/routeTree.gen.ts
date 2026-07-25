@@ -10,9 +10,16 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as RelatoriosRouteImport } from './routes/relatorios'
+import { Route as InstagramRouteImport } from './routes/instagram'
 import { Route as ConfigAfiliadosRouteImport } from './routes/config-afiliados'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as InstagramStoriesRouteImport } from './routes/instagram.stories'
+import { Route as InstagramPublicacoesRouteImport } from './routes/instagram.publicacoes'
+import { Route as InstagramMensagensRouteImport } from './routes/instagram.mensagens'
+import { Route as InstagramConfiguracoesRouteImport } from './routes/instagram.configuracoes'
+import { Route as InstagramComentariosRouteImport } from './routes/instagram.comentarios'
+import { Route as InstagramAutomacoesRouteImport } from './routes/instagram.automacoes'
 import { Route as GSlugRouteImport } from './routes/g.$slug'
 import { Route as ConfiguracoesSessoesWhatsappRouteImport } from './routes/configuracoes.sessoes-whatsapp'
 import { Route as ConfiguracoesEnviosWhatsappRouteImport } from './routes/configuracoes.envios-whatsapp'
@@ -37,6 +44,11 @@ const RelatoriosRoute = RelatoriosRouteImport.update({
   path: '/relatorios',
   getParentRoute: () => rootRouteImport,
 } as any)
+const InstagramRoute = InstagramRouteImport.update({
+  id: '/instagram',
+  path: '/instagram',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ConfigAfiliadosRoute = ConfigAfiliadosRouteImport.update({
   id: '/config-afiliados',
   path: '/config-afiliados',
@@ -51,6 +63,36 @@ const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const InstagramStoriesRoute = InstagramStoriesRouteImport.update({
+  id: '/stories',
+  path: '/stories',
+  getParentRoute: () => InstagramRoute,
+} as any)
+const InstagramPublicacoesRoute = InstagramPublicacoesRouteImport.update({
+  id: '/publicacoes',
+  path: '/publicacoes',
+  getParentRoute: () => InstagramRoute,
+} as any)
+const InstagramMensagensRoute = InstagramMensagensRouteImport.update({
+  id: '/mensagens',
+  path: '/mensagens',
+  getParentRoute: () => InstagramRoute,
+} as any)
+const InstagramConfiguracoesRoute = InstagramConfiguracoesRouteImport.update({
+  id: '/configuracoes',
+  path: '/configuracoes',
+  getParentRoute: () => InstagramRoute,
+} as any)
+const InstagramComentariosRoute = InstagramComentariosRouteImport.update({
+  id: '/comentarios',
+  path: '/comentarios',
+  getParentRoute: () => InstagramRoute,
+} as any)
+const InstagramAutomacoesRoute = InstagramAutomacoesRouteImport.update({
+  id: '/automacoes',
+  path: '/automacoes',
+  getParentRoute: () => InstagramRoute,
 } as any)
 const GSlugRoute = GSlugRouteImport.update({
   id: '/g/$slug',
@@ -160,10 +202,17 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/config-afiliados': typeof ConfigAfiliadosRoute
+  '/instagram': typeof InstagramRouteWithChildren
   '/relatorios': typeof RelatoriosRoute
   '/configuracoes/envios-whatsapp': typeof ConfiguracoesEnviosWhatsappRoute
   '/configuracoes/sessoes-whatsapp': typeof ConfiguracoesSessoesWhatsappRoute
   '/g/$slug': typeof GSlugRoute
+  '/instagram/automacoes': typeof InstagramAutomacoesRoute
+  '/instagram/comentarios': typeof InstagramComentariosRoute
+  '/instagram/configuracoes': typeof InstagramConfiguracoesRoute
+  '/instagram/mensagens': typeof InstagramMensagensRoute
+  '/instagram/publicacoes': typeof InstagramPublicacoesRoute
+  '/instagram/stories': typeof InstagramStoriesRoute
   '/api/ml/callback': typeof ApiMlCallbackRoute
   '/api/ml/probe': typeof ApiMlProbeRoute
   '/canais/$id/editar': typeof CanaisIdEditarRoute
@@ -184,10 +233,17 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/config-afiliados': typeof ConfigAfiliadosRoute
+  '/instagram': typeof InstagramRouteWithChildren
   '/relatorios': typeof RelatoriosRoute
   '/configuracoes/envios-whatsapp': typeof ConfiguracoesEnviosWhatsappRoute
   '/configuracoes/sessoes-whatsapp': typeof ConfiguracoesSessoesWhatsappRoute
   '/g/$slug': typeof GSlugRoute
+  '/instagram/automacoes': typeof InstagramAutomacoesRoute
+  '/instagram/comentarios': typeof InstagramComentariosRoute
+  '/instagram/configuracoes': typeof InstagramConfiguracoesRoute
+  '/instagram/mensagens': typeof InstagramMensagensRoute
+  '/instagram/publicacoes': typeof InstagramPublicacoesRoute
+  '/instagram/stories': typeof InstagramStoriesRoute
   '/api/ml/callback': typeof ApiMlCallbackRoute
   '/api/ml/probe': typeof ApiMlProbeRoute
   '/canais/$id/editar': typeof CanaisIdEditarRoute
@@ -209,10 +265,17 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/config-afiliados': typeof ConfigAfiliadosRoute
+  '/instagram': typeof InstagramRouteWithChildren
   '/relatorios': typeof RelatoriosRoute
   '/configuracoes/envios-whatsapp': typeof ConfiguracoesEnviosWhatsappRoute
   '/configuracoes/sessoes-whatsapp': typeof ConfiguracoesSessoesWhatsappRoute
   '/g/$slug': typeof GSlugRoute
+  '/instagram/automacoes': typeof InstagramAutomacoesRoute
+  '/instagram/comentarios': typeof InstagramComentariosRoute
+  '/instagram/configuracoes': typeof InstagramConfiguracoesRoute
+  '/instagram/mensagens': typeof InstagramMensagensRoute
+  '/instagram/publicacoes': typeof InstagramPublicacoesRoute
+  '/instagram/stories': typeof InstagramStoriesRoute
   '/api/ml/callback': typeof ApiMlCallbackRoute
   '/api/ml/probe': typeof ApiMlProbeRoute
   '/canais/$id/editar': typeof CanaisIdEditarRoute
@@ -235,10 +298,17 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/config-afiliados'
+    | '/instagram'
     | '/relatorios'
     | '/configuracoes/envios-whatsapp'
     | '/configuracoes/sessoes-whatsapp'
     | '/g/$slug'
+    | '/instagram/automacoes'
+    | '/instagram/comentarios'
+    | '/instagram/configuracoes'
+    | '/instagram/mensagens'
+    | '/instagram/publicacoes'
+    | '/instagram/stories'
     | '/api/ml/callback'
     | '/api/ml/probe'
     | '/canais/$id/editar'
@@ -259,10 +329,17 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/config-afiliados'
+    | '/instagram'
     | '/relatorios'
     | '/configuracoes/envios-whatsapp'
     | '/configuracoes/sessoes-whatsapp'
     | '/g/$slug'
+    | '/instagram/automacoes'
+    | '/instagram/comentarios'
+    | '/instagram/configuracoes'
+    | '/instagram/mensagens'
+    | '/instagram/publicacoes'
+    | '/instagram/stories'
     | '/api/ml/callback'
     | '/api/ml/probe'
     | '/canais/$id/editar'
@@ -283,10 +360,17 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/config-afiliados'
+    | '/instagram'
     | '/relatorios'
     | '/configuracoes/envios-whatsapp'
     | '/configuracoes/sessoes-whatsapp'
     | '/g/$slug'
+    | '/instagram/automacoes'
+    | '/instagram/comentarios'
+    | '/instagram/configuracoes'
+    | '/instagram/mensagens'
+    | '/instagram/publicacoes'
+    | '/instagram/stories'
     | '/api/ml/callback'
     | '/api/ml/probe'
     | '/canais/$id/editar'
@@ -308,6 +392,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthRoute: typeof AuthRoute
   ConfigAfiliadosRoute: typeof ConfigAfiliadosRoute
+  InstagramRoute: typeof InstagramRouteWithChildren
   RelatoriosRoute: typeof RelatoriosRoute
   ConfiguracoesEnviosWhatsappRoute: typeof ConfiguracoesEnviosWhatsappRoute
   ConfiguracoesSessoesWhatsappRoute: typeof ConfiguracoesSessoesWhatsappRoute
@@ -338,6 +423,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RelatoriosRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/instagram': {
+      id: '/instagram'
+      path: '/instagram'
+      fullPath: '/instagram'
+      preLoaderRoute: typeof InstagramRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/config-afiliados': {
       id: '/config-afiliados'
       path: '/config-afiliados'
@@ -358,6 +450,48 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/instagram/stories': {
+      id: '/instagram/stories'
+      path: '/stories'
+      fullPath: '/instagram/stories'
+      preLoaderRoute: typeof InstagramStoriesRouteImport
+      parentRoute: typeof InstagramRoute
+    }
+    '/instagram/publicacoes': {
+      id: '/instagram/publicacoes'
+      path: '/publicacoes'
+      fullPath: '/instagram/publicacoes'
+      preLoaderRoute: typeof InstagramPublicacoesRouteImport
+      parentRoute: typeof InstagramRoute
+    }
+    '/instagram/mensagens': {
+      id: '/instagram/mensagens'
+      path: '/mensagens'
+      fullPath: '/instagram/mensagens'
+      preLoaderRoute: typeof InstagramMensagensRouteImport
+      parentRoute: typeof InstagramRoute
+    }
+    '/instagram/configuracoes': {
+      id: '/instagram/configuracoes'
+      path: '/configuracoes'
+      fullPath: '/instagram/configuracoes'
+      preLoaderRoute: typeof InstagramConfiguracoesRouteImport
+      parentRoute: typeof InstagramRoute
+    }
+    '/instagram/comentarios': {
+      id: '/instagram/comentarios'
+      path: '/comentarios'
+      fullPath: '/instagram/comentarios'
+      preLoaderRoute: typeof InstagramComentariosRouteImport
+      parentRoute: typeof InstagramRoute
+    }
+    '/instagram/automacoes': {
+      id: '/instagram/automacoes'
+      path: '/automacoes'
+      fullPath: '/instagram/automacoes'
+      preLoaderRoute: typeof InstagramAutomacoesRouteImport
+      parentRoute: typeof InstagramRoute
     }
     '/g/$slug': {
       id: '/g/$slug'
@@ -488,10 +622,33 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface InstagramRouteChildren {
+  InstagramAutomacoesRoute: typeof InstagramAutomacoesRoute
+  InstagramComentariosRoute: typeof InstagramComentariosRoute
+  InstagramConfiguracoesRoute: typeof InstagramConfiguracoesRoute
+  InstagramMensagensRoute: typeof InstagramMensagensRoute
+  InstagramPublicacoesRoute: typeof InstagramPublicacoesRoute
+  InstagramStoriesRoute: typeof InstagramStoriesRoute
+}
+
+const InstagramRouteChildren: InstagramRouteChildren = {
+  InstagramAutomacoesRoute: InstagramAutomacoesRoute,
+  InstagramComentariosRoute: InstagramComentariosRoute,
+  InstagramConfiguracoesRoute: InstagramConfiguracoesRoute,
+  InstagramMensagensRoute: InstagramMensagensRoute,
+  InstagramPublicacoesRoute: InstagramPublicacoesRoute,
+  InstagramStoriesRoute: InstagramStoriesRoute,
+}
+
+const InstagramRouteWithChildren = InstagramRoute._addFileChildren(
+  InstagramRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthRoute: AuthRoute,
   ConfigAfiliadosRoute: ConfigAfiliadosRoute,
+  InstagramRoute: InstagramRouteWithChildren,
   RelatoriosRoute: RelatoriosRoute,
   ConfiguracoesEnviosWhatsappRoute: ConfiguracoesEnviosWhatsappRoute,
   ConfiguracoesSessoesWhatsappRoute: ConfiguracoesSessoesWhatsappRoute,

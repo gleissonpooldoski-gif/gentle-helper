@@ -3,6 +3,7 @@ import { useState } from "react";
 import {
   BarChart3,
   CreditCard,
+  Instagram,
   LayoutDashboard,
   Menu,
   Radio,
@@ -11,6 +12,7 @@ import {
   X,
   Zap,
 } from "lucide-react";
+
 
 
 import { cn } from "@/lib/utils";
