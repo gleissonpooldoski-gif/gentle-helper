@@ -160,8 +160,10 @@ export function renderPost(
     discountPct = Math.round(((originalNum - promoNum) / originalNum) * 100);
   }
   if (discountPct != null && discountPct > 0 && hasRealDiscount) {
-    blocks.push(`🔥 <b>${discountPct}% OFF</b> 🔥`);
+    blocks.push(`🏷️ <b>${discountPct}% OFF</b>`);
+    blocks.push("🚨 Oferta por tempo limitado\n⚡ Aproveite antes que acabe");
   }
+
 
   if (vars.link && layout.link_template) {
     blocks.push(fill(layout.link_template, vars));
