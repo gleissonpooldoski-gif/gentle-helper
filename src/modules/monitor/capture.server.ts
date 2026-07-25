@@ -627,6 +627,14 @@ async function captureOne(
     source_group_name: ctx.groupName,
   };
 
+  console.log("[PRODUCT_PRICE_CAPTURE]", {
+    source: "monitor",
+    title: finalTitle,
+    promo_price: price,
+    original_price: effectiveOriginal,
+    discount_exists: isDiscount,
+  });
+
   const { data: upserted, error } = await ctx.supabase
     .from("products")
     .upsert(payload as never, { onConflict: "user_id,channel_id,source_group_jid,platform,item_id" })
