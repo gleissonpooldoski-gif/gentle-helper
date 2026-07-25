@@ -421,25 +421,29 @@ export const listAutomationGroups = createServerFn({ method: "POST" })
     const cfgMap = new Map<string, any>();
     for (const c of (cfgs ?? []) as any[]) if (c.group_id) cfgMap.set(c.group_id, c);
 
-    // Contagem real de produtos vinculados ao grupo (ativos e total).
-    // NÃO filtramos por channel_id: a captura via webhook grava o produto
-    // com o channel do canal que MONITORA o grupo, que nem sempre é o
-    // canal atualmente aberto. A chave real de vínculo é source_group_jid.
+    // Contagem real de produtos elegíveis para envio no grupo:
+    // - produtos capturados via WhatsApp desse grupo (source_group_jid = jid), OU
+    // - produtos importados no canal (source_group_jid IS NULL), que ficam
+    //   disponíveis para qualquer grupo do canal.
+    // Deve espelhar a query de elegibilidade em automation-tick.
     const countMap = new Map<string, { active: number; total: number }>();
     await Promise.all(
       jids.map(async (jid) => {
+        const orFilter = `source_group_jid.eq.${jid},source_group_jid.is.null`;
         const [{ count: active }, { count: total }] = await Promise.all([
           supabase
             .from("products")
             .select("id", { count: "exact", head: true })
             .eq("user_id", userId)
-            .eq("source_group_jid", jid)
-            .eq("availability", "active"),
+            .eq("channel_id", data.channelId)
+            .eq("availability", "active")
+            .or(orFilter),
           supabase
             .from("products")
             .select("id", { count: "exact", head: true })
             .eq("user_id", userId)
-            .eq("source_group_jid", jid),
+            .eq("channel_id", data.channelId)
+            .or(orFilter),
         ]);
         countMap.set(jid, { active: active ?? 0, total: total ?? 0 });
       }),
