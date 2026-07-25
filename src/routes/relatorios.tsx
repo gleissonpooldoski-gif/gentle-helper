@@ -219,9 +219,13 @@ function ReportsPage() {
   const totals = query.data?.totals;
   const lastSyncAt = query.data?.lastSyncAt;
 
+  const statusBreakdown = query.data?.statusBreakdown ?? [];
+  const topProducts = query.data?.topProducts ?? [];
+
   const filteredRows = useMemo(() => {
     if (!tableFilter.trim()) return rows;
     const q = tableFilter.toLowerCase();
+
     return rows.filter(
       (o) =>
         o.product_name.toLowerCase().includes(q) ||
