@@ -243,7 +243,9 @@ async function captureOne(ctx: CaptureContext, rawUrl: string): Promise<"inserte
   const platform = detectPlatform(rawUrl);
   if (!platform) return "skipped";
 
-  const resolved = await resolveShortLink(rawUrl);
+  const resolvedRaw = await resolveShortLink(rawUrl);
+  // Remove qualquer código de afiliado/tracking de terceiros antes de gerar o nosso.
+  const resolved = stripThirdPartyTracking(resolvedRaw);
   const finalPlatform = detectPlatform(resolved) ?? platform;
   const itemId = extractItemId(resolved, finalPlatform);
 
