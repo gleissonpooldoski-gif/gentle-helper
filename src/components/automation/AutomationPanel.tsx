@@ -257,6 +257,30 @@ export function AutomationPanel({ channelId, groupId = null, groupName = null, t
             </div>
           </div>
 
+          <div className="mt-4">
+            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Número WhatsApp que envia
+            </label>
+            <select
+              value={instanceId}
+              onChange={(e) => setInstanceId(e.target.value)}
+              className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20"
+            >
+              <option value="">Padrão (DIVULGA LINKS)</option>
+              {instances.map((i) => (
+                <option key={i.id} value={i.id}>
+                  {i.instanceName}
+                  {i.phone ? ` · ${i.phone}` : ""}
+                  {i.status === "connected" ? " 🟢" : " ⚪"}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Escolha qual número WhatsApp conectado será usado para disparar os posts deste grupo.
+            </p>
+          </div>
+
+
           <label className="mt-4 flex items-center gap-2 text-sm text-foreground">
             <input
               type="checkbox"
