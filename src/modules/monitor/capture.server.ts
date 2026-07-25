@@ -310,7 +310,7 @@ async function fetchOgMeta(url: string): Promise<OgMeta> {
  * Enriquecimento específico Shopee via API interna /api/v4/pdp/get_pc.
  * Retorna título/imagem/preço/preço original de forma confiável.
  */
-async function fetchShopeePdp(
+export async function fetchShopeePdp(
   url: string,
 ): Promise<{ title: string | null; image: string | null; price: number | null; priceBefore: number | null; sold: number | null; soldLabel: string | null }> {
   const empty = { title: null, image: null, price: null, priceBefore: null, sold: null, soldLabel: null };
@@ -626,6 +626,14 @@ async function captureOne(
     source_group_jid: ctx.groupJid,
     source_group_name: ctx.groupName,
   };
+
+  console.log("[PRODUCT_PRICE_CAPTURE]", {
+    source: "monitor",
+    title: finalTitle,
+    promo_price: price,
+    original_price: effectiveOriginal,
+    discount_exists: isDiscount,
+  });
 
   const { data: upserted, error } = await ctx.supabase
     .from("products")
