@@ -450,7 +450,11 @@ async function withConfigLock<T>(admin: any, configId: string, fn: () => Promise
   try {
     return await fn();
   } finally {
-    await admin.rpc("unlock_automation_config", { _config_id: configId }).catch(() => {});
+    try {
+      await admin.rpc("unlock_automation_config", { _config_id: configId });
+    } catch {
+      /* liberação best-effort; timeout do advisory lock também libera */
+    }
   }
 }
 
