@@ -18,6 +18,7 @@ export interface AutomationConfigDTO {
   channelId: string;
   groupId: string | null;
   groupName: string | null;
+  instanceId: string | null;
   horaInicio: string;
   horaFim: string;
   intervaloMin: number;
