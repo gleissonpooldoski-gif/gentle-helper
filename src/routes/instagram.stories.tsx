@@ -464,12 +464,27 @@ function PublishBox() {
           </button>
         </div>
 
-        <div className="flex justify-center">
-          <div className="overflow-hidden rounded-xl border border-border/60 bg-black/60 p-1">
-            <canvas
-              ref={canvasRef}
-              style={{ width: 180, height: 320, display: "block" }}
-            />
+          <div className="flex flex-col items-center gap-2">
+            <div className="overflow-hidden rounded-xl border border-border/60 bg-black/60 p-1">
+              <canvas
+                ref={canvasRef}
+                style={{ width: 220, height: 391, display: "block" }}
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                const url = canvasRef.current?.toDataURL("image/png");
+                if (!url) return;
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `story-${Date.now()}.png`;
+                a.click();
+              }}
+              className="text-xs font-medium text-primary hover:underline"
+            >
+              Baixar arte gerada
+            </button>
           </div>
         </div>
       </div>
