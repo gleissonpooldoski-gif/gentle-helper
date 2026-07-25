@@ -1763,6 +1763,56 @@ export type Database = {
         }
         Relationships: []
       }
+      visual_templates: {
+        Row: {
+          channel_id: string | null
+          created_at: string
+          elements: Json
+          format: string
+          id: string
+          is_default: boolean
+          name: string
+          preset: string
+          preview_url: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          channel_id?: string | null
+          created_at?: string
+          elements?: Json
+          format?: string
+          id?: string
+          is_default?: boolean
+          name?: string
+          preset?: string
+          preview_url?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          channel_id?: string | null
+          created_at?: string
+          elements?: Json
+          format?: string
+          id?: string
+          is_default?: boolean
+          name?: string
+          preset?: string
+          preview_url?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "visual_templates_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_campaign_history: {
         Row: {
           caption: string | null
