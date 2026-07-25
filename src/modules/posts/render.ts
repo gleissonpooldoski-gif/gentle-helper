@@ -134,9 +134,10 @@ export function renderPost(
   const blocks: string[] = [];
   if (layout.header) blocks.push(layout.header);
   if (layout.title_template) blocks.push(fill(layout.title_template, vars));
-  if (!layout.hide_sales && vars.vendas && layout.sales_template) {
+  if (!layout.hide_sales && hasRealSales(vars.vendas) && layout.sales_template) {
     blocks.push(fill(layout.sales_template, vars));
   }
+
   if (vars.description && layout.description_template) {
     blocks.push(fill(layout.description_template, vars));
   }
