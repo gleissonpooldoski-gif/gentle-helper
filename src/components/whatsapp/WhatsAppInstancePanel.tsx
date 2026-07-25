@@ -25,6 +25,7 @@ import {
   disconnectWhatsAppInstance,
   deleteWhatsAppInstance,
   adoptEvolutionInstance,
+  importAllEvolutionInstances,
   fetchWhatsAppGroups,
   saveWhatsAppGroupSelection,
   sendWhatsAppText,
