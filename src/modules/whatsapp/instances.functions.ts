@@ -540,6 +540,23 @@ export const fetchWhatsAppGroups = createServerFn({ method: "POST" })
     const selRows: Array<{ group_jid: string; group_name: string | null }> = sel ?? [];
     const selectedSet = new Set(selRows.map((s) => s.group_jid));
 
+    // 2b) Seleções deste canal em OUTRAS instâncias — para exibir "já em uso".
+    const { data: otherSel } = await (supabase as any)
+      .from("whatsapp_group_selections")
+      .select("group_jid, instance_id, whatsapp_instances!inner(instance_name)")
+      .eq("user_id", userId)
+      .eq("channel_id", data.channelId)
+      .neq("instance_id", row.id);
+    const usedByMap = new Map<string, Array<{ instanceId: string; instanceName: string }>>();
+    for (const r of (otherSel ?? []) as any[]) {
+      const list = usedByMap.get(r.group_jid) ?? [];
+      list.push({
+        instanceId: r.instance_id,
+        instanceName: r.whatsapp_instances?.instance_name ?? "outra instância",
+      });
+      usedByMap.set(r.group_jid, list);
+    }
+
     // Grupos salvos que não voltaram da Evolution continuam visíveis
     // para permitir desmarcar.
     const evoJids = new Set(evoList.map((e) => e.jid));
@@ -562,8 +579,10 @@ export const fetchWhatsAppGroups = createServerFn({ method: "POST" })
       participants: g.participants,
       pictureUrl: g.pictureUrl,
       selected: selectedSet.has(g.jid),
+      usedBy: usedByMap.get(g.jid) ?? [],
     }));
   });
+
 
 
 /** Salva a lista de grupos selecionados (substitui). */
