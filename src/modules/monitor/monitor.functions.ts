@@ -239,7 +239,8 @@ export const saveMonitorGroups = createServerFn({ method: "POST" })
           .select("provider, instance_name")
           .in("id", instanceIds);
         const proto = "https";
-        const host = (context as any)?.request?.headers?.get?.("host") ?? null;
+        let host: string | null = null;
+        try { host = getRequestHost({ xForwardedHost: true }); } catch { /* noop */ }
         const webhookUrl = host
           ? `${proto}://${host}/api/public/whatsapp/webhook`
           : null;
