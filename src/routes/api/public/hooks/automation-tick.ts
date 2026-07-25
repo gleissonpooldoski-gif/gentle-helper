@@ -336,7 +336,7 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
   }
 
   // Renderiza legenda
-  const { loadLayoutFor, resolveHeader } = await import("@/modules/posts/layout.functions");
+  const { loadLayoutFor, resolveHeader, productHasDiscount } = await import("@/modules/posts/layout.functions");
   const { renderPost } = await import("@/modules/posts/render");
   const { loadSiteConfigByChannel, wrapLinkWithSite } = await import("@/modules/site/site-link");
   const layout = await loadLayoutFor(admin, cfg.user_id, cfg.channel_id);
@@ -352,7 +352,11 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
   const recentHeaders = (recent ?? [])
     .map((r: any) => String(r.caption ?? "").split("\n")[0].trim())
     .filter(Boolean);
-  const chosenHeader = await resolveHeader(admin, cfg.user_id, layout, recentHeaders);
+  const hasDiscount = productHasDiscount({
+    promo_price: product.promo_price,
+    original_price: product.original_price,
+  });
+  const chosenHeader = await resolveHeader(admin, cfg.user_id, layout, recentHeaders, { hasDiscount });
   const effectiveLayout = { ...layout, header: chosenHeader };
 
   const siteCfg = cfg.channel_id
