@@ -994,6 +994,7 @@ function LayoutPostPanel({ channelId }: { channelId: string }) {
   const [saving, setSaving] = useState(false);
   const [variations, setVariations] = useState<HeaderVariation[]>([]);
   const [newVariation, setNewVariation] = useState("");
+  const [newVariationType, setNewVariationType] = useState<"normal" | "discount">("normal");
   const [addingVar, setAddingVar] = useState(false);
   const [testPhone, setTestPhone] = useState("");
   const [testing, setTesting] = useState(false);
@@ -1037,9 +1038,10 @@ function LayoutPostPanel({ channelId }: { channelId: string }) {
     if (!text) return;
     setAddingVar(true);
     try {
-      const row = await addVariationFn({ data: { text } });
+      const row = await addVariationFn({ data: { text, type: newVariationType } });
       setVariations((prev) => [...prev, row]);
       setNewVariation("");
+      setNewVariationType("normal");
       toast.success("Variação adicionada");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Falha ao adicionar variação");
@@ -1130,7 +1132,19 @@ function LayoutPostPanel({ channelId }: { channelId: string }) {
                   )}
                   {variations.map((v) => (
                     <div key={v.id} className="flex items-center justify-between gap-2 px-3 py-1.5 text-[13px]">
-                      <span className="truncate">{v.text}</span>
+                      <div className="flex min-w-0 flex-1 items-center gap-2">
+                        <span className="truncate">{v.text}</span>
+                        <span
+                          className={
+                            "shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider " +
+                            (v.type === "discount"
+                              ? "bg-red-500/15 text-red-600"
+                              : "bg-blue-500/15 text-blue-600")
+                          }
+                        >
+                          {v.type === "discount" ? "Desconto" : "Normal"}
+                        </span>
+                      </div>
                       {v.user_id ? (
                         <button
                           type="button"
@@ -1145,25 +1159,55 @@ function LayoutPostPanel({ channelId }: { channelId: string }) {
                     </div>
                   ))}
                 </div>
-                <div className="flex gap-2">
-                  <input
-                    value={newVariation}
-                    onChange={(e) => setNewVariation(e.target.value)}
-                    placeholder="🚨 OFERTA EXCLUSIVA DO GRUPO!"
-                    className="h-10 flex-1 rounded-lg border border-border bg-background px-3 text-[13px] outline-none focus:border-primary"
-                  />
-                  <Button
-                    type="button"
-                    onClick={handleAddVariation}
-                    disabled={addingVar || !newVariation.trim()}
-                    className="h-10 rounded-lg"
-                  >
-                    + Adicionar
-                  </Button>
+                <div className="space-y-2">
+                  <div className="flex flex-wrap gap-4 text-[12px]">
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="radio"
+                        name={`newvar-type-${channelId}`}
+                        checked={newVariationType === "normal"}
+                        onChange={() => setNewVariationType("normal")}
+                      />
+                      <span>Normal</span>
+                    </label>
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="radio"
+                        name={`newvar-type-${channelId}`}
+                        checked={newVariationType === "discount"}
+                        onChange={() => setNewVariationType("discount")}
+                      />
+                      <span>Oferta com desconto</span>
+                    </label>
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      value={newVariation}
+                      onChange={(e) => setNewVariation(e.target.value)}
+                      placeholder={
+                        newVariationType === "discount"
+                          ? "🚨 OFERTA RELÂMPAGO!!"
+                          : "🔥 PRODUTO COM PREÇO INCRÍVEL!"
+                      }
+                      className="h-10 flex-1 rounded-lg border border-border bg-background px-3 text-[13px] outline-none focus:border-primary"
+                    />
+                    <Button
+                      type="button"
+                      onClick={handleAddVariation}
+                      disabled={addingVar || !newVariation.trim()}
+                      className="h-10 rounded-lg"
+                    >
+                      + Adicionar
+                    </Button>
+                  </div>
+                  <p className="text-[11px] italic text-muted-foreground">
+                    Frases "Desconto" só serão sorteadas quando o produto tiver preço promocional (original {'>'} atual). Caso contrário, o sistema usa frases "Normal".
+                  </p>
                 </div>
               </div>
             )}
           </div>
+
 
 
           <LayoutField
