@@ -488,6 +488,8 @@ async function captureOne(
   let title = meta.title ?? messageMeta.title;
   let price = meta.price ?? messageMeta.price;
   let priceBefore: number | null = messageMeta.priceBefore;
+  let sold: number | null = null;
+  let soldLabel: string | null = null;
 
   if (finalPlatform === "shopee") {
     const pdp = await fetchShopeePdp(canonicalUrl);
@@ -496,11 +498,16 @@ async function captureOne(
     if (pdp.image) image = pdp.image;
     if (pdp.price) price = pdp.price;
     if (pdp.priceBefore) priceBefore = pdp.priceBefore;
+    if (pdp.sold) sold = pdp.sold;
+    if (pdp.soldLabel) soldLabel = pdp.soldLabel;
     if (!image) {
       // Fallback dedicado com WhatsApp-UA + validação de CDN Shopee.
       image = await scrapeShopeeImage(canonicalUrl, resolved).catch(() => null);
     }
   }
+
+  // Se DE e POR forem iguais, não é desconto real — descarta o "DE".
+  if (priceBefore != null && price != null && priceBefore <= price) priceBefore = null;
 
   const affiliate = await buildAffiliateLink(ctx.supabase, ctx.userId, finalPlatform, resolved);
   const finalTitle = (title ?? existing?.title ?? "Produto capturado").slice(0, 300);
@@ -514,8 +521,10 @@ async function captureOne(
     image_url: image ?? existing?.image_url ?? null,
     raw_link: resolved,
     affiliate_link: affiliate,
-    original_price: priceBefore ?? price,
+    original_price: priceBefore,
     promo_price: price,
+    sales: sold,
+    sales_label: soldLabel,
     availability: "active" as const,
     source: "monitor",
     source_group_jid: ctx.groupJid,
