@@ -516,18 +516,26 @@ export const listGroupProducts = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<GroupProductDTO[]> => {
     const { supabase, userId } = context;
     if (!data.groupJid) return [];
-    const query = supabase
-      .from("products")
-      .select("id, title, platform, promo_price, image_url, availability")
-      .eq("user_id", userId)
-      .eq("channel_id", data.channelId)
-      .eq("source_group_jid", data.groupJid);
-    const { data: rows, error } = await query
-      .order("created_at", { ascending: false })
-      .limit(200);
-    if (error) throw new Error(error.message);
+    // Pagina para suportar grupos com milhares de produtos.
+    const pageSize = 1000;
+    const rows: any[] = [];
+    for (let i = 0; i < 50; i++) {
+      const from = i * pageSize;
+      const { data: batch, error } = await supabase
+        .from("products")
+        .select("id, title, platform, promo_price, image_url, availability")
+        .eq("user_id", userId)
+        .eq("channel_id", data.channelId)
+        .eq("source_group_jid", data.groupJid)
+        .order("created_at", { ascending: false })
+        .range(from, from + pageSize - 1);
+      if (error) throw new Error(error.message);
+      const b = batch ?? [];
+      rows.push(...b);
+      if (b.length < pageSize) break;
+    }
 
-    return (rows ?? []).map((r: any) => ({
+    return rows.map((r: any) => ({
       id: r.id,
       title: r.title,
       platform: r.platform,
