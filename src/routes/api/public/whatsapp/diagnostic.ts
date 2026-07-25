@@ -4,8 +4,10 @@ export const Route = createFileRoute("/api/public/whatsapp/diagnostic")({
   server: {
     handlers: {
       GET: async () => {
-        const rawUrl = process.env.EVOLUTION_API_URL ?? "";
-        const apiKey = process.env.EVOLUTION_API_KEY ?? "";
+        const { getEvolutionConfig } = await import("@/modules/whatsapp/evolution/client.server");
+        const cfg = await getEvolutionConfig();
+        const rawUrl = cfg.baseUrl;
+        const apiKey = cfg.apiKey;
         const hasKey = apiKey.length > 0;
         let host = "";
         try {
