@@ -93,6 +93,10 @@ async function resolveShortLink(url: string): Promise<string> {
     const host = new URL(url).hostname.toLowerCase();
     const isShort =
       host.includes("shope.ee") ||
+      host === "s.shopee.com.br" ||
+      host === "c.shopee.com.br" ||
+      host === "m.shopee.com.br" ||
+      new URL(url).pathname.startsWith("/universal-link/") ||
       host === "amzn.to" ||
       host.includes("s.click.aliexpress") ||
       host.includes("mercadolivre.com/sec/") ||
@@ -251,6 +255,9 @@ function isGenericTitle(t: string | null): boolean {
     low === "shopee" ||
     low.startsWith("shopee brasil") ||
     low.startsWith("shopee | ") ||
+    low.startsWith("shopee - ") ||
+    low.endsWith("| shopee brasil") ||
+    low.includes("compre produtos com o menor preço") ||
     low === "mercado livre" ||
     low === "magazine luiza" ||
     low === "amazon.com.br"
