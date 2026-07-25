@@ -361,6 +361,8 @@ export interface AutomationGroupDTO {
   productCount: number;
   productTotal: number;
   lastSentAt: string | null;
+  intervalMin: number;
+  postsPerHour: number;
 }
 
 
@@ -411,7 +413,7 @@ export const listAutomationGroups = createServerFn({ method: "POST" })
     const { data: cfgs } = jids.length
       ? await supabase
           .from("automation_configs")
-          .select("id, group_id, status, last_sent_at, instance_id")
+          .select("id, group_id, status, last_sent_at, instance_id, intervalo_min")
           .eq("user_id", userId)
           .eq("channel_id", data.channelId)
           .in("group_id", jids)
@@ -478,6 +480,8 @@ export const listAutomationGroups = createServerFn({ method: "POST" })
         productCount: counts.active,
         productTotal: counts.total,
         lastSentAt: lastSent,
+        intervalMin: Number.isFinite(Number(cfg?.intervalo_min)) && Number(cfg?.intervalo_min) > 0 ? Number(cfg.intervalo_min) : 15,
+        postsPerHour: Math.max(1, Math.round(60 / (Number.isFinite(Number(cfg?.intervalo_min)) && Number(cfg?.intervalo_min) > 0 ? Number(cfg.intervalo_min) : 15))),
       };
     });
   });

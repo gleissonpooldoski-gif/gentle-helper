@@ -42,7 +42,7 @@ import {
 import { DEFAULT_POST_LAYOUT, type PostLayout } from "@/modules/posts/render";
 import { GroupAutomationList } from "@/components/automation/GroupAutomationList";
 import { getChannel, updateChannel, getChannelProductCounts, type ChannelDTO, type ChannelProductCountsDTO } from "@/modules/channels/channels.functions";
-import { getChannelFlowSummary, type ChannelFlowSummaryDTO } from "@/modules/automation/automation.functions";
+import { getChannelFlowSummary, listAutomationGroups, type ChannelFlowSummaryDTO, type AutomationGroupDTO } from "@/modules/automation/automation.functions";
 import { getManualPost, saveManualPost, type ManualPostDTO } from "@/modules/posts/manual-post.functions";
 import { ensureAffiliateLink, buildMLAffiliateUrl } from "@/lib/affiliate-linker";
 import { EditProductModal, type EditProductTarget } from "@/components/products/EditProductModal";
@@ -147,6 +147,7 @@ function EditChannelPage() {
   const getChannelFn = useServerFn(getChannel);
   const updateChannelFn = useServerFn(updateChannel);
   const getFlowSummaryFn = useServerFn(getChannelFlowSummary);
+  const listAutomationGroupsFn = useServerFn(listAutomationGroups);
   const getManualPostFn = useServerFn(getManualPost);
   const saveManualPostFn = useServerFn(saveManualPost);
   const buildMLAffiliateUrlFn = useServerFn(buildMLAffiliateUrl);
@@ -154,6 +155,7 @@ function EditChannelPage() {
   const [channel, setChannel] = useState<ChannelDTO | null>(null);
   const [channelError, setChannelError] = useState<string | null>(null);
   const [flowSummary, setFlowSummary] = useState<ChannelFlowSummaryDTO | null>(null);
+  const [flowGroups, setFlowGroups] = useState<AutomationGroupDTO[]>([]);
   const [productCounts, setProductCounts] = useState<ChannelProductCountsDTO>({ shopee: 0, mercadolivre: 0 });
   const [tab, setTab] = useState("geral");
   const [keepLink, setKeepLink] = useState(true);
@@ -186,7 +188,12 @@ function EditChannelPage() {
       .catch(() => {
         /* mantém último snapshot */
       });
-  }, [getFlowSummaryFn, id]);
+    void listAutomationGroupsFn({ data: { channelId: id } })
+      .then(setFlowGroups)
+      .catch(() => {
+        /* mantém último snapshot */
+      });
+  }, [getFlowSummaryFn, listAutomationGroupsFn, id]);
 
   const refreshProductCounts = useCallback(() => {
     void getProductCountsFn({ data: { channelId: id } })
@@ -744,6 +751,81 @@ function EditChannelPage() {
                 </p>
               </div>
 
+              {/* Mini cards individuais: um por (WhatsApp × Grupo) já configurado */}
+              {flowGroups.length > 0 && (
+                <div className="space-y-3">
+                  <p className="px-1 text-[10.5px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Por WhatsApp × Grupo
+                  </p>
+                  {flowGroups.map((g) => {
+                    const active = g.productCount ?? 0;
+                    const ideal = Math.max(active, 50);
+                    const pct = Math.min(100, Math.round((active / Math.max(1, ideal)) * 100));
+                    const online = String(g.instanceStatus ?? "").toLowerCase() === "connected" || String(g.instanceStatus ?? "").toLowerCase() === "open";
+                    const healthy = active > 0 && online;
+                    return (
+                      <div
+                        key={`${g.instanceId}:${g.groupId}`}
+                        className={cn(
+                          "rounded-2xl border p-4",
+                          healthy
+                            ? "border-[color:var(--color-success)]/25 bg-[color:var(--color-success)]/6"
+                            : "border-amber-500/25 bg-amber-500/6",
+                        )}
+                      >
+                        <div className="flex items-start gap-2">
+                          <span
+                            className={cn(
+                              "grid h-7 w-7 shrink-0 place-items-center rounded-full",
+                              healthy
+                                ? "bg-[color:var(--color-success)]/15 text-[color:var(--color-success)]"
+                                : "bg-amber-500/15 text-amber-600",
+                            )}
+                          >
+                            <Check className="h-3.5 w-3.5" strokeWidth={3} />
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate font-display text-[13px] font-bold text-foreground">
+                              {g.groupName ?? g.groupId}
+                            </p>
+                            <p className="truncate text-[10.5px] text-muted-foreground">
+                              {g.instancePhone ?? g.instanceName}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="mt-3">
+                          <div className="flex items-baseline justify-between">
+                            <span className="font-display text-xl font-bold text-foreground">
+                              {active}
+                            </span>
+                            <span className="text-[10.5px] text-muted-foreground">
+                              de {g.productTotal ?? 0} capturados
+                            </span>
+                          </div>
+                          <p className="text-[10.5px] text-muted-foreground">produtos ativos</p>
+                          <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/60">
+                            <div
+                              className={cn(
+                                "h-full rounded-full",
+                                healthy
+                                  ? "bg-gradient-to-r from-[oklch(0.75_0.16_150)] to-[oklch(0.68_0.17_160)]"
+                                  : "bg-gradient-to-r from-amber-400 to-amber-500",
+                              )}
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                        </div>
+
+                        <p className="mt-3 text-[10.5px] leading-relaxed text-foreground/75">
+                          Intervalo <strong>{g.intervalMin} min</strong> →{" "}
+                          <strong>{g.postsPerHour} posts/hora</strong>.
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </aside>
           </div>
           )}
