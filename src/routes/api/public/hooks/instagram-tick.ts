@@ -54,6 +54,72 @@ export const Route = createFileRoute("/api/public/hooks/instagram-tick")({
             .update({ last_run_at: now.toISOString() }).eq("id", s.id);
         }
 
+        // 2) Admin (single-account) schedule → publishes latest active product as a Story
+        //    using the selected template image_url (fallback to product image).
+        try {
+          const { data: adminSchedules } = await supabaseAdmin
+            .from("instagram_admin_schedule" as any)
+            .select("id,user_id,days,hours,active,last_run_at,template_id")
+            .eq("active", true);
+          for (const s of (adminSchedules as any[]) ?? []) {
+            if (!(s.days ?? []).includes(day)) continue;
+            if (!(s.hours ?? []).includes(hour)) continue;
+            if (s.last_run_at) {
+              const last = new Date(s.last_run_at);
+              if (
+                last.getUTCFullYear() === now.getUTCFullYear() &&
+                last.getUTCMonth() === now.getUTCMonth() &&
+                last.getUTCDate() === now.getUTCDate() &&
+                last.getUTCHours() === hour
+              )
+                continue;
+            }
+            const { loadSettings } = await import("@/modules/instagram-admin/settings.server");
+            const { publishStory } = await import("@/modules/instagram-admin/graph.server");
+            const settings = await loadSettings();
+            if (!settings) continue;
+
+            let imageUrl: string | null = null;
+            if (s.template_id) {
+              const { data: tpl } = await supabaseAdmin
+                .from("instagram_story_templates")
+                .select("image_url")
+                .eq("id", s.template_id)
+                .maybeSingle();
+              if (tpl?.image_url) imageUrl = tpl.image_url;
+            }
+            if (!imageUrl) {
+              const { data: prod } = await supabaseAdmin
+                .from("products")
+                .select("image_url")
+                .eq("availability", "active")
+                .not("image_url", "is", null)
+                .order("created_at", { ascending: false })
+                .limit(1)
+                .maybeSingle();
+              imageUrl = prod?.image_url ?? null;
+            }
+            if (!imageUrl) continue;
+
+            try {
+              const storyId = await publishStory({
+                igId: settings.instagramBusinessId,
+                token: settings.accessToken,
+                imageUrl,
+              });
+              results.push({ admin: s.user_id, media: storyId });
+            } catch (e: any) {
+              results.push({ admin: s.user_id, error: String(e?.message ?? e) });
+            }
+            await supabaseAdmin
+              .from("instagram_admin_schedule" as any)
+              .update({ last_run_at: now.toISOString() })
+              .eq("id", s.id);
+          }
+        } catch (e: any) {
+          results.push({ adminScheduleError: String(e?.message ?? e) });
+        }
+
         return Response.json({ ok: true, ran: results.length, results });
       },
     },
