@@ -59,7 +59,8 @@ export const createVisualTemplate = createServerFn({ method: "POST" })
         format: data.format,
         preset: data.preset,
         channel_id: data.channelId ?? null,
-        elements,
+        elements: elements as unknown as never,
+
       })
       .select("id")
       .single();
@@ -92,7 +93,7 @@ export const saveVisualTemplate = createServerFn({ method: "POST" })
     if (data.preview_url !== undefined) patch.preview_url = data.preview_url;
     const { error } = await context.supabase
       .from("visual_templates")
-      .update(patch)
+      .update(patch as never)
       .eq("id", data.id)
       .eq("user_id", context.userId);
     if (error) throw new Error(error.message);
