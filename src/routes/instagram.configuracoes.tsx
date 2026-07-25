@@ -27,7 +27,7 @@ function Page() {
   const [token, setToken] = useState("");
   const [status, setStatus] = useState<
     | { kind: "idle" }
-    | { kind: "ok"; text: string }
+    | { kind: "ok"; info: any }
     | { kind: "err"; text: string }
   >({ kind: "idle" });
 
@@ -59,7 +59,7 @@ function Page() {
       return test({ data: { useSaved: true } });
     },
     onSuccess: (r: any) => {
-      setStatus({ kind: "ok", text: `Conectado como @${r.info.username}` });
+      setStatus({ kind: "ok", info: r.info });
       toast.success("Instagram conectado");
     },
     onError: (e: any) => {
@@ -106,18 +106,13 @@ function Page() {
               type="password"
             />
 
-            {status.kind !== "idle" && (
-              <div
-                className={
-                  status.kind === "ok"
-                    ? "rounded-lg bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700"
-                    : "rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive"
-                }
-              >
-                {status.kind === "ok" ? "🟢 " : "🔴 "}
-                {status.text}
+            {status.kind === "err" && (
+              <div className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                🔴 {status.text}
               </div>
             )}
+
+            {status.kind === "ok" && <StatusPanel info={status.info} igId={igId} />}
 
             <div className="flex flex-wrap gap-3 pt-2">
               <button
@@ -172,6 +167,31 @@ function Field({
         className="w-full rounded-lg border border-border/70 bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none"
       />
     </label>
+  );
+}
+
+function StatusPanel({ info, igId }: { info: any; igId: string }) {
+  const cap = info?.capabilities ?? { stories: true, comments: true, messages: true };
+  const dot = (ok: boolean) => (ok ? "🟢" : "🔴");
+  const Row = ({ label, value }: { label: string; value: React.ReactNode }) => (
+    <div className="flex items-baseline justify-between gap-4 text-sm">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="font-medium text-foreground text-right">{value}</span>
+    </div>
+  );
+  return (
+    <div className="space-y-3 rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4">
+      <div className="text-sm font-semibold text-emerald-700">🟢 Instagram conectado</div>
+      <div className="space-y-1.5">
+        <Row label="Conta" value={info?.username ? `@${info.username}` : "—"} />
+        <Row label="Instagram Business ID" value={igId || "—"} />
+        <Row label="Facebook Page" value={info?.pageName ?? "—"} />
+        <Row label="Webhook" value={`${dot(!!info?.webhookActive)} ${info?.webhookActive ? "Ativo" : "Inativo"}`} />
+        <Row label="Stories" value={`${dot(cap.stories)} ${cap.stories ? "Disponível" : "Indisponível"}`} />
+        <Row label="Comentários" value={`${dot(cap.comments)} ${cap.comments ? "Disponível" : "Indisponível"}`} />
+        <Row label="Mensagens" value={`${dot(cap.messages)} ${cap.messages ? "Disponível" : "Indisponível"}`} />
+      </div>
+    </div>
   );
 }
 
