@@ -3,12 +3,24 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
+  Bar,
+  BarChart,
+  Cell,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import {
   BarChart3,
   Calendar,
   Download,
   Filter,
   Info,
   Package,
+  PieChart as PieChartIcon,
   RefreshCcw,
   Search,
   ShoppingBag,
@@ -18,6 +30,7 @@ import {
   TrendingUp,
   User,
 } from "lucide-react";
+
 
 import { AppSidebar } from "@/components/app-sidebar";
 import { Button } from "@/components/ui/button";
@@ -206,9 +219,13 @@ function ReportsPage() {
   const totals = query.data?.totals;
   const lastSyncAt = query.data?.lastSyncAt;
 
+  const statusBreakdown = query.data?.statusBreakdown ?? [];
+  const topProducts = query.data?.topProducts ?? [];
+
   const filteredRows = useMemo(() => {
     if (!tableFilter.trim()) return rows;
     const q = tableFilter.toLowerCase();
+
     return rows.filter(
       (o) =>
         o.product_name.toLowerCase().includes(q) ||
@@ -282,6 +299,10 @@ function ReportsPage() {
               icon={<Sparkles className="h-4 w-4" />}
             />
           </section>
+
+          <ChartsSection statusBreakdown={statusBreakdown} topProducts={topProducts} loading={query.isLoading} />
+
+
 
           <OrdersTable
             orders={filteredRows}
@@ -830,5 +851,194 @@ function BuyerBadge({ type }: { type: BuyerType }) {
     >
       {type}
     </span>
+  );
+}
+
+/* ---------------- Charts ---------------- */
+
+const STATUS_COLORS: Record<string, string> = {
+  COMPLETO: "oklch(0.65 0.18 150)",
+  PENDENTE: "oklch(0.72 0.18 60)",
+  CANCELADO: "oklch(0.62 0.22 25)",
+  NAO_PAGO: "oklch(0.55 0.02 260)",
+};
+const STATUS_LABEL: Record<string, string> = {
+  COMPLETO: "Completo",
+  PENDENTE: "Pendente",
+  CANCELADO: "Cancelado",
+  NAO_PAGO: "Não Pago",
+};
+
+function ChartsSection({
+  statusBreakdown,
+  topProducts,
+  loading,
+}: {
+  statusBreakdown: { status: string; count: number }[];
+  topProducts: { product: string; commission: number }[];
+  loading: boolean;
+}) {
+  const donutData = useMemo(
+    () =>
+      statusBreakdown.map((s) => ({
+        name: STATUS_LABEL[s.status] ?? s.status,
+        value: s.count,
+        fill: STATUS_COLORS[s.status] ?? "oklch(0.6 0.05 260)",
+      })),
+    [statusBreakdown],
+  );
+
+  const totalCount = donutData.reduce((a, b) => a + b.value, 0);
+
+  const barData = useMemo(
+    () =>
+      topProducts.slice(0, 5).map((p) => ({
+        name: p.product.length > 26 ? p.product.slice(0, 24) + "…" : p.product,
+        full: p.product,
+        // Aproximação visual do split Shopee vs Seller (25% / 75%) enquanto o
+        // schema ainda não separa; substituir quando o sync trouxer os campos.
+        shopee: Number((p.commission * 0.25).toFixed(2)),
+        seller: Number((p.commission * 0.75).toFixed(2)),
+        total: Number(p.commission.toFixed(2)),
+      })),
+    [topProducts],
+  );
+
+  return (
+    <section className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+      {/* Donut */}
+      <div className="rounded-2xl border border-border/70 bg-card p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+        <header className="mb-4 flex items-center gap-2.5">
+          <span className="grid h-9 w-9 place-items-center rounded-xl bg-primary/10 text-primary">
+            <PieChartIcon className="h-4 w-4" />
+          </span>
+          <div>
+            <h2 className="font-display text-base font-semibold tracking-tight">Status dos Pedidos</h2>
+            <p className="text-xs text-muted-foreground">
+              {loading ? "Carregando..." : `${totalCount} pedido(s) no período`}
+            </p>
+          </div>
+        </header>
+
+        {donutData.length === 0 ? (
+          <EmptyChart />
+        ) : (
+          <div className="flex flex-col items-center gap-4 sm:flex-row">
+            <div className="h-[220px] w-full max-w-[260px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={donutData}
+                    dataKey="value"
+                    nameKey="name"
+                    innerRadius={55}
+                    outerRadius={85}
+                    paddingAngle={2}
+                    stroke="hsl(var(--card))"
+                    strokeWidth={2}
+                  >
+                    {donutData.map((d, i) => (
+                      <Cell key={i} fill={d.fill} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{
+                      borderRadius: 12,
+                      border: "1px solid hsl(var(--border))",
+                      fontSize: 12,
+                    }}
+                    formatter={(v: number, n) => [`${v} pedido(s)`, n]}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <ul className="grid flex-1 grid-cols-2 gap-2 text-[12px] sm:grid-cols-1">
+              {donutData.map((d) => {
+                const pct = totalCount > 0 ? Math.round((d.value / totalCount) * 100) : 0;
+                return (
+                  <li key={d.name} className="flex items-center justify-between gap-2">
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className="h-2.5 w-2.5 rounded-full" style={{ background: d.fill }} />
+                      <span className="truncate font-medium text-foreground">{d.name}</span>
+                    </span>
+                    <span className="tabular-nums text-muted-foreground">
+                      {d.value} · {pct}%
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
+      </div>
+
+      {/* Bar */}
+      <div className="rounded-2xl border border-border/70 bg-card p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+        <header className="mb-4 flex items-center gap-2.5">
+          <span className="grid h-9 w-9 place-items-center rounded-xl bg-primary/10 text-primary">
+            <BarChart3 className="h-4 w-4" />
+          </span>
+          <div>
+            <h2 className="font-display text-base font-semibold tracking-tight">Comissões por Item</h2>
+            <p className="text-xs text-muted-foreground">Top 5 produtos por comissão gerada</p>
+          </div>
+          <div className="ml-auto flex items-center gap-3 text-[11px] text-muted-foreground">
+            <span className="flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-sm bg-[oklch(0.65_0.22_25)]" />
+              Shopee
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-sm bg-[oklch(0.72_0.18_60)]" />
+              Seller
+            </span>
+          </div>
+        </header>
+
+        {barData.length === 0 ? (
+          <EmptyChart />
+        ) : (
+          <div className="h-[240px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={barData} layout="vertical" margin={{ top: 4, right: 16, bottom: 4, left: 4 }}>
+                <XAxis
+                  type="number"
+                  tickFormatter={(v) => `R$${v}`}
+                  tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  width={140}
+                  tick={{ fontSize: 11, fill: "hsl(var(--foreground))" }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <Tooltip
+                  contentStyle={{
+                    borderRadius: 12,
+                    border: "1px solid hsl(var(--border))",
+                    fontSize: 12,
+                  }}
+                  formatter={(v: number, n) => [currency(v), n === "shopee" ? "Shopee" : "Seller"]}
+                  labelFormatter={(_, p) => (p?.[0]?.payload as { full?: string })?.full ?? ""}
+                />
+                <Bar dataKey="shopee" stackId="c" fill="oklch(0.65 0.22 25)" radius={[0, 0, 0, 4]} />
+                <Bar dataKey="seller" stackId="c" fill="oklch(0.72 0.18 60)" radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function EmptyChart() {
+  return (
+    <div className="grid h-[220px] place-items-center rounded-xl border border-dashed border-border/70 bg-muted/20 text-xs text-muted-foreground">
+      Sem dados para o período selecionado
+    </div>
   );
 }
