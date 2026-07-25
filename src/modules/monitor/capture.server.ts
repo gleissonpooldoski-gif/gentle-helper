@@ -285,8 +285,8 @@ async function fetchOgMeta(url: string): Promise<OgMeta> {
  */
 async function fetchShopeePdp(
   url: string,
-): Promise<{ title: string | null; image: string | null; price: number | null; priceBefore: number | null }> {
-  const empty = { title: null, image: null, price: null, priceBefore: null };
+): Promise<{ title: string | null; image: string | null; price: number | null; priceBefore: number | null; sold: number | null; soldLabel: string | null }> {
+  const empty = { title: null, image: null, price: null, priceBefore: null, sold: null, soldLabel: null };
   try {
     const u = new URL(url);
     const path = u.pathname;
