@@ -735,3 +735,56 @@ export const getInstagramDiagnostics = createServerFn({ method: "GET" })
     };
   });
 
+/* ---- Recurring Story Schedule ---- */
+
+export type AdminSchedule = {
+  days: number[];
+  hours: number[];
+  templateId: string | null;
+  active: boolean;
+  lastRunAt: string | null;
+};
+
+export const getAdminStorySchedule = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<AdminSchedule> => {
+    const { data, error } = await (context.supabase as any)
+      .from("instagram_admin_schedule")
+      .select("days,hours,template_id,active,last_run_at")
+      .eq("user_id", context.userId)
+      .maybeSingle();
+    if (error) throw error;
+    return {
+      days: data?.days ?? [],
+      hours: data?.hours ?? [],
+      templateId: data?.template_id ?? null,
+      active: data?.active ?? true,
+      lastRunAt: data?.last_run_at ?? null,
+    };
+  });
+
+const scheduleInput = z.object({
+  days: z.array(z.number().int().min(0).max(6)).max(7),
+  hours: z.array(z.number().int().min(0).max(23)).max(24),
+  templateId: z.string().uuid().optional().nullable(),
+  active: z.boolean().optional(),
+});
+
+export const saveAdminStorySchedule = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: z.infer<typeof scheduleInput>) => scheduleInput.parse(d))
+  .handler(async ({ data, context }) => {
+    const payload = {
+      user_id: context.userId,
+      days: Array.from(new Set(data.days)).sort((a, b) => a - b),
+      hours: Array.from(new Set(data.hours)).sort((a, b) => a - b),
+      template_id: data.templateId ?? null,
+      active: data.active ?? true,
+    };
+    const { error } = await (context.supabase as any)
+      .from("instagram_admin_schedule")
+      .upsert(payload, { onConflict: "user_id" });
+    if (error) throw error;
+    return { ok: true };
+  });
+
