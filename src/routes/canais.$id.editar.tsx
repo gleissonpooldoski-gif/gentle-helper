@@ -1405,7 +1405,7 @@ function InstagramPanel({ channelId }: { channelId: string }) {
   const handleConnect = async () => {
     try {
       const { url } = await startOAuthFn({
-        data: { channelId, origin: window.location.origin },
+        data: { channelId },
       });
       window.location.href = url;
     } catch (e: any) { toast.error(String(e?.message ?? e)); }

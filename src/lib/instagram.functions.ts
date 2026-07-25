@@ -5,7 +5,6 @@ import { z } from "zod";
 const channelInput = z.object({ channelId: z.string().uuid() });
 const oauthInput = z.object({
   channelId: z.string().uuid(),
-  origin: z.string().url(),
 });
 
 export type IgConnectionView = {
@@ -52,17 +51,13 @@ export const getInstagramConnection = createServerFn({ method: "POST" })
 
 export const startInstagramOAuth = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { channelId: string; origin: string }) => oauthInput.parse(d))
+  .inputValidator((d: { channelId: string }) => oauthInput.parse(d))
   .handler(async ({ data, context }): Promise<{ url: string }> => {
     const clientId = process.env.META_APP_ID;
     if (!clientId) throw new Error("META_APP_ID missing");
-    const originUrl = new URL(data.origin);
-    const isLocal = originUrl.hostname === "localhost" || originUrl.hostname === "127.0.0.1";
-    const isHttps = originUrl.protocol === "https:";
-    const allowedSuffixes = [".lovable.app", ".vercel.app"];
-    const isAllowedHost = isHttps && allowedSuffixes.some((s) => originUrl.hostname.endsWith(s));
-    if (!isLocal && !isAllowedHost) throw new Error("Origem inválida para conectar o Instagram");
-    const redirectUri = `${originUrl.origin}/api/public/instagram/callback`;
+    const oauthOrigin = process.env.META_OAUTH_ORIGIN;
+    if (!oauthOrigin) throw new Error("META_OAUTH_ORIGIN missing");
+    const redirectUri = `${new URL(oauthOrigin).origin}/api/public/instagram/callback`;
     const { buildOAuthAuthorizeUrl } = await import("./instagram-graph.server");
     const state = Buffer.from(JSON.stringify({ u: context.userId, c: data.channelId })).toString("base64url");
     return { url: buildOAuthAuthorizeUrl({ clientId, redirectUri, state }) };
