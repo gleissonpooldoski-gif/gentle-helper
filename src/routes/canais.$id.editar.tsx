@@ -155,6 +155,7 @@ function EditChannelPage() {
   const [channel, setChannel] = useState<ChannelDTO | null>(null);
   const [channelError, setChannelError] = useState<string | null>(null);
   const [flowSummary, setFlowSummary] = useState<ChannelFlowSummaryDTO | null>(null);
+  const [flowGroups, setFlowGroups] = useState<AutomationGroupDTO[]>([]);
   const [productCounts, setProductCounts] = useState<ChannelProductCountsDTO>({ shopee: 0, mercadolivre: 0 });
   const [tab, setTab] = useState("geral");
   const [keepLink, setKeepLink] = useState(true);
