@@ -241,6 +241,13 @@ export const saveMonitorGroups = createServerFn({ method: "POST" })
         const proto = "https";
         let host: string | null = null;
         try { host = getRequestHost({ xForwardedHost: true }); } catch { /* noop */ }
+        // A URL do editor (id-preview--<uuid>.lovable.app) redireciona (302) para
+        // chamadas externas — a Evolution nunca conseguiria postar. Reescreve
+        // para a URL estável de preview: project--<uuid>-dev.lovable.app.
+        if (host && host.startsWith("id-preview--")) {
+          const rest = host.substring("id-preview--".length); // <uuid>.lovable.app
+          host = `project--${rest.replace(".lovable.app", "")}-dev.lovable.app`;
+        }
         const webhookUrl = host
           ? `${proto}://${host}/api/public/whatsapp/webhook`
           : null;
