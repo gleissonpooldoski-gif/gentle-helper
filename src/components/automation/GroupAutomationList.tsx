@@ -272,8 +272,16 @@ function GroupCard({
 
       {/* Status */}
       <div className="flex items-center lg:justify-center">
-        <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${statusTone}`}>
-          {statusLabel}
+        <span
+          className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+            effectiveRunning
+              ? "bg-emerald-500/15 text-emerald-700"
+              : isError
+              ? "bg-red-500/15 text-red-700"
+              : "bg-muted text-muted-foreground"
+          }`}
+        >
+          {effectiveRunning ? "Ativa" : statusLabel}
         </span>
       </div>
 
@@ -291,19 +299,19 @@ function GroupCard({
         <Button
           type="button"
           size="sm"
-          variant={isRunning ? "secondary" : "default"}
+          variant={effectiveRunning ? "secondary" : "default"}
           className="gap-1.5"
           onClick={doToggle}
           disabled={busy}
         >
           {busy ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : isRunning ? (
+          ) : effectiveRunning ? (
             <Pause className="h-3.5 w-3.5" />
           ) : (
             <Play className="h-3.5 w-3.5" />
           )}
-          {isRunning ? "Pausar" : "Retomar"}
+          {effectiveRunning ? "Pausar" : "Retomar"}
         </Button>
       </div>
     </article>
