@@ -399,6 +399,343 @@ export type Database = {
         }
         Relationships: []
       }
+      instagram_connections: {
+        Row: {
+          access_token_ciphertext: string | null
+          auto_post_enabled: boolean
+          channel_id: string
+          created_at: string
+          disable_comment_reply: boolean
+          facebook_page_id: string | null
+          followers_count: number
+          follows_count: number
+          growth_enabled: boolean
+          id: string
+          instagram_account_id: string | null
+          last_error: string | null
+          media_count: number
+          name: string | null
+          profile_picture: string | null
+          status: string
+          token_expires_at: string | null
+          updated_at: string
+          user_id: string
+          username: string | null
+        }
+        Insert: {
+          access_token_ciphertext?: string | null
+          auto_post_enabled?: boolean
+          channel_id: string
+          created_at?: string
+          disable_comment_reply?: boolean
+          facebook_page_id?: string | null
+          followers_count?: number
+          follows_count?: number
+          growth_enabled?: boolean
+          id?: string
+          instagram_account_id?: string | null
+          last_error?: string | null
+          media_count?: number
+          name?: string | null
+          profile_picture?: string | null
+          status?: string
+          token_expires_at?: string | null
+          updated_at?: string
+          user_id: string
+          username?: string | null
+        }
+        Update: {
+          access_token_ciphertext?: string | null
+          auto_post_enabled?: boolean
+          channel_id?: string
+          created_at?: string
+          disable_comment_reply?: boolean
+          facebook_page_id?: string | null
+          followers_count?: number
+          follows_count?: number
+          growth_enabled?: boolean
+          id?: string
+          instagram_account_id?: string | null
+          last_error?: string | null
+          media_count?: number
+          name?: string | null
+          profile_picture?: string | null
+          status?: string
+          token_expires_at?: string | null
+          updated_at?: string
+          user_id?: string
+          username?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "instagram_connections_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      instagram_events: {
+        Row: {
+          channel_id: string | null
+          connection_id: string | null
+          created_at: string
+          id: string
+          kind: string
+          payload: Json | null
+          product_id: string | null
+          user_id: string
+        }
+        Insert: {
+          channel_id?: string | null
+          connection_id?: string | null
+          created_at?: string
+          id?: string
+          kind: string
+          payload?: Json | null
+          product_id?: string | null
+          user_id: string
+        }
+        Update: {
+          channel_id?: string | null
+          connection_id?: string | null
+          created_at?: string
+          id?: string
+          kind?: string
+          payload?: Json | null
+          product_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "instagram_events_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "instagram_events_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "instagram_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "instagram_events_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      instagram_keywords: {
+        Row: {
+          action: string
+          active: boolean
+          channel_id: string
+          comment_reply_enabled: boolean
+          comment_reply_text: string
+          created_at: string
+          id: string
+          keyword: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          action?: string
+          active?: boolean
+          channel_id: string
+          comment_reply_enabled?: boolean
+          comment_reply_text?: string
+          created_at?: string
+          id?: string
+          keyword: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          action?: string
+          active?: boolean
+          channel_id?: string
+          comment_reply_enabled?: boolean
+          comment_reply_text?: string
+          created_at?: string
+          id?: string
+          keyword?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "instagram_keywords_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      instagram_posts: {
+        Row: {
+          caption: string | null
+          channel_id: string
+          created_at: string
+          error_message: string | null
+          id: string
+          instagram_media_id: string | null
+          kind: string
+          product_id: string | null
+          published_at: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          caption?: string | null
+          channel_id: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          instagram_media_id?: string | null
+          kind?: string
+          product_id?: string | null
+          published_at?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          caption?: string | null
+          channel_id?: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          instagram_media_id?: string | null
+          kind?: string
+          product_id?: string | null
+          published_at?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "instagram_posts_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "instagram_posts_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      instagram_story_schedule: {
+        Row: {
+          active: boolean
+          channel_id: string
+          created_at: string
+          days: number[]
+          hours: number[]
+          id: string
+          last_run_at: string | null
+          template_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          active?: boolean
+          channel_id: string
+          created_at?: string
+          days?: number[]
+          hours?: number[]
+          id?: string
+          last_run_at?: string | null
+          template_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          active?: boolean
+          channel_id?: string
+          created_at?: string
+          days?: number[]
+          hours?: number[]
+          id?: string
+          last_run_at?: string | null
+          template_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "instagram_story_schedule_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "instagram_story_schedule_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "instagram_story_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      instagram_story_templates: {
+        Row: {
+          active: boolean
+          caption_template: string
+          channel_id: string
+          created_at: string
+          id: string
+          image_url: string
+          price_color: string
+          title_color: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          active?: boolean
+          caption_template?: string
+          channel_id: string
+          created_at?: string
+          id?: string
+          image_url: string
+          price_color?: string
+          title_color?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          active?: boolean
+          caption_template?: string
+          channel_id?: string
+          created_at?: string
+          id?: string
+          image_url?: string
+          price_color?: string
+          title_color?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "instagram_story_templates_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       manual_posts: {
         Row: {
           channel_id: string
