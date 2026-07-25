@@ -499,10 +499,17 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
           <Button
             size="sm"
             variant="secondary"
-            onClick={() => setAdoptOpen(true)}
+            onClick={handleImportAll}
+            disabled={busy === "adopt"}
+            title="Importa todas as instâncias já criadas na Evolution API"
             className="bg-white/10 text-white ring-1 ring-white/30 hover:bg-white/20"
           >
-            <Download className="mr-1 h-4 w-4" /> Importar existente
+            {busy === "adopt" ? (
+              <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+            ) : (
+              <Download className="mr-1 h-4 w-4" />
+            )}
+            Importar existentes
           </Button>
           <Button
             size="sm"
