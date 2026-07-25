@@ -1,6 +1,18 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { Loader2, Pencil, Users, Smartphone } from "lucide-react";
+import {
+  Loader2,
+  Pencil,
+  Users,
+  Smartphone,
+  Package,
+  Pause,
+  Play,
+  Clock,
+  Eye,
+  CheckCircle2,
+  AlertCircle,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -10,55 +22,41 @@ import {
 } from "@/components/ui/dialog";
 import {
   listAutomationGroups,
+  listGroupProducts,
+  toggleGroupAutomation,
   type AutomationGroupDTO,
+  type GroupProductDTO,
 } from "@/modules/automation/automation.functions";
 import { AutomationPanel } from "./AutomationPanel";
 
 /**
- * Lista grupos agrupados por instância WhatsApp. Cada WhatsApp conectado
- * aparece como um bloco com os grupos que o usuário selecionou naquele
- * número. Cada "Editar" abre o AutomationPanel escopado por (canal, grupo)
- * e pré-vinculado à instância correta.
+ * Cada card = 1 WhatsApp × 1 grupo. Sem empilhamento — cada unidade
+ * tem seus próprios contadores (produtos, último envio, status) e
+ * ações isoladas (Editar, Ver produtos, Configurar horários, Pausar).
  */
 export function GroupAutomationList({ channelId }: { channelId: string }) {
   const listFn = useServerFn(listAutomationGroups);
   const [groups, setGroups] = useState<AutomationGroupDTO[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [open, setOpen] = useState<AutomationGroupDTO | null>(null);
+  const [editing, setEditing] = useState<AutomationGroupDTO | null>(null);
+  const [viewingProducts, setViewingProducts] = useState<AutomationGroupDTO | null>(null);
+
+  const reload = async () => {
+    try {
+      const g = await listFn({ data: { channelId } });
+      setGroups(g);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Falha ao carregar grupos");
+    }
+  };
 
   useEffect(() => {
     setGroups(null);
-    setOpen(null);
+    setEditing(null);
     setError(null);
-    let cancelled = false;
-    (async () => {
-      try {
-        const g = await listFn({ data: { channelId } });
-        if (!cancelled) setGroups(g);
-      } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : "Falha ao carregar grupos");
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+    reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channelId]);
-
-  const grouped = useMemo(() => {
-    const map = new Map<string, { instanceName: string; instancePhone: string | null; instanceStatus: string | null; items: AutomationGroupDTO[] }>();
-    for (const g of groups ?? []) {
-      const cur = map.get(g.instanceId);
-      if (cur) cur.items.push(g);
-      else map.set(g.instanceId, {
-        instanceName: g.instanceName,
-        instancePhone: g.instancePhone,
-        instanceStatus: g.instanceStatus,
-        items: [g],
-      });
-    }
-    return Array.from(map.entries());
-  }, [groups]);
 
   if (error) {
     return (
@@ -77,90 +75,301 @@ export function GroupAutomationList({ channelId }: { channelId: string }) {
   if (groups.length === 0) {
     return (
       <div className="rounded-2xl border border-border/70 bg-card p-5 text-sm text-muted-foreground">
-        Nenhum grupo selecionado ainda. Vá na aba <b>WhatsApp</b>, escolha um número conectado e marque os grupos que ele deve enviar — eles aparecerão aqui automaticamente.
+        Nenhum grupo selecionado ainda. Vá na aba <b>WhatsApp</b>, escolha um número conectado e marque os grupos que ele deve enviar — cada grupo escolhido vira um card independente aqui.
       </div>
     );
   }
 
   return (
     <>
-      <div className="space-y-6">
-        {grouped.map(([instanceId, block]) => (
-          <section key={instanceId} className="space-y-3">
-            <header className="flex items-center justify-between gap-3 px-1">
-              <div className="flex min-w-0 items-center gap-2">
-                <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-emerald-500/15 text-emerald-600">
-                  <Smartphone className="h-3.5 w-3.5" />
-                </span>
-                <div className="min-w-0">
-                  <p className="truncate text-[12px] font-semibold text-foreground">
-                    {block.instancePhone ?? block.instanceName}
-                  </p>
-                  <p className="truncate text-[10.5px] text-muted-foreground">
-                    {block.instanceName}
-                    {block.instanceStatus === "connected" ? " · ✅ Conectado" : ""}
-                  </p>
-                </div>
-              </div>
-              <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10.5px] font-medium text-muted-foreground">
-                {block.items.length} grupo(s)
-              </span>
-            </header>
-
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {block.items.map((g, i) => (
-                <div
-                  key={`${g.instanceId}:${g.groupId}`}
-                  className="flex items-center gap-3 rounded-2xl border border-border/70 bg-card p-4 transition hover:border-primary/40 hover:shadow-sm"
-                >
-                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-[11px] font-bold text-primary">
-                    G{i + 1}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-[13px] font-semibold text-foreground" title={g.groupName ?? g.groupId}>
-                      {g.groupName ?? g.groupId}
-                    </p>
-                    <p className="truncate text-[11px] text-muted-foreground">
-                      Automação independente
-                    </p>
-                  </div>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="shrink-0 gap-1.5"
-                    onClick={() => setOpen(g)}
-                  >
-                    <Pencil className="h-3.5 w-3.5" /> Editar
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </section>
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {groups.map((g) => (
+          <GroupCard
+            key={`${g.instanceId}:${g.groupId}`}
+            item={g}
+            channelId={channelId}
+            onEdit={() => setEditing(g)}
+            onViewProducts={() => setViewingProducts(g)}
+            onToggled={reload}
+          />
         ))}
       </div>
 
-
-      <Dialog open={!!open} onOpenChange={(v) => !v && setOpen(null)}>
+      <Dialog open={!!editing} onOpenChange={(v) => !v && (setEditing(null), reload())}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base">
               <Users className="h-4 w-4" />
-              {open ? `Automação — ${open.groupName ?? open.groupId}` : "Automação"}
+              {editing ? `Automação — ${editing.groupName ?? editing.groupId}` : "Automação"}
             </DialogTitle>
           </DialogHeader>
-          {open && (
+          {editing && (
             <AutomationPanel
-              key={`${channelId}:${open.instanceId}:${open.groupId}`}
+              key={`${channelId}:${editing.instanceId}:${editing.groupId}`}
               channelId={channelId}
-              groupId={open.groupId}
-              groupName={open.groupName}
-              instanceId={open.instanceId}
-              title={`Configuração — ${open.instanceName}`}
+              groupId={editing.groupId}
+              groupName={editing.groupName}
+              instanceId={editing.instanceId}
+              title={`Configuração — ${editing.instanceName}`}
             />
           )}
         </DialogContent>
       </Dialog>
+
+      <ProductsDialog
+        channelId={channelId}
+        group={viewingProducts}
+        onClose={() => setViewingProducts(null)}
+      />
     </>
+  );
+}
+
+function GroupCard({
+  item,
+  channelId,
+  onEdit,
+  onViewProducts,
+  onToggled,
+}: {
+  item: AutomationGroupDTO;
+  channelId: string;
+  onEdit: () => void;
+  onViewProducts: () => void;
+  onToggled: () => void;
+}) {
+  const toggleFn = useServerFn(toggleGroupAutomation);
+  const [busy, setBusy] = useState(false);
+  const isRunning = item.automationStatus === "running" || item.automationStatus === "waiting";
+  const isError = item.automationStatus === "error";
+  const isConnected = item.instanceStatus === "connected";
+
+  const statusLabel = (() => {
+    switch (item.automationStatus) {
+      case "running": return "Ativa";
+      case "waiting": return "Aguardando janela";
+      case "error": return "Erro";
+      case "done": return "Concluída";
+      case "idle": return "Pausada";
+      default: return "Sem configuração";
+    }
+  })();
+
+  const statusTone = isRunning
+    ? "bg-emerald-500/15 text-emerald-700"
+    : isError
+    ? "bg-red-500/15 text-red-700"
+    : "bg-muted text-muted-foreground";
+
+  const doToggle = async () => {
+    if (!item.configId) {
+      onEdit();
+      return;
+    }
+    setBusy(true);
+    try {
+      await toggleFn({
+        data: { channelId, groupId: item.groupId, pause: isRunning },
+      });
+      onToggled();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <article className="flex flex-col gap-4 rounded-2xl border border-border/70 bg-card p-4 shadow-sm transition hover:border-primary/40 hover:shadow-md">
+      {/* Cabeçalho: WhatsApp responsável */}
+      <header className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-emerald-500/15 text-emerald-600">
+            <Smartphone className="h-4 w-4" />
+          </span>
+          <div className="min-w-0">
+            <p className="truncate text-[13px] font-semibold text-foreground">
+              {item.instancePhone ?? item.instanceName}
+            </p>
+            <p className="truncate text-[11px] text-muted-foreground">
+              {item.instanceName}
+            </p>
+          </div>
+        </div>
+        <span
+          className={`shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-medium ${
+            isConnected
+              ? "bg-emerald-500/15 text-emerald-700"
+              : "bg-amber-500/15 text-amber-700"
+          }`}
+        >
+          {isConnected ? <CheckCircle2 className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}
+          {isConnected ? "Conectado" : "Offline"}
+        </span>
+      </header>
+
+      {/* Grupo vinculado */}
+      <div className="rounded-xl border border-dashed border-border/80 bg-muted/30 p-3">
+        <p className="flex items-center gap-1.5 text-[10.5px] font-medium uppercase tracking-wide text-muted-foreground">
+          <Users className="h-3 w-3" /> Grupo vinculado
+        </p>
+        <p className="mt-1 truncate text-[13.5px] font-semibold text-foreground" title={item.groupName ?? item.groupId}>
+          {item.groupName ?? item.groupId}
+        </p>
+      </div>
+
+      {/* Métricas do grupo */}
+      <div className="grid grid-cols-2 gap-2">
+        <Metric
+          icon={<Package className="h-3.5 w-3.5" />}
+          label="Produtos"
+          value={String(item.productCount)}
+        />
+        <Metric
+          icon={<Clock className="h-3.5 w-3.5" />}
+          label="Último envio"
+          value={formatRelative(item.lastSentAt)}
+        />
+      </div>
+
+      {/* Status automação */}
+      <div className="flex items-center justify-between rounded-xl bg-muted/40 px-3 py-2">
+        <span className="text-[11px] font-medium text-muted-foreground">Automação</span>
+        <span className={`rounded-full px-2 py-0.5 text-[10.5px] font-semibold ${statusTone}`}>
+          {statusLabel}
+        </span>
+      </div>
+
+      {/* Ações */}
+      <div className="grid grid-cols-2 gap-2">
+        <Button type="button" size="sm" variant="outline" className="gap-1.5" onClick={onEdit}>
+          <Pencil className="h-3.5 w-3.5" /> Editar
+        </Button>
+        <Button type="button" size="sm" variant="outline" className="gap-1.5" onClick={onViewProducts}>
+          <Eye className="h-3.5 w-3.5" /> Ver produtos
+        </Button>
+        <Button type="button" size="sm" variant="outline" className="gap-1.5" onClick={onEdit}>
+          <Clock className="h-3.5 w-3.5" /> Horários
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant={isRunning ? "secondary" : "default"}
+          className="gap-1.5"
+          onClick={doToggle}
+          disabled={busy}
+        >
+          {busy ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : isRunning ? (
+            <Pause className="h-3.5 w-3.5" />
+          ) : (
+            <Play className="h-3.5 w-3.5" />
+          )}
+          {isRunning ? "Pausar" : "Retomar"}
+        </Button>
+      </div>
+    </article>
+  );
+}
+
+function Metric({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-border/60 bg-background/60 px-3 py-2">
+      <p className="flex items-center gap-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+        {icon} {label}
+      </p>
+      <p className="mt-0.5 truncate text-[13px] font-semibold text-foreground">{value}</p>
+    </div>
+  );
+}
+
+function formatRelative(iso: string | null): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  const diff = Date.now() - d.getTime();
+  const min = Math.round(diff / 60000);
+  if (min < 1) return "agora";
+  if (min < 60) return `${min} min`;
+  const h = Math.round(min / 60);
+  if (h < 24) return `${h}h`;
+  const days = Math.round(h / 24);
+  return `${days}d`;
+}
+
+function ProductsDialog({
+  channelId,
+  group,
+  onClose,
+}: {
+  channelId: string;
+  group: AutomationGroupDTO | null;
+  onClose: () => void;
+}) {
+  const listFn = useServerFn(listGroupProducts);
+  const [items, setItems] = useState<GroupProductDTO[] | null>(null);
+  useEffect(() => {
+    if (!group) {
+      setItems(null);
+      return;
+    }
+    let cancelled = false;
+    setItems(null);
+    listFn({ data: { channelId, groupJid: group.groupId } })
+      .then((r) => !cancelled && setItems(r))
+      .catch(() => !cancelled && setItems([]));
+    return () => {
+      cancelled = true;
+    };
+  }, [group, channelId, listFn]);
+
+  return (
+    <Dialog open={!!group} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-base">
+            <Package className="h-4 w-4" />
+            Produtos — {group?.groupName ?? group?.groupId}
+          </DialogTitle>
+        </DialogHeader>
+        {items === null ? (
+          <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" /> Carregando produtos…
+          </div>
+        ) : items.length === 0 ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">
+            Nenhum produto capturado deste grupo ainda.
+          </p>
+        ) : (
+          <div className="max-h-[60vh] space-y-2 overflow-y-auto pr-1">
+            {items.map((p) => (
+              <div key={p.id} className="flex items-center gap-3 rounded-xl border border-border/60 bg-card p-2.5">
+                {p.imageUrl ? (
+                  <img src={p.imageUrl} alt="" className="h-12 w-12 shrink-0 rounded-lg object-cover" />
+                ) : (
+                  <div className="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-muted">
+                    <Package className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[12.5px] font-medium text-foreground">{p.title}</p>
+                  <p className="text-[10.5px] uppercase tracking-wide text-muted-foreground">
+                    {p.platform}
+                    {p.promoPrice != null ? ` · R$ ${p.promoPrice.toFixed(2)}` : ""}
+                  </p>
+                </div>
+                <span
+                  className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                    p.availability === "active"
+                      ? "bg-emerald-500/15 text-emerald-700"
+                      : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  {p.availability === "active" ? "Ativo" : p.availability}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
