@@ -33,6 +33,31 @@ const HOST_TO_PLATFORM: Array<{ match: RegExp; platform: Platform }> = [
 
 const URL_REGEX = /https?:\/\/[^\s<>"']+/gi;
 
+/** Parâmetros de rastreamento/afiliado de terceiros que precisam ser removidos. */
+const TRACKING_PARAM_PATTERNS: RegExp[] = [
+  /^af_id$/i, /^smtt$/i, /^af_.*/i, /^utm_.*/i, /^ref$/i, /^referrer$/i,
+  /^tag$/i, /^ascsubtag$/i, /^linkCode$/i, /^linkId$/i, // amazon
+  /^matt_.*/i, /^tracking_id$/i, /^pdp_.*/i, // mercadolivre/aliexpress
+  /^aff_.*/i, /^sk$/i, /^src$/i, /^dp_.*/i,
+  /^partner_id$/i, // magalu
+  /^gclid$/i, /^fbclid$/i,
+];
+
+function stripThirdPartyTracking(rawUrl: string): string {
+  try {
+    const u = new URL(rawUrl);
+    const keys = Array.from(u.searchParams.keys());
+    for (const k of keys) {
+      if (TRACKING_PARAM_PATTERNS.some((re) => re.test(k))) {
+        u.searchParams.delete(k);
+      }
+    }
+    return u.toString();
+  } catch {
+    return rawUrl;
+  }
+}
+
 export function extractUrls(text: string): string[] {
   if (!text) return [];
   const matches = text.match(URL_REGEX) ?? [];
