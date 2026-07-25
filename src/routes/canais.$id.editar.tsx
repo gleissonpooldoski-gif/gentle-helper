@@ -3247,10 +3247,17 @@ function MercadoLivrePanel({ onCountsChanged }: { onCountsChanged?: () => void }
                     <div className="relative aspect-square w-full overflow-hidden bg-muted/40">
                       {p.thumbnail ? (
                         <img
-                          src={p.thumbnail}
+                          src={toThumbUrl(p.thumbnail)}
                           alt={p.title}
                           loading="lazy"
+                          decoding="async"
+                          width={240}
+                          height={240}
                           className="h-full w-full object-contain"
+                          onError={(e) => {
+                            const img = e.currentTarget;
+                            if (p.thumbnail && img.src !== p.thumbnail) img.src = p.thumbnail;
+                          }}
                         />
                       ) : (
                         <div className="flex h-full items-center justify-center text-4xl text-muted-foreground">🛒</div>
