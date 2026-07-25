@@ -101,6 +101,10 @@ export function renderPost(
     parcelamento: product.parcelamento ?? "",
     vendas: product.vendas != null ? String(product.vendas) : "",
     link: product.link,
+    store: product.store ?? "",
+    category: product.category ?? "",
+    image: product.image ?? "",
+    discount: product.discount != null ? String(product.discount) : "",
   };
 
   const blocks: string[] = [];
