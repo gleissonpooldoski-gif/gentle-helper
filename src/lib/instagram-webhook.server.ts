@@ -18,8 +18,8 @@ export async function handleInstagramWebhook(payload: any): Promise<void> {
       .select("*")
       .eq("instagram_account_id", igAccountId)
       .maybeSingle();
-    if (!conn || !conn.access_token_ciphertext) continue;
-
+    if (!conn || !conn.access_token_ciphertext || !conn.instagram_account_id) continue;
+    const igId: string = conn.instagram_account_id;
     const token = decryptToken(conn.access_token_ciphertext);
 
     // COMMENTS
