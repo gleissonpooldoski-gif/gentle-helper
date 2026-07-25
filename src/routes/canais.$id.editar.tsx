@@ -3836,19 +3836,33 @@ function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {})
       }
 
       const BATCH = 200;
+      const PARALLEL = 3; // até 3 chunks em voo (600 linhas por rodada)
       let inserted = 0;
       let updated = 0;
+      let processed = 0;
       setProgress({ done: 0, total: rows.length });
 
-      for (let i = 0; i < rows.length; i += BATCH) {
-        const chunk = rows.slice(i, i + BATCH);
-        const outcome = await importBatchFn({
-          data: { channelId, sourceGroupJid: importGroupJid, rows: chunk },
-        });
-        inserted += outcome.inserted;
-        updated += outcome.updated;
-        setProgress({ done: Math.min(i + chunk.length, rows.length), total: rows.length });
-      }
+      const chunks: (typeof rows)[] = [];
+      for (let i = 0; i < rows.length; i += BATCH) chunks.push(rows.slice(i, i + BATCH));
+
+      let cursor = 0;
+      const runner = async () => {
+        while (cursor < chunks.length) {
+          const idx = cursor++;
+          const chunk = chunks[idx]!;
+          const outcome = await importBatchFn({
+            data: { channelId, sourceGroupJid: importGroupJid, rows: chunk },
+          });
+          inserted += outcome.inserted;
+          updated += outcome.updated;
+          processed += chunk.length;
+          setProgress({ done: processed, total: rows.length });
+        }
+      };
+      await Promise.all(
+        Array.from({ length: Math.min(PARALLEL, chunks.length) }, () => runner()),
+      );
+
 
       await reloadProducts();
 
