@@ -25,6 +25,7 @@ import {
   disconnectWhatsAppInstance,
   deleteWhatsAppInstance,
   adoptEvolutionInstance,
+  importAllEvolutionInstances,
   fetchWhatsAppGroups,
   saveWhatsAppGroupSelection,
   sendWhatsAppText,
@@ -65,6 +66,7 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
   const deleteFn = useServerFn(deleteWhatsAppInstance);
 
   const adoptFn = useServerFn(adoptEvolutionInstance);
+  const importAllFn = useServerFn(importAllEvolutionInstances);
   const groupsFn = useServerFn(fetchWhatsAppGroups);
   const saveGroupsFn = useServerFn(saveWhatsAppGroupSelection);
   const sendTextFn = useServerFn(sendWhatsAppText);
@@ -401,6 +403,25 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
     }
   };
 
+  const handleImportAll = async () => {
+    try {
+      setBusy("adopt");
+      const res = await importAllFn({ data: {} });
+      if (res.imported === 0) {
+        toast.info("Nenhuma instância encontrada na Evolution API");
+      } else {
+        toast.success(
+          `${res.imported} instância(s) importada(s): ${res.names.join(", ")}`,
+        );
+      }
+      await reload();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao importar");
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const openGroups = async (i: WhatsAppInstanceDTO) => {
     setGroupsModal({ inst: i, groups: [], loading: true, filter: "" });
     try {
@@ -478,10 +499,17 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
           <Button
             size="sm"
             variant="secondary"
-            onClick={() => setAdoptOpen(true)}
+            onClick={handleImportAll}
+            disabled={busy === "adopt"}
+            title="Importa todas as instâncias já criadas na Evolution API"
             className="bg-white/10 text-white ring-1 ring-white/30 hover:bg-white/20"
           >
-            <Download className="mr-1 h-4 w-4" /> Importar existente
+            {busy === "adopt" ? (
+              <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+            ) : (
+              <Download className="mr-1 h-4 w-4" />
+            )}
+            Importar existentes
           </Button>
           <Button
             size="sm"

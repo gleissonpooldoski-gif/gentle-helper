@@ -56,28 +56,22 @@ function isExistingDivulgaLinksInstance(instanceName: string): boolean {
   return instanceName.trim().toUpperCase() === EXISTING_DIVULGA_LINKS_INSTANCE;
 }
 
-/** Lista instâncias do usuário (opcionalmente do canal). */
+/** Lista TODAS as instâncias do usuário (compartilhadas entre todos os modais). */
 export const listWhatsAppInstances = createServerFn({ method: "POST" })
   .middleware([apiClient, requireSupabaseAuth])
   .inputValidator((data: { channelId?: string } = {}) => ({
     channelId: toUuidOrNull(data?.channelId),
   }))
-  .handler(async ({ data, context }): Promise<WhatsAppInstanceDTO[]> => {
+  .handler(async ({ data: _data, context }): Promise<WhatsAppInstanceDTO[]> => {
     const { supabase, userId } = context;
-    let q = (supabase as any)
+    // Todas as instâncias conectadas na conta devem aparecer em qualquer modal
+    // de grupo/canal — a seleção de grupos permanece isolada por channel_id
+    // + instance_id em whatsapp_group_selections.
+    const { data: rows, error } = await (supabase as any)
       .from("whatsapp_instances")
       .select("*")
       .eq("user_id", userId)
       .order("created_at", { ascending: false });
-    // A instância provisionada DIVULGA LINKS é compartilhada pela conta. Ela
-    // precisa aparecer em todos os modais, enquanto as seleções continuam
-    // isoladas por channel_id + instance_id.
-    if (data.channelId) {
-      q = q.or(
-        `channel_id.eq.${data.channelId},instance_name.eq.${EXISTING_DIVULGA_LINKS_INSTANCE}`,
-      );
-    }
-    const { data: rows, error } = await q;
     if (error) throw new Error(error.message);
     return (rows ?? []).map(rowToDTO);
   });
@@ -387,6 +381,89 @@ export const adoptEvolutionInstance = createServerFn({ method: "POST" })
       .single();
     if (error) throw new Error(error.message);
     return rowToDTO(ins);
+  });
+
+/**
+ * Importa TODAS as instâncias já criadas na Evolution API para a conta do
+ * usuário, para que apareçam em todos os modais de grupos/canais.
+ */
+export const importAllEvolutionInstances = createServerFn({ method: "POST" })
+  .middleware([apiClient, requireSupabaseAuth])
+  .inputValidator(() => ({}))
+  .handler(async ({ context }): Promise<{ imported: number; names: string[] }> => {
+    const { supabase, userId } = context;
+    const { evolutionFetch } = await import("./evolution/client.server");
+    const { getWhatsAppProvider } = await import("./index.server");
+    const provider = getWhatsAppProvider("evolution");
+
+    const res = await evolutionFetch("/instance/fetchInstances");
+    const text = await res.text();
+    let parsed: any = null;
+    try { parsed = JSON.parse(text); } catch { parsed = null; }
+    const arr: any[] = Array.isArray(parsed)
+      ? parsed
+      : Array.isArray(parsed?.instances)
+        ? parsed.instances
+        : [];
+    const names = arr
+      .map((i) => i?.name ?? i?.instance?.instanceName ?? i?.instanceName ?? i?.instance?.name)
+      .filter((n: unknown): n is string => typeof n === "string" && n.trim().length > 0)
+      .map((n: string) => n.trim());
+
+    let imported = 0;
+    for (const instanceName of names) {
+      let liveStatus: string | null = null;
+      let livePhone: string | null = null;
+      try {
+        const st = await provider.getStatus(instanceName);
+        liveStatus = st.status;
+        livePhone = st.phone ?? null;
+      } catch (err) {
+        console.warn("[WA][importAll] getStatus falhou", instanceName, err);
+      }
+
+      const { data: existing } = await (supabase as any)
+        .from("whatsapp_instances")
+        .select("*")
+        .eq("user_id", userId)
+        .eq("instance_name", instanceName)
+        .maybeSingle();
+
+      const dbStatus: string | null = existing?.status ?? null;
+      const effectiveStatus =
+        liveStatus === "connected"
+          ? "connected"
+          : liveStatus === "disconnected"
+            ? "disconnected"
+            : (dbStatus ?? liveStatus ?? "disconnected");
+
+      const payload = {
+        user_id: userId,
+        provider: "evolution",
+        instance_name: instanceName,
+        status: effectiveStatus,
+        phone: livePhone ?? existing?.phone ?? null,
+        qr_code: effectiveStatus === "connected" ? null : existing?.qr_code ?? null,
+        last_seen_at:
+          effectiveStatus === "connected"
+            ? new Date().toISOString()
+            : existing?.last_seen_at ?? null,
+      };
+
+      if (existing) {
+        await (supabase as any)
+          .from("whatsapp_instances")
+          .update(payload)
+          .eq("id", existing.id);
+      } else {
+        await (supabase as any)
+          .from("whatsapp_instances")
+          .insert({ ...payload, channel_id: null });
+      }
+      imported += 1;
+    }
+
+    return { imported, names };
   });
 
 async function loadInstance(supabase: any, userId: string, id: string) {
