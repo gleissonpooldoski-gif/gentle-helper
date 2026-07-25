@@ -236,6 +236,76 @@ async function fetchOgMeta(url: string): Promise<OgMeta> {
   return best;
 }
 
+/**
+ * Enriquecimento específico Shopee via API interna /api/v4/pdp/get_pc.
+ * Retorna título/imagem/preço/preço original de forma confiável.
+ */
+async function fetchShopeePdp(
+  url: string,
+): Promise<{ title: string | null; image: string | null; price: number | null; priceBefore: number | null }> {
+  const empty = { title: null, image: null, price: null, priceBefore: null };
+  try {
+    const u = new URL(url);
+    const path = u.pathname;
+    let shopId: string | null = null;
+    let itemId: string | null = null;
+    const m1 = path.match(/\.(\d+)\.(\d+)(?:\?|$|\/)/);
+    if (m1) {
+      shopId = m1[1];
+      itemId = m1[2];
+    } else {
+      const m2 = path.match(/product\/(\d+)\/(\d+)/);
+      if (m2) {
+        shopId = m2[1];
+        itemId = m2[2];
+      }
+    }
+    if (!shopId || !itemId) return empty;
+
+    const api = `https://shopee.com.br/api/v4/pdp/get_pc?item_id=${itemId}&shop_id=${shopId}`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8_000);
+    const res = await fetch(api, {
+      signal: controller.signal,
+      headers: {
+        "x-api-source": "pc",
+        "user-agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
+        accept: "application/json",
+        referer: url,
+        "accept-language": "pt-BR,pt;q=0.9",
+      },
+    }).finally(() => clearTimeout(timer));
+    if (!res.ok) return empty;
+    const json = (await res.json()) as {
+      data?: {
+        item?: {
+          title?: string;
+          price?: number;
+          price_before_discount?: number;
+          images?: string[];
+        };
+      };
+    };
+    const item = json?.data?.item;
+    if (!item) return empty;
+    const price = item.price ? item.price / 100000 : null;
+    const priceBefore =
+      item.price_before_discount && item.price_before_discount > 0
+        ? item.price_before_discount / 100000
+        : null;
+    const image = item.images?.[0] ? `https://down-br.img.susercontent.com/file/${item.images[0]}` : null;
+    return {
+      title: item.title ?? null,
+      image,
+      price: Number.isFinite(price) && (price ?? 0) > 0 ? price : null,
+      priceBefore: Number.isFinite(priceBefore) && (priceBefore ?? 0) > 0 ? priceBefore : null,
+    };
+  } catch {
+    return empty;
+  }
+}
+
 function tagShopee(url: string, affiliateId: string): string {
   try {
     const u = new URL(url);
@@ -318,27 +388,38 @@ async function captureOne(ctx: CaptureContext, rawUrl: string): Promise<"inserte
     .limit(1)
     .maybeSingle();
 
-  // Enriquecimento (título/imagem/preço).
+  // Enriquecimento (título/imagem/preço) via OpenGraph.
   const meta = await fetchOgMeta(resolved);
   let image = meta.image;
-  if (!image && finalPlatform === "shopee") {
-    image = await scrapeShopeeImage(resolved).catch(() => null);
+  let title = meta.title;
+  let price = meta.price;
+  let priceBefore: number | null = null;
+
+  if (finalPlatform === "shopee") {
+    const pdp = await fetchShopeePdp(resolved);
+    if (pdp.title && (!title || isGenericTitle(title))) title = pdp.title;
+    if (pdp.image && !image) image = pdp.image;
+    if (pdp.price && !price) price = pdp.price;
+    if (pdp.priceBefore) priceBefore = pdp.priceBefore;
+    if (!image) {
+      image = await scrapeShopeeImage(resolved).catch(() => null);
+    }
   }
 
   const affiliate = await buildAffiliateLink(ctx.supabase, ctx.userId, finalPlatform, resolved);
-  const title = (meta.title ?? existing?.title ?? "Produto capturado").slice(0, 300);
+  const finalTitle = (title ?? existing?.title ?? "Produto capturado").slice(0, 300);
 
   const payload = {
     user_id: ctx.userId,
     channel_id: ctx.channelId,
     platform: finalPlatform,
     item_id: itemId,
-    title,
+    title: finalTitle,
     image_url: image ?? existing?.image_url ?? null,
     raw_link: resolved,
     affiliate_link: affiliate,
-    original_price: meta.price,
-    promo_price: meta.price,
+    original_price: priceBefore ?? price,
+    promo_price: price,
     availability: "active" as const,
     source: "monitor",
     source_group_jid: ctx.groupJid,
