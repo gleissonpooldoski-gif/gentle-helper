@@ -23,7 +23,7 @@ export interface PostLayout {
 }
 
 export const DEFAULT_POST_LAYOUT: PostLayout = {
-  header: "🚨 OFERTA RELÂMPAGO!!",
+  header: "🚨 <b>OFERTA RELÂMPAGO!!</b>",
   header_mode: "custom",
   title_template: "🔥🔥 <b>{title}</b> 🔥🔥",
   upper_title: true,
