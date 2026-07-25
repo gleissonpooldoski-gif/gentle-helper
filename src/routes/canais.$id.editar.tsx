@@ -424,7 +424,7 @@ function EditChannelPage() {
           ) : tab === "site" ? (
             <SiteConfigPanel channelId={id} />
           ) : tab === "instagram" ? (
-            <InstagramPanel />
+            <InstagramPanel channelId={id} />
           ) : tab === "instasched" ? (
             <InstaSchedPanel />
           ) : tab === "instabot" ? (
