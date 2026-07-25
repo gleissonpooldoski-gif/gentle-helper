@@ -1,110 +1,68 @@
-# Editor Visual de Templates (estilo Canva)
+# Plano — Fluidez + Robustez Total do SaaS
 
-Substituir o editor atual de Stories/Layouts por um editor drag-and-drop unificado, focado em afiliados. Sem JSON, sem coordenadas expostas — tudo visual.
+São 20 melhorias, agrupadas em 3 fases entregáveis. Cada fase é auto-contida: se algo quebrar no meio, o sistema continua funcionando com as anteriores aplicadas.
 
-## 1. Modelo de dados
+## Fase 1 — Fluidez (percepção instantânea)
 
-Nova tabela `visual_templates` (substitui o uso atual de `instagram_story_templates` para este fluxo):
+**Objetivo:** navegação e ações parecerem instantâneas, mesmo com >10k produtos.
 
-- `name`, `format` (`ig_story` 1080x1920, `ig_post` 1080x1080, `whatsapp` 1080x1350)
-- `channel_id` (nullable — templates admin)
-- `preset` (ex.: `oferta_relampago`, `black_friday`, `cupom`, `shopee`, `achadinhos`, `viral`, `super_oferta`, `blank`)
-- `is_default` (boolean por canal+formato)
-- `elements` (jsonb) — array de elementos com `{ id, type, x, y, w, h, rotation, z, props }`
-  - Tipos: `background`, `shape`, `image`, `product_image`, `logo`, `text`, `price`, `discount`, `rating`, `sold`, `store`, `buy_button`, `free_text`
-  - `props` guarda fonte, cor, peso, alinhamento, radius, src, binding a variável (`{{price}}`, `{{title}}`, etc.)
-- `preview_url` (PNG gerado do canvas, salvo no bucket `story-images`)
+1. **Índices compostos no banco** — cobrir os padrões de leitura mais quentes:
+   - `products (user_id, source_group_jid, availability, affiliate_link)`
+   - `products (user_id, channel_id, platform, availability, created_at DESC)`
+   - `whatsapp_campaign_history (config_id, sent_at DESC)`
+   - `automation_group_sends (config_id, product_id)`
+2. **Hook `useDebounced`** aplicado em todas as barras de busca (dashboard, vitrine, relatórios, produtos do grupo).
+3. **Skeletons** substituindo spinners em: dashboard, `canais.$id.editar`, relatórios, `instagram.stories`.
+4. **Optimistic UI** em: toggle automação, ativar/pausar loop, selecionar grupo, salvar layout.
+5. **Virtualização** (`@tanstack/react-virtual`) no modal de produtos do grupo quando >200 itens.
 
-Auto-save: cada alteração chama `saveTemplate` (debounce 800ms).
+## Fase 2 — Robustez (zero erro operacional)
 
-## 2. Editor visual (`/templates/editor/$id`)
+**Objetivo:** falhas externas (Evolution/Meta caem) não causam prejuízo — sistema se recupera sozinho.
 
-Layout de 3 colunas:
+6. **Helper `retryWithBackoff`** — retry exponencial (500ms → 1s → 2s → 4s) em toda chamada Evolution/Meta, com jitter e cap.
+7. **Circuit breaker** no `automation-tick`: se Evolution retorna 5xx 3× seguidas na mesma instância, pausa aquela config por 5min ao invés de queimar tentativas.
+8. **Dead-letter queue** — tabela `automation_failures` (config_id, product_id, error, attempt_count, next_retry_at). Card no painel "Falhas recentes" com botão "Reenviar em lote".
+9. **Idempotência de webhooks** — tabela `webhook_events (event_id UNIQUE, provider, received_at)`. Todo webhook Meta/Evolution/Shopee verifica antes de processar.
+10. **Rate-limit hard por instância WhatsApp** — máximo N mensagens/min por instância (config global, default 20/min). Bloqueia envio se ultrapassar, protege de ban.
+11. **Validação HEAD da imagem** antes de enviar via WhatsApp — se URL 404/timeout, envia sem mídia ao invés de falhar o post inteiro.
 
-```text
-┌──────────┬────────────────────────┬───────────┐
-│ Elements │        CANVAS          │ Propried. │
-│  Sidebar │   (Fabric.js real)     │ do item   │
-└──────────┴────────────────────────┴───────────┘
-```
+## Fase 3 — Observabilidade + Auto-Recuperação
 
-**Sidebar de elementos** (botões grandes com ícone+nome):
-Imagem do Produto, Preço, Desconto, Título, Avaliação, Vendidos, Loja, Botão Comprar, Logo, Texto Livre, Fundo, Formas.
+**Objetivo:** você fica sabendo dos problemas antes do cliente reclamar — e o sistema tenta se consertar.
 
-Clicar adiciona o elemento no centro do canvas com placeholder já vinculado à variável correta.
+12. **Tabela `system_logs`** (level, module, user_id, message, meta jsonb, created_at) com índice por nível+data. Todo `console.error` do server passa a gravar aqui.
+13. **Renovação proativa de tokens** — job diário (pg_cron 4h da manhã) que refresha tokens Meta/ML que expiram em <48h.
+14. **Painel `/saude` — Health Dashboard** com uma única tela mostrando:
+    - Status Evolution (ping)
+    - Instâncias WhatsApp conectadas/desconectadas
+    - Tokens Meta/ML e validade
+    - Últimas 20 falhas do `automation_failures`
+    - Última execução do `pg_cron` e do `automation-tick`
+    - Taxa de sucesso 24h
+15. **Alertas via WhatsApp Admin** — quando taxa de erro >10% em 15min, ou instância cai, mandar DM pro número do admin da conta usando a própria Evolution.
 
-**Canvas** (Fabric.js 6):
-- Drag, resize, rotate nativos
-- Snapping em bordas + centro
-- Zoom (25%–200%) + fit-to-screen
-- Ctrl+D duplica, Delete remove, Ctrl+Z/Y desfaz
+## O que NÃO entra agora (débito técnico consciente)
 
-**Painel de propriedades** (contextual):
-- Texto: fonte (10 opções), tamanho, peso, cor, alinhamento, espaçamento
-- Imagem: trocar arquivo, arredondar bordas, ajuste (cover/contain)
-- Preço: escolher entre "Preço antigo (DE)", "Preço atual (POR)", "Ambos DE/POR"; escolher moeda, prefixo, estilo de riscado
-- Forma: cor, radius, borda
-- Fundo: cor sólida, gradiente ou upload
+Deixo pra depois porque exigem refactor extenso e o risco é maior que o ganho imediato:
 
-## 3. Barra superior
+- Consolidação `whatsapp/` + `channel_whatsapp_*` (3 tabelas duplicadas) → precisa migração de dados cuidadosa.
+- Centralização de DTOs em `src/types/` → refactor amplo, sem ganho funcional.
+- Suite E2E Playwright completa → precisa infraestrutura de CI dedicada.
+- Realtime nos status (Supabase Realtime) → substituído por polling leve de 30s no `/saude`, cobre o caso sem custo extra de billing.
 
-- Nome do template (editável inline)
-- Formato atual (troca com aviso de reajuste)
-- Botões: **Duplicar**, **Baixar PNG**, **Definir como padrão**, **Usar em campanha**
-- Indicador "Salvo automaticamente"
+## Detalhes técnicos
 
-## 4. Templates prontos (`preset`)
+**Ordem estrita das fases:** F1 primeiro porque índices desbloqueiam performance da F2/F3. F2 antes de F3 porque a `automation_failures` alimenta o Health Dashboard. F3 depende de tudo anterior.
 
-Ao criar novo template o usuário escolhe:
-1. Formato (Story / Post / WhatsApp)
-2. Modelo inicial: **Em branco**, **Oferta Relâmpago**, **Shopee**, **Black Friday**, **Cupom**, **Super Oferta**, **Achadinhos**, **Produto Viral**
+**Migrações previstas:** 3 migrations aprovadas separadamente (uma por fase).
 
-Cada preset é apenas um `elements` inicial pré-montado — usuário edita livremente depois.
+**Impacto no código existente:**
+- Novos arquivos: `src/hooks/use-debounced.ts`, `src/components/ui/skeleton-page.tsx`, `src/lib/retry.ts`, `src/lib/circuit-breaker.ts`, `src/lib/logger.server.ts`, `src/routes/saude.tsx`, `src/modules/failures/failures.functions.ts`, `src/modules/health/health.functions.ts`.
+- Edits em: `automation-tick.ts` (retry + circuit breaker + failures), webhooks Meta/Evolution (idempotência), `whatsapp-sender.ts` (rate-limit + HEAD check), rotas com search (debounce), rotas com loader pesado (skeletons).
 
-## 5. Binding automático com produto
+**Estimativa:** F1 ≈ 25 min, F2 ≈ 40 min, F3 ≈ 30 min de execução em sequência.
 
-Todo elemento "inteligente" guarda `props.bind = "{{price}}"` etc. Ao renderizar (preview ou envio real):
-- Buscar produto selecionado
-- Substituir cada bind pela informação real (formatBRL, humanização de vendidos, cálculo de desconto)
-- `product_image` baixa a imagem e desenha respeitando radius e crop
+## Aprovação
 
-Nada aparece como `{{...}}` para o usuário final — no editor mostramos placeholder amigável ("R$ 99,90", "Título do produto") e um pequeno chip 🔗 indicando que está ligado ao produto.
-
-## 6. Renderização e uso
-
-Função server `renderTemplate({ templateId, productId })`:
-- Lê `elements`, resolve binds com o produto
-- Compõe PNG 1080×(formato) em node-canvas
-- Retorna base64 + upload no bucket
-
-Usada por:
-- Preview no editor (client-side via Fabric.toDataURL)
-- Envio automático (WhatsApp / Instagram Story)
-- Download manual (botão Baixar PNG)
-- Campanhas (seleciona template + lista de produtos → gera N artes)
-
-## 7. Migração do que já existe
-
-- Manter tabela antiga `instagram_story_templates` só leitura (compat), mas todo o fluxo de Stories passa a ler de `visual_templates` filtrando `format='ig_story'`
-- Layout Post (texto) continua separado — este editor é para arte visual, não para texto de mensagem
-- A tela atual `/instagram/stories` passa a listar templates visuais e abre o novo editor
-
-## 8. Detalhes técnicos (para referência)
-
-- Fabric.js 6 (`fabric` no npm) — não expõe coordenadas ao usuário, só ao dev
-- Auto-save com `useMutation` + debounce
-- Uploads de imagem/logo/fundo via bucket `story-images` (já existe)
-- Fontes web carregadas via `<link>` em `__root.tsx`: Inter, Poppins, Bebas Neue, Montserrat, Oswald, Playfair, Anton, Archivo Black
-- Desfazer/refazer via histórico local (últimos 50 estados)
-
-## 9. Entregáveis desta iteração
-
-1. Migração: tabela `visual_templates` + policies
-2. Server functions: `listTemplates`, `getTemplate`, `saveTemplate`, `duplicateTemplate`, `deleteTemplate`, `setDefaultTemplate`, `renderTemplate`
-3. Rota `/templates` — lista com filtro por formato/canal + botão "Novo template"
-4. Rota `/templates/editor/$id` — editor Fabric.js completo
-5. Modal "Novo template" com escolha de formato + preset
-6. 8 presets pré-montados (blank + 7 modelos)
-7. Integração: o modal de Story do Instagram e o envio WhatsApp passam a poder escolher um `visual_template` como arte
-
-Depois da aprovação eu já executo a migração e implemento em uma sequência de PRs internos.
+Confirma que quer as **3 fases seguidas** (executo tudo em série), ou prefere que eu pare após cada fase pra você validar antes da próxima?

@@ -7,6 +7,7 @@ import { createFileRoute, notFound } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { useMemo, useState } from "react";
 import { z } from "zod";
+import { useDebounced } from "@/hooks/use-debounced";
 
 type PublicProduct = {
   id: string;
@@ -182,6 +183,7 @@ function fmtDate(v: string | null): string | null {
 function PublicSitePage() {
   const site = Route.useLoaderData();
   const [q, setQ] = useState("");
+  const debouncedQ = useDebounced(q, 200);
 
   if (typeof window !== "undefined") {
     const params = new URLSearchParams(window.location.search);
@@ -197,10 +199,11 @@ function PublicSitePage() {
   }
 
   const filtered = useMemo(() => {
-    const t = q.trim().toLowerCase();
+    const t = debouncedQ.trim().toLowerCase();
     if (!t) return site.products;
     return site.products.filter((p: PublicProduct) => p.title.toLowerCase().includes(t));
-  }, [q, site.products]);
+  }, [debouncedQ, site.products]);
+
 
   return (
     <div className="min-h-screen bg-gray-50">

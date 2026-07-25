@@ -1,5 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { SkeletonList } from "@/components/ui/skeleton-page";
 import {
   Loader2,
   Pencil,
@@ -78,8 +80,8 @@ export function GroupAutomationList({ channelId }: { channelId: string }) {
   }
   if (groups === null) {
     return (
-      <div className="flex items-center gap-2 rounded-2xl border border-border/70 bg-card p-5 text-sm text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin" /> Carregando grupos…
+      <div className="rounded-2xl border border-border/70 bg-card p-4">
+        <SkeletonList rows={3} />
       </div>
     );
   }
@@ -183,21 +185,33 @@ function GroupCard({
     ? "bg-red-500/15 text-red-700"
     : "bg-muted text-muted-foreground";
 
+  // UI otimista: reflete a mudança na hora, reverte se falhar.
+  const [optimisticRunning, setOptimisticRunning] = useState<boolean | null>(null);
+  const effectiveRunning = optimisticRunning ?? isRunning;
+
   const doToggle = async () => {
     if (!item.configId) {
       onEdit();
       return;
     }
+    const nextRunning = !isRunning;
+    setOptimisticRunning(nextRunning);
     setBusy(true);
     try {
       await toggleFn({
         data: { channelId, groupId: item.groupId, pause: isRunning },
       });
       onToggled();
+    } catch (err) {
+      setOptimisticRunning(null); // reverte se falhar
+      throw err;
     } finally {
       setBusy(false);
+      // Limpa a preview quando o reload trouxer o estado real
+      setTimeout(() => setOptimisticRunning(null), 800);
     }
   };
+
 
   return (
     <article className="grid grid-cols-1 items-center gap-4 rounded-2xl border border-border/70 bg-card p-4 shadow-sm transition hover:border-primary/40 hover:shadow-md lg:grid-cols-[minmax(220px,1.1fr)_minmax(220px,1.4fr)_auto_auto_auto]">
@@ -260,8 +274,16 @@ function GroupCard({
 
       {/* Status */}
       <div className="flex items-center lg:justify-center">
-        <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${statusTone}`}>
-          {statusLabel}
+        <span
+          className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+            effectiveRunning
+              ? "bg-emerald-500/15 text-emerald-700"
+              : isError
+              ? "bg-red-500/15 text-red-700"
+              : "bg-muted text-muted-foreground"
+          }`}
+        >
+          {effectiveRunning ? "Ativa" : statusLabel}
         </span>
       </div>
 
@@ -279,19 +301,19 @@ function GroupCard({
         <Button
           type="button"
           size="sm"
-          variant={isRunning ? "secondary" : "default"}
+          variant={effectiveRunning ? "secondary" : "default"}
           className="gap-1.5"
           onClick={doToggle}
           disabled={busy}
         >
           {busy ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : isRunning ? (
+          ) : effectiveRunning ? (
             <Pause className="h-3.5 w-3.5" />
           ) : (
             <Play className="h-3.5 w-3.5" />
           )}
-          {isRunning ? "Pausar" : "Retomar"}
+          {effectiveRunning ? "Pausar" : "Retomar"}
         </Button>
       </div>
     </article>
@@ -367,48 +389,83 @@ function ProductsDialog({
           <DialogTitle className="flex items-center gap-2 text-base">
             <Package className="h-4 w-4" />
             Produtos — {group?.groupName ?? group?.groupId}
+            {items && items.length > 0 && (
+              <span className="ml-auto text-xs font-normal text-muted-foreground">
+                {items.length.toLocaleString("pt-BR")}
+              </span>
+            )}
           </DialogTitle>
         </DialogHeader>
         {items === null ? (
-          <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" /> Carregando produtos…
+          <div className="py-2">
+            <SkeletonList rows={5} />
           </div>
         ) : items.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">
             Nenhum produto capturado deste grupo ainda.
           </p>
         ) : (
-          <div className="max-h-[60vh] space-y-2 overflow-y-auto pr-1">
-            {items.map((p) => (
-              <div key={p.id} className="flex items-center gap-3 rounded-xl border border-border/60 bg-card p-2.5">
-                {p.imageUrl ? (
-                  <img src={p.imageUrl} alt="" className="h-12 w-12 shrink-0 rounded-lg object-cover" />
-                ) : (
-                  <div className="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-muted">
-                    <Package className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                )}
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-[12.5px] font-medium text-foreground">{p.title}</p>
-                  <p className="text-[10.5px] uppercase tracking-wide text-muted-foreground">
-                    {p.platform}
-                    {p.promoPrice != null ? ` · R$ ${p.promoPrice.toFixed(2)}` : ""}
-                  </p>
-                </div>
-                <span
-                  className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                    p.availability === "active"
-                      ? "bg-emerald-500/15 text-emerald-700"
-                      : "bg-muted text-muted-foreground"
-                  }`}
-                >
-                  {p.availability === "active" ? "Ativo" : p.availability}
-                </span>
-              </div>
-            ))}
-          </div>
+          <VirtualProductList items={items} />
         )}
       </DialogContent>
     </Dialog>
   );
 }
+
+function VirtualProductList({ items }: { items: GroupProductDTO[] }) {
+  const parentRef = useRef<HTMLDivElement>(null);
+  const rowVirtualizer = useVirtualizer({
+    count: items.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 68, // altura de cada linha (~64px + gap)
+    overscan: 6,
+  });
+
+  return (
+    <div ref={parentRef} className="max-h-[60vh] overflow-y-auto pr-1">
+      <div
+        style={{ height: rowVirtualizer.getTotalSize(), position: "relative", width: "100%" }}
+      >
+        {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+          const p = items[virtualRow.index];
+          return (
+            <div
+              key={p.id}
+              className="absolute left-0 right-0 flex items-center gap-3 rounded-xl border border-border/60 bg-card p-2.5"
+              style={{
+                top: 0,
+                transform: `translateY(${virtualRow.start}px)`,
+                height: virtualRow.size - 4,
+              }}
+            >
+              {p.imageUrl ? (
+                <img src={p.imageUrl} alt="" className="h-12 w-12 shrink-0 rounded-lg object-cover" />
+              ) : (
+                <div className="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-muted">
+                  <Package className="h-4 w-4 text-muted-foreground" />
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[12.5px] font-medium text-foreground">{p.title}</p>
+                <p className="text-[10.5px] uppercase tracking-wide text-muted-foreground">
+                  {p.platform}
+                  {p.promoPrice != null ? ` · R$ ${p.promoPrice.toFixed(2)}` : ""}
+                </p>
+              </div>
+              <span
+                className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                  p.availability === "active"
+                    ? "bg-emerald-500/15 text-emerald-700"
+                    : "bg-muted text-muted-foreground"
+                }`}
+              >
+                {p.availability === "active" ? "Ativo" : p.availability}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
