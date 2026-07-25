@@ -292,16 +292,36 @@ export const sendLayoutTestMessage = createServerFn({ method: "POST" })
 
     const chosenHeader = await resolveHeader(supabase, userId, layout, []);
     const { renderPost } = await import("./render");
+    const vendasFinal = prod.sales_label ?? prod.sales;
     const caption = renderPost({ ...layout, header: chosenHeader }, {
       title: prod.title,
       description: null,
       price: prod.promo_price,
       price_original: prod.original_price,
       parcelamento: null,
-      vendas: prod.sales_label ?? prod.sales,
+      vendas: vendasFinal,
       link: prod.affiliate_link,
       image: prod.image_url,
     }, "whatsapp");
+
+    try {
+      console.log("[COMPARE_POST_PIPELINE]", {
+        source: "preview",
+        title: prod.title,
+        vendas: vendasFinal,
+        sales_label: prod.sales_label ?? null,
+        sales: prod.sales ?? null,
+        price: prod.promo_price,
+        price_original: prod.original_price,
+        promo_price: prod.promo_price ?? null,
+        original_price: prod.original_price ?? null,
+        channel_id: data.channelId,
+        group_id: null,
+        config_id: null,
+        header_mode: layout.header_mode,
+        header: chosenHeader,
+      });
+    } catch { /* noop */ }
 
     const jid = `${data.phone}@s.whatsapp.net`;
     const { getWhatsAppProvider } = await import("@/modules/whatsapp/index.server");
@@ -310,10 +330,12 @@ export const sendLayoutTestMessage = createServerFn({ method: "POST" })
     if (live.status !== "connected") {
       throw new Error("Instância não conectada. Reconecte antes de testar.");
     }
+    console.log("[WHATSAPP_FINAL_CAPTION]", { source: "preview", instance: instance.instance_name, jid, caption });
     await provider.sendMedia(instance.instance_name, jid, {
       mediaUrl: prod.image_url,
       caption,
     });
+
 
     try {
       await (supabase as any).from("whatsapp_send_history").insert({
