@@ -463,17 +463,8 @@ export const Route = createFileRoute("/api/public/hooks/automation-tick")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        // Autenticação obrigatória: header x-cron-secret OU Authorization: Bearer <secret>
-        const expected = process.env.CRON_SECRET;
-        if (!expected) {
-          return Response.json({ ok: false, error: "CRON_SECRET não configurado no servidor" }, { status: 500 });
-        }
-        const provided =
-          request.headers.get("x-cron-secret") ??
-          (request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "");
-        if (!provided || !timingSafeEqualStr(provided, expected)) {
-          return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
-        }
+        const authFail = requireCronSecret(request);
+        if (authFail) return authFail;
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
