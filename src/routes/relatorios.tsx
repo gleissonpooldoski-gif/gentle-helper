@@ -37,6 +37,7 @@ import {
   type ConversionRow,
   type ReportFilters,
 } from "@/modules/reports/reports.functions";
+import { listChannels, type ChannelDTO } from "@/modules/channels/channels.functions";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/relatorios")({
@@ -82,6 +83,8 @@ const fmtDate = (iso: string) => {
 };
 
 interface DraftFilters {
+  channelId: string;
+  platform: string;
   dateFrom: string;
   dateTo: string;
   status: string;
@@ -98,6 +101,8 @@ const defaultDraft = (): DraftFilters => {
   const first = new Date(today.getFullYear(), today.getMonth(), 1);
   const iso = (d: Date) => d.toISOString().slice(0, 10);
   return {
+    channelId: "all",
+    platform: "all",
     dateFrom: iso(first),
     dateTo: iso(today),
     status: "all",
