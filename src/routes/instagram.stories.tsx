@@ -675,10 +675,15 @@ function Page() {
           </div>
         ) : (
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-            {(templates.data ?? []).map((t: any) => (
-              <TemplateCard key={t.id} template={t} onSaved={refresh} />
-            ))}
-            <TemplateCard onSaved={refresh} />
+            {(templates.data ?? []).length > 0 ? (
+              <TemplateCard
+                key={(templates.data ?? [])[0].id}
+                template={(templates.data ?? [])[0]}
+                onSaved={refresh}
+              />
+            ) : (
+              <TemplateCard onSaved={refresh} />
+            )}
           </div>
         )}
 
