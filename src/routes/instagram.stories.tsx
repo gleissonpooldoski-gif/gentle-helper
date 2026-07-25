@@ -607,6 +607,9 @@ function Page() {
         )}
 
         <PublishBox />
+
+        <ScheduleCard templates={templates.data ?? []} />
+
       </div>
     </InstagramLayout>
   );
