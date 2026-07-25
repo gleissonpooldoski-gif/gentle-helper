@@ -3658,9 +3658,11 @@ function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {})
     void listImportGroupsFn({ data: { channelId } })
       .then((rows) => {
         setImportGroups(rows);
-        setImportGroupJid((current) =>
-          rows.some((row) => row.groupId === current) ? current : "",
-        );
+        // Grupo base = grupo já vinculado a este canal. Auto-seleciona sem UI.
+        setImportGroupJid((current) => {
+          if (rows.some((row) => row.groupId === current)) return current;
+          return rows[0]?.groupId ?? "";
+        });
       })
       .catch(() => setImportGroups([]));
   }, [channelId, listImportGroupsFn]);
