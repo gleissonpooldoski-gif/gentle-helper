@@ -243,21 +243,33 @@ export const listInstagramAutomations = createServerFn({ method: "GET" })
 
 export const saveInstagramAutomation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { id?: string; keyword: string; message: string; enabled?: boolean }) =>
-    z
-      .object({
-        id: z.string().uuid().optional(),
-        keyword: z.string().min(1).max(80),
-        message: z.string().min(1).max(2000),
-        enabled: z.boolean().optional(),
-      })
-      .parse(d),
+  .inputValidator(
+    (d: {
+      id?: string;
+      keyword: string;
+      message: string;
+      enabled?: boolean;
+      product_id?: string;
+      scope?: "both" | "comment" | "message";
+    }) =>
+      z
+        .object({
+          id: z.string().uuid().optional(),
+          keyword: z.string().min(1).max(80),
+          message: z.string().min(1).max(2000),
+          enabled: z.boolean().optional(),
+          product_id: z.string().uuid().optional(),
+          scope: z.enum(["both", "comment", "message"]).optional(),
+        })
+        .parse(d),
   )
   .handler(async ({ data, context }) => {
-    const payload = {
+    const payload: any = {
       keyword: data.keyword.trim().toLowerCase(),
       message: data.message,
       enabled: data.enabled ?? true,
+      product_id: data.product_id ?? null,
+      scope: data.scope ?? "both",
     };
     if (data.id) {
       const { error } = await (context.supabase as any)
