@@ -27,7 +27,7 @@ function Page() {
   const [token, setToken] = useState("");
   const [status, setStatus] = useState<
     | { kind: "idle" }
-    | { kind: "ok"; text: string }
+    | { kind: "ok"; info: any }
     | { kind: "err"; text: string }
   >({ kind: "idle" });
 
