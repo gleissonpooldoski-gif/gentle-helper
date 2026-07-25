@@ -58,9 +58,5 @@ export const Route = createFileRoute("/instagram")({
       { name: "description", content: "Automação Instagram via Meta Graph API." },
     ],
   }),
-  component: () => (
-    <InstagramLayout>
-      <Outlet />
-    </InstagramLayout>
-  ),
+  component: () => <Outlet />,
 });
