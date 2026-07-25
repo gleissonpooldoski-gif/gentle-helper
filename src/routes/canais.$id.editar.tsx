@@ -4225,7 +4225,19 @@ function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {})
                   </span>
                 ) : null}
                 {p.imageUrl ? (
-                  <img src={p.imageUrl} alt={p.title} className="h-full w-full object-cover" />
+                  <img
+                    src={toThumbUrl(p.imageUrl)}
+                    alt={p.title}
+                    loading="lazy"
+                    decoding="async"
+                    width={240}
+                    height={240}
+                    className="h-full w-full object-cover"
+                    onError={(e) => {
+                      const img = e.currentTarget;
+                      if (img.src !== p.imageUrl) img.src = p.imageUrl!;
+                    }}
+                  />
                 ) : (
                   <div className="flex h-full items-center justify-center text-6xl">{p.emoji}</div>
                 )}
