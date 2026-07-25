@@ -419,7 +419,10 @@ export const listAutomationGroups = createServerFn({ method: "POST" })
     const cfgMap = new Map<string, any>();
     for (const c of (cfgs ?? []) as any[]) if (c.group_id) cfgMap.set(c.group_id, c);
 
-    // Contagem real de produtos vinculados ao grupo (ativos e total)
+    // Contagem real de produtos vinculados ao grupo (ativos e total).
+    // NÃO filtramos por channel_id: a captura via webhook grava o produto
+    // com o channel do canal que MONITORA o grupo, que nem sempre é o
+    // canal atualmente aberto. A chave real de vínculo é source_group_jid.
     const countMap = new Map<string, { active: number; total: number }>();
     await Promise.all(
       jids.map(async (jid) => {
@@ -428,19 +431,18 @@ export const listAutomationGroups = createServerFn({ method: "POST" })
             .from("products")
             .select("id", { count: "exact", head: true })
             .eq("user_id", userId)
-            .eq("channel_id", data.channelId)
             .eq("source_group_jid", jid)
             .eq("availability", "active"),
           supabase
             .from("products")
             .select("id", { count: "exact", head: true })
             .eq("user_id", userId)
-            .eq("channel_id", data.channelId)
             .eq("source_group_jid", jid),
         ]);
         countMap.set(jid, { active: active ?? 0, total: total ?? 0 });
       }),
     );
+
 
     // Último envio real por (instância, grupo) via histórico de campanhas
     const lastSentMap = new Map<string, string>();
@@ -498,16 +500,16 @@ export const listGroupProducts = createServerFn({ method: "POST" })
   }))
   .handler(async ({ data, context }): Promise<GroupProductDTO[]> => {
     const { supabase, userId } = context;
-    if (!data.channelId || !data.groupJid) return [];
+    if (!data.groupJid) return [];
     const { data: rows, error } = await supabase
       .from("products")
       .select("id, title, platform, promo_price, image_url, availability")
       .eq("user_id", userId)
-      .eq("channel_id", data.channelId)
       .eq("source_group_jid", data.groupJid)
       .order("created_at", { ascending: false })
       .limit(200);
     if (error) throw new Error(error.message);
+
     return (rows ?? []).map((r: any) => ({
       id: r.id,
       title: r.title,
