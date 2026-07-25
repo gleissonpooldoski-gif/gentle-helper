@@ -307,6 +307,7 @@ function FiltersPanel({
   onSync,
   syncing,
   lastSyncAt,
+  channels,
 }: {
   draft: DraftFilters;
   onDraftChange: (d: DraftFilters) => void;
@@ -314,6 +315,7 @@ function FiltersPanel({
   onSync: () => void;
   syncing: boolean;
   lastSyncAt: string | null;
+  channels: ChannelDTO[];
 }) {
   const set = <K extends keyof DraftFilters>(k: K, v: DraftFilters[K]) =>
     onDraftChange({ ...draft, [k]: v });
@@ -410,6 +412,34 @@ function FiltersPanel({
 
       {/* Row 2 */}
       <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
+        <Field label="Canal / Grupo" icon={<Filter className="h-3.5 w-3.5" />}>
+          <Select value={draft.channelId} onValueChange={(v) => set("channelId", v)}>
+            <SelectTrigger className="h-10">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              {channels.map((c) => (
+                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field label="Plataforma" icon={<ShoppingBag className="h-3.5 w-3.5" />}>
+          <Select value={draft.platform} onValueChange={(v) => set("platform", v)}>
+            <SelectTrigger className="h-10">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas</SelectItem>
+              <SelectItem value="shopee">Shopee</SelectItem>
+              <SelectItem value="mercadolivre">Mercado Livre</SelectItem>
+              <SelectItem value="amazon">Amazon</SelectItem>
+              <SelectItem value="aliexpress">AliExpress</SelectItem>
+              <SelectItem value="magalu">Magalu</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
         <Field label="Nome da Loja" icon={<Store className="h-3.5 w-3.5" />}>
           <Input
             value={draft.store}
@@ -447,17 +477,18 @@ function FiltersPanel({
             </SelectContent>
           </Select>
         </Field>
-        <div className="flex items-end">
-          <Button
-            variant="outline"
-            onClick={onSync}
-            disabled={syncing}
-            className="h-10 w-full rounded-lg border-border/70"
-          >
-            <RefreshCcw className={cn("mr-1.5 h-4 w-4", syncing && "animate-spin")} />
-            {syncing ? "Sincronizando..." : "Atualizar"}
-          </Button>
-        </div>
+      </div>
+
+      <div className="mt-3 flex justify-end">
+        <Button
+          variant="outline"
+          onClick={onSync}
+          disabled={syncing}
+          className="h-10 rounded-lg border-border/70"
+        >
+          <RefreshCcw className={cn("mr-1.5 h-4 w-4", syncing && "animate-spin")} />
+          {syncing ? "Sincronizando..." : "Atualizar dados"}
+        </Button>
       </div>
     </section>
   );
