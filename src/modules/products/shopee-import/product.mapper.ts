@@ -2,8 +2,17 @@
  * Maps a parsed Shopee CSV row into a `products` table upsert payload.
  * Offer Link is preserved untouched (already commissioned by Shopee).
  * Cada produto pertence a um `channel_id` (grupo) — isolamento por grupo.
+ *
+ * Regra de preço: o CSV da Shopee traz apenas UM preço (o vigente).
+ * Ele é gravado em `promo_price` (preço atual). `original_price` fica
+ * NULL — só é preenchido quando há evidência de queda de preço vinda
+ * da captura WhatsApp/PDP. O render usa exatamente esses dois campos.
+ *
+ * Regra de vendas: `sales_label` é derivado do inteiro (ex: 6000 → "6 mil")
+ * usando o utilitário compartilhado com a captura, para manter consistência.
  */
 import type { ShopeeCsvRow } from "./csv.processor";
+import { formatSalesLabel } from "@/modules/products/sales-label";
 
 export type ShopeeProductUpsert = {
   user_id: string;
@@ -15,6 +24,7 @@ export type ShopeeProductUpsert = {
   original_price: number | null;
   promo_price: number | null;
   sales: number | null;
+  sales_label: string | null;
   commission_rate: number | null;
   commission_value: number | null;
   raw_link: string;
@@ -34,9 +44,10 @@ export function mapRowToProduct(
     item_id: row.itemId,
     title: row.itemName,
     store_name: row.storeName || null,
-    original_price: row.price,
-    promo_price: null,
+    original_price: null,
+    promo_price: row.price,
     sales: row.sales,
+    sales_label: formatSalesLabel(row.sales),
     commission_rate: row.commissionRate,
     commission_value: row.commissionValue,
     raw_link: row.productUrl,
@@ -44,3 +55,4 @@ export function mapRowToProduct(
     image_url: row.imageUrl,
   };
 }
+
