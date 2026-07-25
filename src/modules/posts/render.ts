@@ -23,18 +23,18 @@ export interface PostLayout {
 }
 
 export const DEFAULT_POST_LAYOUT: PostLayout = {
-  header: "🚨 <b>OFERTA RELÂMPAGO!!</b>",
+  header: "🔥🔥 <b>OFERTA ENCONTRADA</b> 🔥🔥",
   header_mode: "custom",
-  title_template: "🔥🔥 <b>{title}</b> 🔥🔥",
+  title_template: "<b>{title}</b>",
   upper_title: true,
   hide_sales: false,
-  sales_template: "🛒 <i>{vendas} vendidos</i> 🛒",
-  description_template: "<pre>{description}</pre>",
+  sales_template: "🛒 <i>{vendas} vendidos</i>",
+  description_template: "📌 {description}",
   hide_original: false,
-  original_price_template: "❌❌ <s>{price_original}</s> ❌❌",
-  installment_template: "💳💳 {parcelamento} 💳💳",
-  price_template: "💵💵 <b>{price}</b> 💵💵",
-  link_template: "🔗COMPRE AQUI {link}",
+  original_price_template: "❌ De: <s>{price_original}</s>",
+  installment_template: "💳 {parcelamento}",
+  price_template: "🔥 Agora por: <b>{price}</b>",
+  link_template: "🔗 <b>COMPRAR AGORA:</b>\n{link}",
   footer: "🚨 Promoção sujeita a alteração a qualquer momento!",
 };
 
