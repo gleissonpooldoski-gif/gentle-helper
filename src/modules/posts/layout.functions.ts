@@ -188,3 +188,144 @@ export async function resolveHeader(
   const src = candidates.length > 0 ? candidates : pool;
   return src[Math.floor(Math.random() * src.length)];
 }
+
+/* ==================== Enviar teste ==================== */
+
+function normalizePhone(input: string): string | null {
+  const digits = String(input ?? "").replace(/\D/g, "");
+  if (digits.length < 10 || digits.length > 15) return null;
+  // Se o usuário não incluir DDI (55), assumimos Brasil.
+  return digits.length <= 11 ? `55${digits}` : digits;
+}
+
+function sanitizeLayoutInput(input: any): PostLayout {
+  return normalize({
+    header: input?.header,
+    header_mode: input?.header_mode,
+    title_template: input?.title_template,
+    upper_title: input?.upper_title,
+    hide_sales: input?.hide_sales,
+    sales_template: input?.sales_template,
+    description_template: input?.description_template,
+    hide_original: input?.hide_original,
+    original_price_template: input?.original_price_template,
+    installment_template: input?.installment_template,
+    price_template: input?.price_template,
+    link_template: input?.link_template,
+    footer: input?.footer,
+  });
+}
+
+/**
+ * Renderiza o layout atual (mesmo o não salvo) usando um produto real do canal
+ * e envia como mensagem de mídia para o número informado. Usado no editor de
+ * Post/Layout para pré-visualizar o template diretamente no WhatsApp.
+ */
+export const sendLayoutTestMessage = createServerFn({ method: "POST" })
+  .middleware([apiClient, requireSupabaseAuth])
+  .inputValidator((data: {
+    channelId: string;
+    phone: string;
+    layout?: Partial<PostLayout>;
+    productId?: string;
+  }) => {
+    const channelId = isUuid(data?.channelId) ? (data.channelId as string) : null;
+    if (!channelId) throw new Error("Canal inválido");
+    const phone = normalizePhone(data?.phone ?? "");
+    if (!phone) throw new Error("Número de WhatsApp inválido");
+    return {
+      channelId,
+      phone,
+      layout: data?.layout ?? null,
+      productId: isUuid(data?.productId) ? (data.productId as string) : null,
+    };
+  })
+  .handler(async ({ data, context }): Promise<{
+    ok: true;
+    jid: string;
+    productTitle: string;
+    caption: string;
+  }> => {
+    const { supabase, userId } = context;
+
+    // Produto: usa o informado ou pega o mais recente COM imagem do canal.
+    let productQuery = (supabase as any)
+      .from("products")
+      .select("id, title, promo_price, original_price, sales, sales_label, affiliate_link, image_url")
+      .eq("user_id", userId)
+      .eq("channel_id", data.channelId)
+      .not("image_url", "is", null)
+      .order("updated_at", { ascending: false })
+      .limit(1);
+    if (data.productId) {
+      productQuery = (supabase as any)
+        .from("products")
+        .select("id, title, promo_price, original_price, sales, sales_label, affiliate_link, image_url")
+        .eq("user_id", userId)
+        .eq("channel_id", data.channelId)
+        .eq("id", data.productId)
+        .limit(1);
+    }
+    const { data: prods, error: prodErr } = await productQuery;
+    if (prodErr) throw new Error(prodErr.message);
+    const prod = (prods ?? [])[0];
+    if (!prod) throw new Error("Nenhum produto com imagem neste canal. Capture/importe pelo menos um antes.");
+
+    // Instância: primeira conectada do canal, ou primeira conectada do usuário.
+    const { data: instances } = await (supabase as any)
+      .from("whatsapp_instances")
+      .select("id, provider, instance_name, status, channel_id")
+      .eq("user_id", userId)
+      .order("updated_at", { ascending: false });
+    const list = (instances ?? []) as Array<{
+      id: string; provider: string; instance_name: string; status: string; channel_id: string | null;
+    }>;
+    const instance =
+      list.find((i) => i.status === "connected" && i.channel_id === data.channelId) ??
+      list.find((i) => i.status === "connected");
+    if (!instance) throw new Error("Nenhuma instância WhatsApp conectada.");
+
+    // Layout: usa o snapshot enviado (permite testar edições não salvas) ou o salvo.
+    const layout = data.layout
+      ? sanitizeLayoutInput(data.layout)
+      : await loadLayoutFor(supabase, userId, data.channelId);
+
+    const chosenHeader = await resolveHeader(supabase, userId, layout, []);
+    const { renderPost } = await import("./render");
+    const caption = renderPost({ ...layout, header: chosenHeader }, {
+      title: prod.title,
+      description: null,
+      price: prod.promo_price,
+      price_original: prod.original_price,
+      parcelamento: null,
+      vendas: prod.sales_label ?? prod.sales,
+      link: prod.affiliate_link,
+      image: prod.image_url,
+    }, "whatsapp");
+
+    const jid = `${data.phone}@s.whatsapp.net`;
+    const { getWhatsAppProvider } = await import("@/modules/whatsapp/index.server");
+    const provider = getWhatsAppProvider(instance.provider);
+    const live = await provider.getStatus(instance.instance_name);
+    if (live.status !== "connected") {
+      throw new Error("Instância não conectada. Reconecte antes de testar.");
+    }
+    await provider.sendMedia(instance.instance_name, jid, {
+      mediaUrl: prod.image_url,
+      caption,
+    });
+
+    try {
+      await (supabase as any).from("whatsapp_send_history").insert({
+        user_id: userId,
+        instance_id: instance.id,
+        product_id: prod.id,
+        jid,
+        caption,
+        media_url: prod.image_url,
+        status: "sent",
+      });
+    } catch { /* histórico é best-effort */ }
+
+    return { ok: true, jid, productTitle: prod.title, caption };
+  });
