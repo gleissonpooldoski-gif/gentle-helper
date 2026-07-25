@@ -202,7 +202,7 @@ export const getAutomationConfig = createServerFn({ method: "POST" })
   .inputValidator((data: ScopeInput) => parseScope(data))
   .handler(async ({ data, context }): Promise<AutomationConfigDTO> => {
     const { supabase, userId } = context;
-    const row = await ensureConfig(supabase, userId, data.channelId, data.groupId, data.groupName);
+    const row = await ensureConfig(supabase, userId, data.channelId, data.groupId, data.groupName, data.seedInstanceId);
     return buildStatus(supabase, row);
   });
 
