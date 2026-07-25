@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -119,12 +119,30 @@ function ReportsPage() {
   const [draft, setDraft] = useState<DraftFilters>(defaultDraft);
   const [applied, setApplied] = useState<DraftFilters>(draft);
   const [tableFilter, setTableFilter] = useState("");
+  const [channels, setChannels] = useState<ChannelDTO[]>([]);
 
   const fetchReports = useServerFn(listReports);
   const runSync = useServerFn(syncReports);
+  const listChannelsFn = useServerFn(listChannels);
+
+  useEffect(() => {
+    let cancelled = false;
+    void listChannelsFn()
+      .then((rows) => {
+        if (!cancelled) setChannels(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setChannels([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [listChannelsFn]);
 
   const filters: ReportFilters = useMemo(
     () => ({
+      channelId: applied.channelId && applied.channelId !== "all" ? applied.channelId : null,
+      platform: applied.platform,
       dateFrom: applied.dateFrom || null,
       dateTo: applied.dateTo || null,
       status: applied.status,
@@ -170,6 +188,15 @@ function ReportsPage() {
         o.order_id.toLowerCase().includes(q),
     );
   }, [rows, tableFilter]);
+
+  const handleExportCsv = () => {
+    if (filteredRows.length === 0) {
+      toast.error("Nada para exportar com os filtros atuais.");
+      return;
+    }
+    downloadCsv(filteredRows);
+    toast.success(`${filteredRows.length} linhas exportadas para CSV`);
+  };
 
   return (
     <div className="min-h-screen bg-background font-sans text-foreground antialiased lg:flex">
