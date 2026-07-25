@@ -18,8 +18,8 @@
  *      product is treated as PENDING (retried on next enrichment sweep).
  */
 
-const FETCH_TIMEOUT_MS = 8_000;
-const CONCURRENCY = 6;
+const FETCH_TIMEOUT_MS = 5_000;
+const CONCURRENCY = 8;
 
 const UA_WHATSAPP = "WhatsApp/2.24.0.85 A";
 const UA_FACEBOOK =
