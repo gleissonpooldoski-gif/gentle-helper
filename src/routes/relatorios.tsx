@@ -213,6 +213,7 @@ function ReportsPage() {
             onSync={() => sync.mutate()}
             syncing={sync.isPending}
             lastSyncAt={lastSyncAt ?? null}
+            channels={channels}
           />
 
           <section className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
@@ -260,6 +261,7 @@ function ReportsPage() {
             tableFilter={tableFilter}
             onTableFilterChange={setTableFilter}
             loading={query.isLoading}
+            onExportCsv={handleExportCsv}
           />
         </main>
       </div>
