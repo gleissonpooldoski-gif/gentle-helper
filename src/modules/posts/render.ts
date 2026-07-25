@@ -93,11 +93,20 @@ export function renderPost(
   channel: "whatsapp" | "html" = "html",
 ): string {
   const title = layout.upper_title ? product.title.toUpperCase() : product.title;
+  // Fallback: quando só existe um dos preços, usa-o como preço atual.
+  // Evita post sem linha de preço quando promo_price está null mas
+  // original_price está preenchido (caso comum na captura Shopee).
+  const effectivePrice =
+    product.price != null && product.price !== ""
+      ? product.price
+      : product.price_original ?? null;
+  const effectiveOriginal =
+    product.price != null && product.price !== "" ? product.price_original ?? null : null;
   const vars = {
     title,
     description: product.description ?? "",
-    price: money(product.price),
-    price_original: money(product.price_original),
+    price: money(effectivePrice),
+    price_original: money(effectiveOriginal),
     parcelamento: product.parcelamento ?? "",
     vendas: product.vendas != null ? String(product.vendas) : "",
     link: product.link,
