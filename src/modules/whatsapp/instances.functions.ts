@@ -69,7 +69,14 @@ export const listWhatsAppInstances = createServerFn({ method: "POST" })
       .select("*")
       .eq("user_id", userId)
       .order("created_at", { ascending: false });
-    if (data.channelId) q = q.eq("channel_id", data.channelId);
+    // A instância provisionada DIVULGA LINKS é compartilhada pela conta. Ela
+    // precisa aparecer em todos os modais, enquanto as seleções continuam
+    // isoladas por channel_id + instance_id.
+    if (data.channelId) {
+      q = q.or(
+        `channel_id.eq.${data.channelId},instance_name.eq.${EXISTING_DIVULGA_LINKS_INSTANCE}`,
+      );
+    }
     const { data: rows, error } = await q;
     if (error) throw new Error(error.message);
     return (rows ?? []).map(rowToDTO);
@@ -336,9 +343,12 @@ export const adoptEvolutionInstance = createServerFn({ method: "POST" })
 
 
     if (existing) {
+      // Não mover a instância compartilhada de um canal para outro cada vez
+      // que um modal é aberto. O isolamento pertence às tabelas de seleção.
+      const { channel_id: _requestedChannelId, ...existingPatch } = payload;
       const { data: upd, error } = await (supabase as any)
         .from("whatsapp_instances")
-        .update(payload)
+        .update(existingPatch)
         .eq("id", existing.id)
         .select("*")
         .single();
@@ -407,8 +417,13 @@ export const fetchWhatsAppGroups = createServerFn({ method: "POST" })
           participants: g.participants ?? null,
           pictureUrl: g.pictureUrl ?? null,
         }));
-    } catch {
-      /* segue com o que houver salvo */
+    } catch (error) {
+      // Não transformar falha da Evolution em uma lista vazia enganosa.
+      throw new Error(
+        error instanceof Error
+          ? error.message
+          : "Falha ao buscar os grupos na Evolution API",
+      );
     }
 
     // 2) Seleção salva SOMENTE deste channel/grupo-config + instância.

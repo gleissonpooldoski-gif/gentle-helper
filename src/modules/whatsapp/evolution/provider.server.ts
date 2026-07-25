@@ -224,8 +224,21 @@ export const evolutionProvider: WhatsAppProvider = {
 
   async fetchGroups(instanceName): Promise<WhatsAppGroup[]> {
     const path = `/group/fetchAllGroups/${encodeURIComponent(instanceName)}?getParticipants=false`;
-    const res = await evolutionJson<any>(path, { method: "GET" });
-    const arr: any[] = Array.isArray(res) ? res : Array.isArray(res?.groups) ? res.groups : [];
+    // Em contas com muitos grupos, a Evolution pode levar mais que o timeout
+    // padrão de 15s para montar a lista, mesmo sem participantes.
+    const res = await evolutionJson<any>(path, {
+      method: "GET",
+      timeoutMs: 60_000,
+    });
+    const arr: any[] = Array.isArray(res)
+      ? res
+      : Array.isArray(res?.groups)
+        ? res.groups
+        : Array.isArray(res?.data)
+          ? res.data
+          : Array.isArray(res?.response)
+            ? res.response
+            : [];
     return arr
       .map((g) => {
         const jid: string = g?.id ?? g?.jid ?? g?.remoteJid ?? "";
