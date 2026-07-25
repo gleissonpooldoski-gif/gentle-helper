@@ -83,7 +83,7 @@ export const updateInstagramFlags = createServerFn({ method: "POST" })
       disableCommentReply: z.boolean().optional(),
     }).parse(d))
   .handler(async ({ data, context }) => {
-    const patch: Record<string, unknown> = {};
+    const patch: { auto_post_enabled?: boolean; growth_enabled?: boolean; disable_comment_reply?: boolean } = {};
     if (data.autoPostEnabled !== undefined) patch.auto_post_enabled = data.autoPostEnabled;
     if (data.growthEnabled !== undefined) patch.growth_enabled = data.growthEnabled;
     if (data.disableCommentReply !== undefined) patch.disable_comment_reply = data.disableCommentReply;
