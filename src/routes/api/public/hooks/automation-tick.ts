@@ -134,6 +134,10 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
     }
 
     // Busca um lote de candidatos aleatorizados e valida em ordem.
+    // ISOLAMENTO OBRIGATÓRIO: quando a config é por grupo (`cfg.group_id`),
+    // só considera produtos capturados a partir do mesmo grupo destino
+    // (`products.source_group_jid = cfg.group_id`). Isso impede que um
+    // WhatsApp/grupo dispare produtos que pertencem a outro grupo.
     let q = admin
       .from("products")
       .select("*")
@@ -144,6 +148,10 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
       .not("affiliate_link", "is", null)
       .order("last_validated_at", { ascending: true, nullsFirst: true })
       .limit(30);
+
+    if (cfg.group_id) {
+      q = q.eq("source_group_jid", cfg.group_id);
+    }
 
     if (excluded.size > 0) {
       q = q.not("id", "in", `(${Array.from(excluded).join(",")})`);
