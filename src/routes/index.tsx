@@ -25,6 +25,8 @@ import { cn } from "@/lib/utils";
 import { AppSidebar } from "@/components/app-sidebar";
 import { listChannelDashboards, deleteChannel, type ChannelDashboardDTO } from "@/modules/channels/channels.functions";
 import { CreateChannelModal } from "@/components/channels/CreateChannelModal";
+import { SkeletonDashboard } from "@/components/ui/skeleton-page";
+import { useDebounced } from "@/hooks/use-debounced";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/")({
@@ -112,23 +114,31 @@ function ChannelsPage() {
   const listChannelsFn = useServerFn(listChannelDashboards);
   const deleteChannelFn = useServerFn(deleteChannel);
   const [channels, setChannels] = useState<Channel[]>([]);
+  const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
+  const debouncedQuery = useDebounced(query, 200);
   const [createOpen, setCreateOpen] = useState(false);
 
   const reload = () => {
+    setLoading(true);
     void listChannelsFn()
       .then((rows) => setChannels(rows.map(toChannel)))
-      .catch(() => setChannels([]));
+      .catch(() => setChannels([]))
+      .finally(() => setLoading(false));
   };
 
   useEffect(() => {
     let cancelled = false;
+    setLoading(true);
     void listChannelsFn()
       .then((rows) => {
         if (!cancelled) setChannels(rows.map(toChannel));
       })
       .catch(() => {
         if (!cancelled) setChannels([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
       });
     return () => {
       cancelled = true;
@@ -136,9 +146,10 @@ function ChannelsPage() {
   }, [listChannelsFn]);
 
   const filtered = useMemo(
-    () => channels.filter((c) => c.name.toLowerCase().includes(query.trim().toLowerCase())),
-    [channels, query],
+    () => channels.filter((c) => c.name.toLowerCase().includes(debouncedQuery.trim().toLowerCase())),
+    [channels, debouncedQuery],
   );
+
 
   const handleDelete = async (id: string, name: string) => {
     if (!window.confirm(`Excluir o grupo "${name}"? Esta ação é permanente.`)) return;
@@ -188,20 +199,27 @@ function ChannelsPage() {
             </p>
           </div>
 
-          <section className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-            {filtered.map((c) => (
-              <ChannelCard key={c.id} channel={c} onDelete={() => handleDelete(c.id, c.name)} />
-            ))}
-            <AddChannelTile
-              onClick={() => {
-                if (atLimit) {
-                  toast.error(`Limite de ${LIMIT} grupos atingido.`);
-                  return;
-                }
-                setCreateOpen(true);
-              }}
-            />
+          <section className="mt-6">
+            {loading && channels.length === 0 ? (
+              <SkeletonDashboard />
+            ) : (
+              <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+                {filtered.map((c) => (
+                  <ChannelCard key={c.id} channel={c} onDelete={() => handleDelete(c.id, c.name)} />
+                ))}
+                <AddChannelTile
+                  onClick={() => {
+                    if (atLimit) {
+                      toast.error(`Limite de ${LIMIT} grupos atingido.`);
+                      return;
+                    }
+                    setCreateOpen(true);
+                  }}
+                />
+              </div>
+            )}
           </section>
+
         </main>
       </div>
 
