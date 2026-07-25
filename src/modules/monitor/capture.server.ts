@@ -566,12 +566,26 @@ async function captureOne(
     .maybeSingle();
 
   if (error) {
-
     console.error("[MONITOR] upsert error", error.message);
     return "skipped";
   }
+
+  // Log de histórico de preço quando houver mudança real.
+  const productId = upserted?.id ?? existing?.id ?? null;
+  if (priceChanged && productId && price != null) {
+    await ctx.supabase.from("product_price_history").insert({
+      product_id: productId,
+      old_price: prevPrice,
+      new_price: price,
+      old_original_price: existing?.original_price != null ? Number(existing.original_price) : null,
+      new_original_price: effectiveOriginal,
+      discount_percentage: discountPct,
+    } as never);
+  }
+
   return existing ? "updated" : "inserted";
 }
+
 
 type EvolutionMessage = {
   key?: { remoteJid?: string; fromMe?: boolean };
