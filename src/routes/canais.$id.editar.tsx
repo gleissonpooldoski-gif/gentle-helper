@@ -30,7 +30,14 @@ import {
 import { WhatsAppInstancePanel } from "@/components/whatsapp/WhatsAppInstancePanel";
 import { SiteConfigPanel } from "@/components/site/SiteConfigPanel";
 import { SendToGroupsModal, type SendProduct } from "@/components/whatsapp/SendToGroupsModal";
-import { getPostLayout, savePostLayout } from "@/modules/posts/layout.functions";
+import {
+  getPostLayout,
+  savePostLayout,
+  listHeaderVariations,
+  addHeaderVariation,
+  deleteHeaderVariation,
+  type HeaderVariation,
+} from "@/modules/posts/layout.functions";
 import { DEFAULT_POST_LAYOUT, type PostLayout } from "@/modules/posts/render";
 import { GroupAutomationList } from "@/components/automation/GroupAutomationList";
 import { getChannel, updateChannel, getChannelProductCounts, type ChannelDTO, type ChannelProductCountsDTO } from "@/modules/channels/channels.functions";
