@@ -166,16 +166,39 @@ export const listChannelDashboards = createServerFn({ method: "GET" })
     const { supabase, userId } = context;
     const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
+    // Pagina produtos para ultrapassar o limite padrão de 1000 linhas do PostgREST.
+    async function fetchAllProducts() {
+      const pageSize = 1000;
+      let from = 0;
+      const rows: Array<{
+        channel_id: string | null;
+        platform: string | null;
+        availability: string | null;
+        affiliate_link: string | null;
+      }> = [];
+      // Máx. 50k linhas por usuário — teto de segurança.
+      for (let i = 0; i < 50; i++) {
+        const { data, error } = await supabase
+          .from("products")
+          .select("channel_id, platform, availability, affiliate_link")
+          .eq("user_id", userId)
+          .range(from, from + pageSize - 1);
+        if (error) throw new Error(error.message);
+        const batch = data ?? [];
+        rows.push(...(batch as typeof rows));
+        if (batch.length < pageSize) break;
+        from += pageSize;
+      }
+      return { data: rows, error: null as null };
+    }
+
     const [channelsRes, productsRes, instancesRes, configsRes, historyRes] = await Promise.all([
       supabase
         .from("channels")
         .select("id, name, external_id, auto_post, interval_min, random_order")
         .eq("user_id", userId)
         .order("created_at", { ascending: true }),
-      supabase
-        .from("products")
-        .select("channel_id, platform, availability, affiliate_link")
-        .eq("user_id", userId),
+      fetchAllProducts(),
       supabase.from("whatsapp_instances").select("channel_id, status").eq("user_id", userId),
       supabase
         .from("automation_configs")
