@@ -7,6 +7,7 @@ import { createFileRoute, notFound } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { useMemo, useState } from "react";
 import { z } from "zod";
+import { useDebounced } from "@/hooks/use-debounced";
 
 type PublicProduct = {
   id: string;
