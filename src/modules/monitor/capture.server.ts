@@ -281,7 +281,7 @@ async function captureOne(ctx: CaptureContext, rawUrl: string): Promise<"inserte
     affiliate_link: affiliate,
     original_price: meta.price,
     promo_price: meta.price,
-    availability: "ACTIVE" as const,
+    availability: "active" as const,
     source: "monitor",
     source_group_jid: ctx.groupJid,
     source_group_name: ctx.groupName,
