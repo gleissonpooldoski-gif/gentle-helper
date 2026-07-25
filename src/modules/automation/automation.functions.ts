@@ -420,6 +420,17 @@ export const listAutomationGroups = createServerFn({ method: "POST" })
     );
 
     const jids = unique.map((r) => r.group_jid);
+    const { data: sourceGroups } = await supabase
+      .from("monitored_groups")
+      .select("group_jid")
+      .eq("user_id", userId)
+      .eq("channel_id", data.channelId)
+      .eq("is_active", true);
+    const sourceJids = new Set((sourceGroups ?? []).map((r: any) => r.group_jid));
+    unique.sort((a, b) => {
+      const sourceOrder = Number(sourceJids.has(b.group_jid)) - Number(sourceJids.has(a.group_jid));
+      return sourceOrder || String(a.group_name ?? "").localeCompare(String(b.group_name ?? ""), "pt-BR");
+    });
     const { data: cfgs } = jids.length
       ? await supabase
           .from("automation_configs")

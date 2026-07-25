@@ -31,17 +31,21 @@ export const importShopeeBatch = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => InputSchema.parse(input))
   .handler(async ({ data, context }) => {
+    // O grupo de origem do catálogo é o grupo monitorado do canal. Não confie
+    // no primeiro card da tela: um canal pode ter vários grupos de destino e a
+    // ordenação deles não define a propriedade dos produtos.
     const { data: group, error: groupError } = await context.supabase
-      .from("whatsapp_group_selections")
+      .from("monitored_groups")
       .select("group_jid, group_name")
       .eq("user_id", context.userId)
       .eq("channel_id", data.channelId)
-      .eq("group_jid", data.sourceGroupJid)
+      .eq("is_active", true)
+      .order("updated_at", { ascending: false })
       .limit(1)
       .maybeSingle();
     if (groupError) throw new Error(groupError.message);
     if (!group) {
-      throw new Error("O grupo escolhido não está vinculado a este canal.");
+      throw new Error("Nenhum grupo de captura ativo está vinculado a este canal.");
     }
     const outcome = await importBatch(
       context.supabase,
