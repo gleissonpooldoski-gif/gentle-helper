@@ -1,66 +1,85 @@
-# Instagram Admin (Meta Graph API) — conta única
+# Instagram Admin — Sistema de Automação Completo
 
-Substitui o fluxo OAuth atual por uma configuração manual global (uma única conta Instagram gerenciada pelo admin do SaaS). Nenhum "Login com Facebook" será usado.
+Amplia o módulo `/instagram/*` (conta única já conectada) para automação ponta-a-ponta usando Meta Graph API v21. Reaproveita `instagram_settings`, `instagram_logs`, `instagram_comments`, `instagram_automations` já existentes. Nada de OAuth, Facebook Login ou múltiplas contas.
 
-## Banco de dados (Lovable Cloud)
+## O que será entregue
 
-Migração nova:
+### 1. Diagnóstico e validação (Instagram > Diagnóstico)
+- Painel que roda ao abrir qualquer aba do módulo.
+- Verifica em tempo real: Access Token válido, Instagram Business ID, Facebook Page, Webhook (via `subscribed_apps`), permissões (via `debug_token`), expiração do token, último Story, última DM, último comentário.
+- Reaproveita a lógica de `testConnection` já criada (agora com `pageName`, `webhookActive`, `capabilities`).
 
-- `instagram_settings` (linha única, singleton por `id = 'default'`)
-  - `instagram_business_id`, `facebook_page_id`, `access_token_ciphertext` (AES-256-GCM, reusa `INSTAGRAM_TOKEN_ENC_KEY`)
-  - `created_at`, `updated_at`
-  - RLS: apenas `admin` (via `has_role`) pode ler/gravar. Service role para servidores.
-- `instagram_comments`
-  - `comment_id` (unique), `media_id`, `username`, `comment`, `reply`, `replied_at`, `created_at`
-- `instagram_automations`
-  - `keyword`, `message`, `enabled`, timestamps
-  - Escopo global (sem `user_id`, gerido só por admin)
-- `instagram_logs`
-  - `type`, `payload jsonb`, `created_at`
-- Papel `admin` reaproveitando o padrão `user_roles` (criar se ainda não existir).
+### 2. Publicações (Instagram > Publicações) — já existe
+- Manter a página atual (feed real da Graph API) e adicionar botão Atualizar (invalida query).
 
-Todas as tabelas com `GRANT` + RLS + trigger `updated_at`.
+### 3. Stories (Instagram > Stories)
+- Selecionar produto da tabela `products` (equivalente a `affiliate_products` aqui).
+- Escolher template salvo → renderiza PNG server-side com placeholders `{{product_image}}`, `{{title}}`, `{{price}}`, `{{original_price}}`, `{{discount}}`, `{{store}}`, `{{affiliate_link}}`.
+- Publica via `/media` + `/media_publish` (STORIES).
+- Registra em `instagram_campaigns` (nova tabela): story_id, product_id, template_id, keyword, message, status, published_at.
 
-## Backend (server functions + rota pública)
+### 4. Editor de templates (Instagram > Templates)
+- Editor visual Fabric.js 1080×1920.
+- Elementos: logo, imagem do produto, textos, preço, desconto, formas.
+- Serializa `canvas.toJSON()` na tabela `instagram_story_templates` (já existe — adiciono coluna `fabric_json jsonb`).
+- Múltiplos templates por conta; um marcado como padrão.
 
-Novo módulo `src/modules/instagram-admin/`:
+### 5. Automações por palavra-chave (Instagram > Automações) — já existe
+- Ampliar `instagram_automations` com `product_id uuid` opcional e mensagens com placeholder `{{affiliate_link}}`.
+- Aplicadas a comentários E respostas de Stories.
 
-- `settings.server.ts` — helper `getSettings()` que decripta o token, cache em memória do worker.
-- `graph.server.ts` — chamadas Graph API (test connection, publish story, list comments, reply, list conversations, send DM). Reusa util `gfetch` do `instagram-graph.server.ts`.
-- `services/`
-  - `InstagramService` — CRUD `instagram_settings`, `testConnection`.
-  - `InstagramStoryService` — `publishStory({ imageUrl, caption })`.
-  - `InstagramCommentService` — `listComments`, `reply`, persistir em `instagram_comments`.
-  - `InstagramMessageService` — `listConversations`.
-  - `InstagramAutomationService` — CRUD + `matchKeyword(text)`.
-  - `InstagramWebhookService` — parse do payload Meta, dispatch para automations, log em `instagram_logs`.
-- `admin.functions.ts` — server fns com `requireSupabaseAuth` + verificação de role admin: `getSettings`, `saveSettings`, `testConnection`, `publishStory`, `listComments`, `replyComment`, `listConversations`, `listAutomations`, `saveAutomation`, `deleteAutomation`.
-- Rota pública `src/routes/api/public/meta/webhook.ts` (`GET` verify + `POST` receive) — insere log, aplica automations DM (responde "link" → mensagem com `{{affiliate_link}}`).
+### 6. Webhook `/api/public/meta/webhook` — já existe
+- Estender para processar `story_insights`/`messages` (Story replies) além de comentários e DMs.
+- Gatilho por palavra-chave (LINK, PROMOÇÃO, OFERTA, CUPOM, DESCONTO): busca a campanha ligada ao Story e envia DM com `affiliate_link` do produto.
+- Comentários com "link", "promo", "cupom" → responde no comentário e opcionalmente envia DM.
+- Todos os eventos gravam em `instagram_logs` com `type`, `payload`, `latency_ms`.
 
-Storage: bucket `instagram-uploads` (public) para imagens de Story.
+### 7. Inbox de DMs (Instagram > Mensagens) — já existe listagem
+- Ampliar: mostrar foto/nome/mensagem/data, painel de conversa e responder em tempo real via `/{ig-id}/messages`.
 
-## Frontend
+### 8. Dashboard (Instagram > Dashboard)
+- Cards do dia: Stories publicados, comentários respondidos, DMs enviadas, automações executadas, taxa de resposta, top produtos enviados.
+- Fonte: agregações sobre `instagram_campaigns` + `instagram_logs` + `instagram_comments`.
 
-Menu lateral novo em `app-sidebar.tsx`: seção **Instagram** com subitens.
+### 9. Segurança e qualidade
+- Access Token permanece criptografado (AES-256-GCM já implementado).
+- Toasts de sucesso/erro, loaders, retry com backoff exponencial em chamadas Graph (3 tentativas em 5xx/#4/#17).
+- Logs completos com duração.
 
-Novas rotas:
+## Detalhes técnicos
 
-- `src/routes/_authenticated/instagram/configuracoes.tsx` — form (Business ID, Page ID, Access Token), botões **Testar conexão** e **Salvar**. Toast + status 🟢/🔴.
-- `src/routes/_authenticated/instagram/publicacoes.tsx` — lista de posts recentes (Graph `/{ig}/media`).
-- `src/routes/_authenticated/instagram/stories.tsx` — upload de imagem (Supabase Storage) + legenda + **Publicar Story**.
-- `src/routes/_authenticated/instagram/comentarios.tsx` — lista comentários, botão **Responder** com dialog.
-- `src/routes/_authenticated/instagram/mensagens.tsx` — lista conversas (nome, última msg, horário, status).
-- `src/routes/_authenticated/instagram/automacoes.tsx` — CRUD palavra-chave/mensagem, toggle enabled.
+### Banco (uma migration)
+- `instagram_campaigns` (id, user_id, story_id, product_id, template_id, keyword, message, status, published_at, created_at) + RLS + GRANT.
+- `instagram_story_templates`: adicionar `fabric_json jsonb`, `is_default boolean`.
+- `instagram_logs`: adicionar `latency_ms int`.
+- `instagram_automations`: adicionar `product_id uuid`, `scope text default 'comment'` (comment|story_reply|both).
 
-Componentes reutilizáveis em `src/components/instagram-admin/` (StatusBadge, ConnectionCard, CommentCard, AutomationForm, StoryComposer). Loading states via `useQuery`/`useMutation`, toasts via `sonner`.
+### Backend (server functions em `src/modules/instagram-admin/`)
+- `graph.server.ts`: adicionar `sendDirectMessage` (já existe), `getMediaInsights`, `getRecentDMs`, wrapper com retry.
+- `story-render.server.ts`: renderiza template usando `@napi-rs/canvas` (compatível com Workers) → PNG → upload para Storage bucket público → devolve URL pra Graph.
+- `campaigns.functions.ts`: `publishStoryCampaign({productId, templateId, keyword, message})`, `listCampaigns`, `getDashboardStats`.
+- `templates.functions.ts`: CRUD dos templates Fabric.
+- `webhook`: reescrever handler para roteamento por tipo (comment / message / story_reply) + engine de matching de palavra-chave + envio de DM automatizada.
 
-`AuthGate` continua protegendo. Verificação de role admin no server; UI mostra aviso se usuário não for admin.
+### Frontend (`src/routes/instagram.*.tsx`)
+- Novas rotas: `instagram.dashboard.tsx`, `instagram.templates.tsx`, `instagram.diagnostico.tsx`.
+- Stories page: seletor de produto + seletor de template + preview + botão publicar.
+- Templates page: canvas Fabric.js com toolbar (adicionar texto/imagem/forma, cores, fontes) e save.
+- Layout `instagram.tsx`: sub-nav com Dashboard, Publicações, Stories, Templates, Automações, Mensagens, Comentários, Diagnóstico, Configurações.
 
-## Env / configuração
-Reutiliza `META_APP_ID`/`META_APP_SECRET` (opcional, só para verificação de assinatura do webhook) e `META_WEBHOOK_VERIFY_TOKEN`. Nada de OAuth.
+### Dependências novas
+- `fabric` (editor)
+- `@napi-rs/canvas` (render PNG server-side, compatível com Cloudflare Workers via wasm)
 
-## Escopo excluído
-- Não altera o fluxo Instagram existente por canal (`instagram_connections`) nem o InstaBotHelp — o novo módulo é paralelo e independente.
-- Nenhum "Login com Facebook" ou tela OAuth.
+## Fora de escopo
+- OAuth / Facebook Login / múltiplas contas.
+- Agendamento recorrente de Stories (já existe `instagram_story_schedule`; não será mexido nesta entrega salvo consumo).
+- Editor de vídeo / Reels.
 
-Confirma que devo prosseguir com essa estrutura? Um ponto para decidir: **você quer que o novo módulo substitua o painel Instagram por canal (remover a integração antiga) ou conviva em paralelo?** Por padrão vou mantê-los em paralelo.
+## Ordem de execução
+1. Migration (tabelas/colunas + RLS + GRANT).
+2. Backend: render de Story, campanhas, webhook expandido, dashboard stats.
+3. Frontend: Dashboard, Stories (publicar), Templates (editor), Diagnóstico; ajustes em Automações e Mensagens.
+4. Teste ponta-a-ponta: publicar Story → responder no Instagram → confirmar DM automática.
+
+Aprovando, executo tudo em sequência.
