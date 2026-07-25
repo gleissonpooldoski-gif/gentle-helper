@@ -184,8 +184,8 @@ async function handleWebhook(payload: any, started: number) {
           matchTrigger(text, r.keyword),
       );
       if (rule) {
-        let affiliateLink = "";
-        if (rule.product_id) {
+        let affiliateLink = rule.button_url ?? "";
+        if (!affiliateLink && rule.product_id) {
           const { data: p } = await (supabaseAdmin as any)
             .from("products")
             .select("affiliate_link,raw_link")
@@ -193,7 +193,11 @@ async function handleWebhook(payload: any, started: number) {
             .maybeSingle();
           affiliateLink = p?.affiliate_link ?? p?.raw_link ?? "";
         }
-        const body = fillTemplate(rule.message, { affiliate_link: affiliateLink });
+        const body = fillTemplate(rule.message, {
+          affiliate_link: affiliateLink,
+          link: affiliateLink,
+          button_label: rule.button_label ?? "",
+        });
         try {
           await sendDirectMessage({
             igId: settings.instagramBusinessId,
