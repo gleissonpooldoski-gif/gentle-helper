@@ -227,6 +227,37 @@ export const saveMonitorGroups = createServerFn({ method: "POST" })
         .upsert(rows, { onConflict: "user_id,instance_id,group_jid" });
       if (error) throw new Error(error.message);
     }
+    // Garante que o webhook da Evolution está registrado para MESSAGES_UPSERT
+    // em cada instância vinculada — sem isso, mensagens dos grupos monitorados
+    // nunca chegam até o capturador.
+    if (data.groups.length > 0) {
+      try {
+        const { getWhatsAppProvider } = await import("@/modules/whatsapp/index.server");
+        const { data: instRows } = await (supabase as any)
+          .from("whatsapp_instances")
+          .select("provider, instance_name")
+          .in("id", instanceIds);
+        const proto = "https";
+        const host = (context as any)?.request?.headers?.get?.("host") ?? null;
+        const webhookUrl = host
+          ? `${proto}://${host}/api/public/whatsapp/webhook`
+          : null;
+        if (webhookUrl) {
+          for (const inst of instRows ?? []) {
+            const p = getWhatsAppProvider(inst.provider);
+            if (typeof p.setWebhook === "function") {
+              await p.setWebhook(inst.instance_name, webhookUrl, [
+                "QRCODE_UPDATED",
+                "CONNECTION_UPDATE",
+                "MESSAGES_UPSERT",
+              ]);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("[MONITOR] setWebhook falhou:", (err as Error).message);
+      }
+    }
 
     return { ok: true, count: data.groups.length };
   });
