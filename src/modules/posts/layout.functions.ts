@@ -319,7 +319,11 @@ export const sendLayoutTestMessage = createServerFn({ method: "POST" })
       ? sanitizeLayoutInput(data.layout)
       : await loadLayoutFor(supabase, userId, data.channelId);
 
-    const chosenHeader = await resolveHeader(supabase, userId, layout, []);
+    const hasDiscount = productHasDiscount({
+      promo_price: prod.promo_price,
+      original_price: prod.original_price,
+    });
+    const chosenHeader = await resolveHeader(supabase, userId, layout, [], { hasDiscount });
     const { renderPost } = await import("./render");
     const vendasFinal = prod.sales_label ?? prod.sales;
     const caption = renderPost({ ...layout, header: chosenHeader }, {
