@@ -1209,6 +1209,33 @@ function LayoutPostPanel({ channelId }: { channelId: string }) {
             rows={2}
           />
 
+          <div className="mt-3 rounded-xl border border-dashed border-primary/40 bg-primary/5 p-3">
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-primary/80">
+              Testar no seu WhatsApp
+            </div>
+            <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
+              Envia uma mensagem real usando o produto mais recente do canal e o layout acima (mesmo sem salvar).
+            </p>
+            <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+              <input
+                type="tel"
+                inputMode="numeric"
+                placeholder="Seu número com DDD (ex.: 11987654321)"
+                value={testPhone}
+                onChange={(e) => setTestPhone(e.target.value)}
+                className="h-10 flex-1 rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-primary"
+              />
+              <Button
+                onClick={handleSendTest}
+                disabled={testing || loading}
+                variant="outline"
+                className="h-10 rounded-lg px-4"
+              >
+                {testing ? "Enviando…" : "Enviar teste"}
+              </Button>
+            </div>
+          </div>
+
           <div className="flex justify-end pt-2">
             <Button
               onClick={handleSave}
