@@ -147,6 +147,7 @@ function EditChannelPage() {
   const getChannelFn = useServerFn(getChannel);
   const updateChannelFn = useServerFn(updateChannel);
   const getFlowSummaryFn = useServerFn(getChannelFlowSummary);
+  const listAutomationGroupsFn = useServerFn(listAutomationGroups);
   const getManualPostFn = useServerFn(getManualPost);
   const saveManualPostFn = useServerFn(saveManualPost);
   const buildMLAffiliateUrlFn = useServerFn(buildMLAffiliateUrl);
