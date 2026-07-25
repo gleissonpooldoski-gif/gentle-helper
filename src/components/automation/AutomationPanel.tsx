@@ -73,6 +73,8 @@ export function AutomationPanel({ channelId, groupId = null, groupName = null, t
   const stopFn = useServerFn(stopAutomation);
   const histFn = useServerFn(listCampaignHistory);
 
+  const listInstFn = useServerFn(listWhatsAppInstances);
+
   const scope = { channelId, groupId, groupName };
 
   const [cfg, setCfg] = useState<AutomationConfigDTO | null>(null);
@@ -81,6 +83,8 @@ export function AutomationPanel({ channelId, groupId = null, groupName = null, t
   const [intervalo, setIntervalo] = useState(15);
   const [postLoop, setPostLoop] = useState(true);
   const [lojas, setLojas] = useState<string[]>(["shopee", "mercadolivre"]);
+  const [instanceId, setInstanceId] = useState<string>("");
+  const [instances, setInstances] = useState<WhatsAppInstanceDTO[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -93,6 +97,7 @@ export function AutomationPanel({ channelId, groupId = null, groupName = null, t
     setIntervalo(c.intervaloMin);
     setPostLoop(c.postLoop);
     setLojas(c.lojasAtivas);
+    setInstanceId(c.instanceId ?? "");
   };
 
   const refresh = async () => {
