@@ -48,14 +48,22 @@ export const testInstagramAdminConnection = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { loadSettings } = await import("./settings.server");
     const { testConnection } = await import("./graph.server");
-    let payload: { igId: string; token: string };
+    let payload: { igId: string; token: string; pageId?: string };
     if ("useSaved" in (data as any)) {
       const s = await loadSettings();
       if (!s) throw new Error("Nenhuma configuração salva.");
-      payload = { igId: s.instagramBusinessId, token: s.accessToken };
+      payload = {
+        igId: s.instagramBusinessId,
+        token: s.accessToken,
+        pageId: s.facebookPageId,
+      };
     } else {
       const parsed = settingsInput.parse(data);
-      payload = { igId: parsed.instagramBusinessId, token: parsed.accessToken };
+      payload = {
+        igId: parsed.instagramBusinessId,
+        token: parsed.accessToken,
+        pageId: parsed.facebookPageId,
+      };
     }
     const info = await testConnection(payload);
     return { ok: true, info };

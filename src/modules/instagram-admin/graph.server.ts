@@ -26,17 +26,42 @@ async function gfetch<T>(
   return body as T;
 }
 
+/**
+ * Resolve the correct token for IG Graph calls.
+ * If a User Access Token is provided together with a pageId, exchange it for
+ * the Page Access Token (which carries pages_read_engagement automatically
+ * when the user has granted it). If the exchange fails, fall back to the
+ * original token so error surfaces clearly to the caller.
+ */
+export async function resolvePageToken(input: {
+  token: string;
+  pageId?: string;
+}): Promise<string> {
+  if (!input.pageId) return input.token;
+  try {
+    const res = await gfetch<{ access_token?: string }>(`/${input.pageId}`, {
+      access_token: input.token,
+      fields: "access_token",
+    });
+    return res.access_token || input.token;
+  } catch {
+    return input.token;
+  }
+}
+
 export async function testConnection(input: {
   igId: string;
   token: string;
+  pageId?: string;
 }): Promise<{
   username: string;
   name?: string;
   followers?: number;
   mediaCount?: number;
 }> {
+  const token = await resolvePageToken({ token: input.token, pageId: input.pageId });
   return gfetch(`/${input.igId}`, {
-    access_token: input.token,
+    access_token: token,
     fields: "username,name,followers_count,media_count",
   }) as any;
 }
