@@ -332,7 +332,11 @@ async function fetchShopeePdp(
         item?: {
           title?: string;
           price?: number;
+          price_min?: number;
+          price_max?: number;
           price_before_discount?: number;
+          price_min_before_discount?: number;
+          price_max_before_discount?: number;
           images?: string[];
           historical_sold?: number;
           global_sold_count?: number;
@@ -342,11 +346,14 @@ async function fetchShopeePdp(
     };
     const item = json?.data?.item;
     if (!item) return empty;
-    const price = item.price ? item.price / 100000 : null;
-    let priceBefore =
-      item.price_before_discount && item.price_before_discount > 0
-        ? item.price_before_discount / 100000
-        : null;
+    const rawPrice = item.price ?? item.price_min ?? item.price_max ?? null;
+    const rawBefore =
+      item.price_before_discount ??
+      item.price_min_before_discount ??
+      item.price_max_before_discount ??
+      null;
+    const price = rawPrice ? rawPrice / 100000 : null;
+    let priceBefore = rawBefore && rawBefore > 0 ? rawBefore / 100000 : null;
     // Se o "de" for igual (ou menor) ao "por", não é desconto real — descarta.
     if (priceBefore != null && price != null && priceBefore <= price) priceBefore = null;
     const image = item.images?.[0] ? `https://down-br.img.susercontent.com/file/${item.images[0]}` : null;
