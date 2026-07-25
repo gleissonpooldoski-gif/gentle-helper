@@ -281,15 +281,25 @@ async function handleWebhook(payload: any, started: number) {
 
       if (replied) continue;
 
-      // Fall back to generic keyword automation
-      const rule = rules.find(
+      // Prefer per-media rule
+      let rule = rules.find(
         (r) =>
-          (r.scope === "both" || r.scope === "comment") && matchTrigger(text, r.keyword),
+          r.media_id === mediaId &&
+          (r.scope === "both" || r.scope === "comment") &&
+          matchTrigger(text, r.keyword),
       );
+      if (!rule) {
+        rule = rules.find(
+          (r) =>
+            !r.media_id &&
+            (r.scope === "both" || r.scope === "comment") &&
+            matchTrigger(text, r.keyword),
+        );
+      }
       if (!rule) continue;
 
-      let affiliateLink = "";
-      if (rule.product_id) {
+      let affiliateLink = rule.button_url ?? "";
+      if (!affiliateLink && rule.product_id) {
         const { data: p } = await (supabaseAdmin as any)
           .from("products")
           .select("affiliate_link,raw_link")
@@ -297,20 +307,36 @@ async function handleWebhook(payload: any, started: number) {
           .maybeSingle();
         affiliateLink = p?.affiliate_link ?? p?.raw_link ?? "";
       }
-      const body = fillTemplate(rule.message, { affiliate_link: affiliateLink });
+
+      const commentBody =
+        pickCommentReply(rule.comment_reply) ?? "Te chamei no direct 📩";
+      const dmBody = fillTemplate(rule.message, {
+        affiliate_link: affiliateLink,
+        link: affiliateLink,
+        button_label: rule.button_label ?? "",
+      });
+
       try {
         await replyToComment({
           commentId,
           token: settings.accessToken,
-          message: body.slice(0, 250),
+          message: commentBody.slice(0, 250),
         });
+        if (senderId && dmBody) {
+          await sendDirectMessage({
+            igId: settings.instagramBusinessId,
+            token: settings.accessToken,
+            recipientId: senderId,
+            text: dmBody,
+          });
+        }
         await (supabaseAdmin as any)
           .from("instagram_comments")
-          .update({ reply: body, replied_at: new Date().toISOString() })
+          .update({ reply: commentBody, replied_at: new Date().toISOString() })
           .eq("comment_id", commentId);
         await (supabaseAdmin as any).from("instagram_logs").insert({
           type: "comment_auto_replied",
-          payload: { commentId, keyword: rule.keyword },
+          payload: { commentId, keyword: rule.keyword, mediaId },
           latency_ms: Date.now() - started,
         });
       } catch (e) {
