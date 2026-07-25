@@ -1088,7 +1088,7 @@ export type Database = {
         Row: {
           active: boolean
           caption_template: string
-          channel_id: string
+          channel_id: string | null
           created_at: string
           fabric_json: Json | null
           id: string
@@ -1103,7 +1103,7 @@ export type Database = {
         Insert: {
           active?: boolean
           caption_template?: string
-          channel_id: string
+          channel_id?: string | null
           created_at?: string
           fabric_json?: Json | null
           id?: string
@@ -1118,7 +1118,7 @@ export type Database = {
         Update: {
           active?: boolean
           caption_template?: string
-          channel_id?: string
+          channel_id?: string | null
           created_at?: string
           fabric_json?: Json | null
           id?: string
