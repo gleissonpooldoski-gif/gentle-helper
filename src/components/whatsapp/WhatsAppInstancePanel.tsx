@@ -403,6 +403,25 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
     }
   };
 
+  const handleImportAll = async () => {
+    try {
+      setBusy("adopt");
+      const res = await importAllFn({ data: {} });
+      if (res.imported === 0) {
+        toast.info("Nenhuma instância encontrada na Evolution API");
+      } else {
+        toast.success(
+          `${res.imported} instância(s) importada(s): ${res.names.join(", ")}`,
+        );
+      }
+      await reload();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao importar");
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const openGroups = async (i: WhatsAppInstanceDTO) => {
     setGroupsModal({ inst: i, groups: [], loading: true, filter: "" });
     try {
