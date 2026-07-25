@@ -176,8 +176,8 @@ export const listChannelDashboards = createServerFn({ method: "GET" })
         availability: string | null;
         affiliate_link: string | null;
       }> = [];
-      // Máx. 50k linhas por usuário — teto de segurança.
-      for (let i = 0; i < 50; i++) {
+      // Máx. 200k linhas por usuário — teto de segurança.
+      for (let i = 0; i < 200; i++) {
         const { data, error } = await supabase
           .from("products")
           .select("channel_id, platform, availability, affiliate_link")
