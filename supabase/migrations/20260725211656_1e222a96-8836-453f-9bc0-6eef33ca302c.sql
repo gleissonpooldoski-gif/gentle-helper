@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS public.products_user_platform_item_key;
