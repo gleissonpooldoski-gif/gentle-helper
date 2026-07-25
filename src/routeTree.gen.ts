@@ -14,9 +14,11 @@ import { Route as InstagramRouteImport } from './routes/instagram'
 import { Route as ConfigAfiliadosRouteImport } from './routes/config-afiliados'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as InstagramTemplatesRouteImport } from './routes/instagram.templates'
 import { Route as InstagramStoriesRouteImport } from './routes/instagram.stories'
 import { Route as InstagramPublicacoesRouteImport } from './routes/instagram.publicacoes'
 import { Route as InstagramMensagensRouteImport } from './routes/instagram.mensagens'
+import { Route as InstagramDiagnosticoRouteImport } from './routes/instagram.diagnostico'
 import { Route as InstagramDashboardRouteImport } from './routes/instagram.dashboard'
 import { Route as InstagramConfiguracoesRouteImport } from './routes/instagram.configuracoes'
 import { Route as InstagramComentariosRouteImport } from './routes/instagram.comentarios'
@@ -65,6 +67,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const InstagramTemplatesRoute = InstagramTemplatesRouteImport.update({
+  id: '/templates',
+  path: '/templates',
+  getParentRoute: () => InstagramRoute,
+} as any)
 const InstagramStoriesRoute = InstagramStoriesRouteImport.update({
   id: '/stories',
   path: '/stories',
@@ -78,6 +85,11 @@ const InstagramPublicacoesRoute = InstagramPublicacoesRouteImport.update({
 const InstagramMensagensRoute = InstagramMensagensRouteImport.update({
   id: '/mensagens',
   path: '/mensagens',
+  getParentRoute: () => InstagramRoute,
+} as any)
+const InstagramDiagnosticoRoute = InstagramDiagnosticoRouteImport.update({
+  id: '/diagnostico',
+  path: '/diagnostico',
   getParentRoute: () => InstagramRoute,
 } as any)
 const InstagramDashboardRoute = InstagramDashboardRouteImport.update({
@@ -217,9 +229,11 @@ export interface FileRoutesByFullPath {
   '/instagram/comentarios': typeof InstagramComentariosRoute
   '/instagram/configuracoes': typeof InstagramConfiguracoesRoute
   '/instagram/dashboard': typeof InstagramDashboardRoute
+  '/instagram/diagnostico': typeof InstagramDiagnosticoRoute
   '/instagram/mensagens': typeof InstagramMensagensRoute
   '/instagram/publicacoes': typeof InstagramPublicacoesRoute
   '/instagram/stories': typeof InstagramStoriesRoute
+  '/instagram/templates': typeof InstagramTemplatesRoute
   '/api/ml/callback': typeof ApiMlCallbackRoute
   '/api/ml/probe': typeof ApiMlProbeRoute
   '/canais/$id/editar': typeof CanaisIdEditarRoute
@@ -249,9 +263,11 @@ export interface FileRoutesByTo {
   '/instagram/comentarios': typeof InstagramComentariosRoute
   '/instagram/configuracoes': typeof InstagramConfiguracoesRoute
   '/instagram/dashboard': typeof InstagramDashboardRoute
+  '/instagram/diagnostico': typeof InstagramDiagnosticoRoute
   '/instagram/mensagens': typeof InstagramMensagensRoute
   '/instagram/publicacoes': typeof InstagramPublicacoesRoute
   '/instagram/stories': typeof InstagramStoriesRoute
+  '/instagram/templates': typeof InstagramTemplatesRoute
   '/api/ml/callback': typeof ApiMlCallbackRoute
   '/api/ml/probe': typeof ApiMlProbeRoute
   '/canais/$id/editar': typeof CanaisIdEditarRoute
@@ -282,9 +298,11 @@ export interface FileRoutesById {
   '/instagram/comentarios': typeof InstagramComentariosRoute
   '/instagram/configuracoes': typeof InstagramConfiguracoesRoute
   '/instagram/dashboard': typeof InstagramDashboardRoute
+  '/instagram/diagnostico': typeof InstagramDiagnosticoRoute
   '/instagram/mensagens': typeof InstagramMensagensRoute
   '/instagram/publicacoes': typeof InstagramPublicacoesRoute
   '/instagram/stories': typeof InstagramStoriesRoute
+  '/instagram/templates': typeof InstagramTemplatesRoute
   '/api/ml/callback': typeof ApiMlCallbackRoute
   '/api/ml/probe': typeof ApiMlProbeRoute
   '/canais/$id/editar': typeof CanaisIdEditarRoute
@@ -316,9 +334,11 @@ export interface FileRouteTypes {
     | '/instagram/comentarios'
     | '/instagram/configuracoes'
     | '/instagram/dashboard'
+    | '/instagram/diagnostico'
     | '/instagram/mensagens'
     | '/instagram/publicacoes'
     | '/instagram/stories'
+    | '/instagram/templates'
     | '/api/ml/callback'
     | '/api/ml/probe'
     | '/canais/$id/editar'
@@ -348,9 +368,11 @@ export interface FileRouteTypes {
     | '/instagram/comentarios'
     | '/instagram/configuracoes'
     | '/instagram/dashboard'
+    | '/instagram/diagnostico'
     | '/instagram/mensagens'
     | '/instagram/publicacoes'
     | '/instagram/stories'
+    | '/instagram/templates'
     | '/api/ml/callback'
     | '/api/ml/probe'
     | '/canais/$id/editar'
@@ -380,9 +402,11 @@ export interface FileRouteTypes {
     | '/instagram/comentarios'
     | '/instagram/configuracoes'
     | '/instagram/dashboard'
+    | '/instagram/diagnostico'
     | '/instagram/mensagens'
     | '/instagram/publicacoes'
     | '/instagram/stories'
+    | '/instagram/templates'
     | '/api/ml/callback'
     | '/api/ml/probe'
     | '/canais/$id/editar'
@@ -463,6 +487,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/instagram/templates': {
+      id: '/instagram/templates'
+      path: '/templates'
+      fullPath: '/instagram/templates'
+      preLoaderRoute: typeof InstagramTemplatesRouteImport
+      parentRoute: typeof InstagramRoute
+    }
     '/instagram/stories': {
       id: '/instagram/stories'
       path: '/stories'
@@ -482,6 +513,13 @@ declare module '@tanstack/react-router' {
       path: '/mensagens'
       fullPath: '/instagram/mensagens'
       preLoaderRoute: typeof InstagramMensagensRouteImport
+      parentRoute: typeof InstagramRoute
+    }
+    '/instagram/diagnostico': {
+      id: '/instagram/diagnostico'
+      path: '/diagnostico'
+      fullPath: '/instagram/diagnostico'
+      preLoaderRoute: typeof InstagramDiagnosticoRouteImport
       parentRoute: typeof InstagramRoute
     }
     '/instagram/dashboard': {
@@ -646,9 +684,11 @@ interface InstagramRouteChildren {
   InstagramComentariosRoute: typeof InstagramComentariosRoute
   InstagramConfiguracoesRoute: typeof InstagramConfiguracoesRoute
   InstagramDashboardRoute: typeof InstagramDashboardRoute
+  InstagramDiagnosticoRoute: typeof InstagramDiagnosticoRoute
   InstagramMensagensRoute: typeof InstagramMensagensRoute
   InstagramPublicacoesRoute: typeof InstagramPublicacoesRoute
   InstagramStoriesRoute: typeof InstagramStoriesRoute
+  InstagramTemplatesRoute: typeof InstagramTemplatesRoute
 }
 
 const InstagramRouteChildren: InstagramRouteChildren = {
@@ -656,9 +696,11 @@ const InstagramRouteChildren: InstagramRouteChildren = {
   InstagramComentariosRoute: InstagramComentariosRoute,
   InstagramConfiguracoesRoute: InstagramConfiguracoesRoute,
   InstagramDashboardRoute: InstagramDashboardRoute,
+  InstagramDiagnosticoRoute: InstagramDiagnosticoRoute,
   InstagramMensagensRoute: InstagramMensagensRoute,
   InstagramPublicacoesRoute: InstagramPublicacoesRoute,
   InstagramStoriesRoute: InstagramStoriesRoute,
+  InstagramTemplatesRoute: InstagramTemplatesRoute,
 }
 
 const InstagramRouteWithChildren = InstagramRoute._addFileChildren(
