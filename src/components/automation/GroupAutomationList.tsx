@@ -82,7 +82,7 @@ export function GroupAutomationList({ channelId }: { channelId: string }) {
 
   return (
     <>
-      <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+      <div className="flex flex-col gap-3">
         {groups.map((g) => (
           <GroupCard
             key={`${g.instanceId}:${g.groupId}`}
@@ -94,6 +94,7 @@ export function GroupAutomationList({ channelId }: { channelId: string }) {
           />
         ))}
       </div>
+
 
       <Dialog open={!!editing} onOpenChange={(v) => !v && (setEditing(null), reload())}>
         <DialogContent className="max-w-lg">
@@ -178,73 +179,67 @@ function GroupCard({
   };
 
   return (
-    <article className="flex flex-col gap-4 rounded-2xl border border-border/70 bg-card p-4 shadow-sm transition hover:border-primary/40 hover:shadow-md">
-      {/* Cabeçalho: WhatsApp responsável */}
-      <header className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
-        <div className="flex min-w-0 items-center gap-2.5">
-          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-emerald-500/15 text-emerald-600">
-            <Smartphone className="h-4 w-4" />
-          </span>
-          <div className="min-w-0">
-            <p className="truncate text-[13px] font-semibold text-foreground">
-              {item.instancePhone ?? item.instanceName}
-            </p>
-            <p className="truncate text-[11px] text-muted-foreground">
-              {item.instanceName}
-            </p>
+    <article className="grid grid-cols-1 items-center gap-4 rounded-2xl border border-border/70 bg-card p-4 shadow-sm transition hover:border-primary/40 hover:shadow-md lg:grid-cols-[minmax(220px,1.1fr)_minmax(220px,1.4fr)_auto_auto_auto]">
+      {/* WhatsApp responsável */}
+      <div className="flex min-w-0 items-center gap-3">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-emerald-500/15 text-emerald-600">
+          <Smartphone className="h-4 w-4" />
+        </span>
+        <div className="min-w-0">
+          <p className="truncate text-[13.5px] font-semibold text-foreground">
+            {item.instancePhone ?? item.instanceName}
+          </p>
+          <div className="mt-0.5 flex items-center gap-1.5">
+            <span
+              className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
+                isConnected
+                  ? "bg-emerald-500/15 text-emerald-700"
+                  : "bg-amber-500/15 text-amber-700"
+              }`}
+            >
+              {isConnected ? <CheckCircle2 className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}
+              {isConnected ? "Conectado" : "Offline"}
+            </span>
+            <span className="truncate text-[11px] text-muted-foreground">{item.instanceName}</span>
           </div>
         </div>
-        <span
-          className={`shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-medium ${
-            isConnected
-              ? "bg-emerald-500/15 text-emerald-700"
-              : "bg-amber-500/15 text-amber-700"
-          }`}
-        >
-          {isConnected ? <CheckCircle2 className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}
-          {isConnected ? "Conectado" : "Offline"}
-        </span>
-      </header>
+      </div>
 
       {/* Grupo vinculado */}
-      <div className="rounded-xl border border-dashed border-border/80 bg-muted/30 p-3">
-        <p className="flex items-center gap-1.5 text-[10.5px] font-medium uppercase tracking-wide text-muted-foreground">
-          <Users className="h-3 w-3" /> Grupo vinculado
-        </p>
-        <p className="mt-1 truncate text-[13.5px] font-semibold text-foreground" title={item.groupName ?? item.groupId}>
-          {item.groupName ?? item.groupId}
-        </p>
+      <div className="flex min-w-0 items-center gap-3 border-t border-dashed border-border/70 pt-3 lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
+          <Users className="h-4 w-4" />
+        </span>
+        <div className="min-w-0">
+          <p className="text-[10.5px] font-medium uppercase tracking-wide text-muted-foreground">
+            Grupo vinculado
+          </p>
+          <p className="truncate text-[13.5px] font-semibold text-foreground" title={item.groupName ?? item.groupId}>
+            {item.groupName ?? item.groupId}
+          </p>
+        </div>
       </div>
 
-      {/* Métricas do grupo */}
-      <div className="grid grid-cols-2 gap-2">
-        <Metric
-          icon={<Package className="h-3.5 w-3.5" />}
-          label="Produtos"
-          value={String(item.productCount)}
-        />
-        <Metric
-          icon={<Clock className="h-3.5 w-3.5" />}
-          label="Último envio"
-          value={formatRelative(item.lastSentAt)}
-        />
+      {/* Métricas */}
+      <div className="flex items-center gap-4 lg:justify-center">
+        <InlineMetric icon={<Package className="h-3.5 w-3.5" />} label="Produtos" value={String(item.productCount)} />
+        <InlineMetric icon={<Clock className="h-3.5 w-3.5" />} label="Último envio" value={formatRelative(item.lastSentAt)} />
       </div>
 
-      {/* Status automação */}
-      <div className="flex items-center justify-between rounded-xl bg-muted/40 px-3 py-2">
-        <span className="text-[11px] font-medium text-muted-foreground">Automação</span>
-        <span className={`rounded-full px-2 py-0.5 text-[10.5px] font-semibold ${statusTone}`}>
+      {/* Status */}
+      <div className="flex items-center lg:justify-center">
+        <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${statusTone}`}>
           {statusLabel}
         </span>
       </div>
 
       {/* Ações */}
-      <div className="grid grid-cols-2 gap-2">
+      <div className="flex flex-wrap items-center justify-end gap-2">
         <Button type="button" size="sm" variant="outline" className="gap-1.5" onClick={onEdit}>
           <Pencil className="h-3.5 w-3.5" /> Editar
         </Button>
         <Button type="button" size="sm" variant="outline" className="gap-1.5" onClick={onViewProducts}>
-          <Eye className="h-3.5 w-3.5" /> Ver produtos
+          <Eye className="h-3.5 w-3.5" /> Produtos
         </Button>
         <Button type="button" size="sm" variant="outline" className="gap-1.5" onClick={onEdit}>
           <Clock className="h-3.5 w-3.5" /> Horários
@@ -270,6 +265,18 @@ function GroupCard({
     </article>
   );
 }
+
+function InlineMetric({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <p className="flex items-center gap-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+        {icon} {label}
+      </p>
+      <p className="mt-0.5 truncate text-[13px] font-semibold text-foreground">{value}</p>
+    </div>
+  );
+}
+
 
 function Metric({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
