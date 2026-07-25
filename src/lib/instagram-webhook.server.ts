@@ -34,6 +34,16 @@ export async function handleInstagramWebhook(payload: any): Promise<void> {
         user_id: conn.user_id, connection_id: conn.id, channel_id: conn.channel_id,
         kind: "comment", payload: v,
       });
+
+      // ---- InstaBotHelp (per-media automation) has priority ----
+      if (mediaId) {
+        const handled = await tryInstabot({
+          supabaseAdmin, conn, igId, token,
+          mediaId, commentId, fromId, username: v.from?.username ?? null, text,
+        });
+        if (handled) continue;
+      }
+
       const kw = await matchKeyword(supabaseAdmin, conn.channel_id, text);
       if (!kw) continue;
       const product = await pickProduct(supabaseAdmin, conn.channel_id, mediaId);
