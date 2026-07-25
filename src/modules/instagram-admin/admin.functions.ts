@@ -472,7 +472,7 @@ export const saveStoryTemplate = createServerFn({ method: "POST" })
       price_color: data.price_color || "#ef4444",
       is_default: data.is_default ?? false,
       user_id: context.userId,
-      channel_id: context.userId,
+      channel_id: null,
       caption_template: "",
       active: true,
     };
