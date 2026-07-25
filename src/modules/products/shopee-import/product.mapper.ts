@@ -17,6 +17,8 @@ import { formatSalesLabel } from "@/modules/products/sales-label";
 export type ShopeeProductUpsert = {
   user_id: string;
   channel_id: string | null;
+  source_group_jid: string;
+  source_group_name: string | null;
   platform: "shopee";
   item_id: string;
   title: string;
@@ -35,11 +37,15 @@ export type ShopeeProductUpsert = {
 export function mapRowToProduct(
   userId: string,
   channelId: string | null,
+  sourceGroupJid: string,
+  sourceGroupName: string | null,
   row: ShopeeCsvRow,
 ): ShopeeProductUpsert {
   return {
     user_id: userId,
     channel_id: channelId,
+    source_group_jid: sourceGroupJid,
+    source_group_name: sourceGroupName,
     platform: "shopee",
     item_id: row.itemId,
     title: row.itemName,
