@@ -421,8 +421,11 @@ export const listInstagramProducts = createServerFn({ method: "GET" })
 const templateInput = z.object({
   id: z.string().uuid().optional(),
   name: z.string().min(1).max(80),
-  fabric_json: z.any(),
+  fabric_json: z.any().optional(),
   image_url: z.string().url().optional().or(z.literal("")),
+  image_base64: z.string().optional(),
+  title_color: z.string().max(20).optional(),
+  price_color: z.string().max(20).optional(),
   is_default: z.boolean().optional(),
 });
 
@@ -431,7 +434,7 @@ export const listStoryTemplates = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { data, error } = await (context.supabase as any)
       .from("instagram_story_templates")
-      .select("id,name,fabric_json,image_url,is_default,active,created_at,updated_at")
+      .select("id,name,fabric_json,image_url,title_color,price_color,is_default,active,created_at,updated_at")
       .order("created_at", { ascending: false });
     if (error) throw error;
     return data ?? [];
@@ -441,18 +444,39 @@ export const saveStoryTemplate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: z.infer<typeof templateInput>) => templateInput.parse(d))
   .handler(async ({ data, context }) => {
-    const payload = {
+    let imageUrl = data.image_url || "";
+
+    if (data.image_base64) {
+      const b64 = data.image_base64.includes(",")
+        ? data.image_base64.split(",")[1]
+        : data.image_base64;
+      const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const filename = `template-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.png`;
+      const { error: upErr } = await (supabaseAdmin as any).storage
+        .from("story-images")
+        .upload(filename, bytes, { contentType: "image/png", upsert: false });
+      if (upErr) throw upErr;
+      const { data: signed, error: signErr } = await (supabaseAdmin as any).storage
+        .from("story-images")
+        .createSignedUrl(filename, 60 * 60 * 24 * 365);
+      if (signErr) throw signErr;
+      imageUrl = signed.signedUrl;
+    }
+
+    const payload: any = {
       name: data.name,
-      fabric_json: data.fabric_json,
-      image_url: data.image_url || "",
+      fabric_json: data.fabric_json ?? {},
+      image_url: imageUrl,
+      title_color: data.title_color || "#000000",
+      price_color: data.price_color || "#ef4444",
       is_default: data.is_default ?? false,
       user_id: context.userId,
-      channel_id: context.userId, // single-admin: reuse userId as channel scope
-      title_color: "#ffffff",
-      price_color: "#22c55e",
+      channel_id: context.userId,
       caption_template: "",
       active: true,
     };
+
     if (data.is_default) {
       await (context.supabase as any)
         .from("instagram_story_templates")
@@ -460,14 +484,17 @@ export const saveStoryTemplate = createServerFn({ method: "POST" })
         .neq("id", data.id ?? "00000000-0000-0000-0000-000000000000");
     }
     if (data.id) {
+      const update: any = {
+        name: payload.name,
+        title_color: payload.title_color,
+        price_color: payload.price_color,
+        is_default: payload.is_default,
+      };
+      if (imageUrl) update.image_url = imageUrl;
+      if (data.fabric_json !== undefined) update.fabric_json = data.fabric_json;
       const { error } = await (context.supabase as any)
         .from("instagram_story_templates")
-        .update({
-          name: payload.name,
-          fabric_json: payload.fabric_json,
-          image_url: payload.image_url,
-          is_default: payload.is_default,
-        })
+        .update(update)
         .eq("id", data.id);
       if (error) throw error;
       return { ok: true, id: data.id };
@@ -493,6 +520,7 @@ export const deleteStoryTemplate = createServerFn({ method: "POST" })
     if (error) throw error;
     return { ok: true };
   });
+
 
 /* ---- Campaigns: publish story from product ---- */
 
