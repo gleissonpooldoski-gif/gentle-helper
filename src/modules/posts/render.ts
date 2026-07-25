@@ -68,6 +68,23 @@ function fill(tpl: string, vars: Record<string, string>): string {
   return tpl.replace(/\{(\w+)\}/g, (_, k) => (vars[k] ?? ""));
 }
 
+/**
+ * Retorna true apenas quando o valor de vendas é > 0.
+ * Aceita formatos "1,5 mil", "6mil", "1.234", "500", "0", "0 vendidos".
+ */
+function hasRealSales(v: string | null | undefined): boolean {
+  if (!v) return false;
+  const s = String(v).toLowerCase().trim();
+  if (!s || s === "0") return false;
+  const cleaned = s.replace(/vendid[oa]s?/g, "").trim();
+  const mulMatch = cleaned.match(/([\d.,]+)\s*(mil|mi|milh[aã]o|milh[oõ]es|k|m)?/i);
+  if (!mulMatch) return false;
+  const num = Number(mulMatch[1].replace(/\./g, "").replace(",", "."));
+  if (!Number.isFinite(num) || num <= 0) return false;
+  return true;
+}
+
+
 /** Converte tags HTML do template para markdown do WhatsApp. */
 function htmlToWhatsApp(s: string): string {
   return s
