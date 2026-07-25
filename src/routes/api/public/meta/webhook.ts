@@ -83,14 +83,38 @@ async function handleWebhook(payload: any, started: number) {
 
   const { data: automations } = await (supabaseAdmin as any)
     .from("instagram_automations")
-    .select("id,keyword,message,enabled,product_id,scope")
+    .select(
+      "id,keyword,message,enabled,product_id,scope,media_id,comment_reply,button_label,button_url,extra_links",
+    )
     .eq("enabled", true);
   const rules: Array<{
     keyword: string;
     message: string;
     product_id: string | null;
     scope: string;
+    media_id: string | null;
+    comment_reply: string | null;
+    button_label: string | null;
+    button_url: string | null;
+    extra_links: Array<{ label: string; url: string }> | null;
   }> = automations ?? [];
+
+  function pickCommentReply(raw: string | null | undefined): string | null {
+    if (!raw) return null;
+    const s = raw.trim();
+    if (!s) return null;
+    if (s.toLowerCase() === "auto") {
+      const options = [
+        "Enviei no seu direct 📩",
+        "Já mandei aqui pra você 🚀",
+        "Corre no direct que tá lá 💌",
+        "Te chamei na DM 👀",
+      ];
+      return options[Math.floor(Math.random() * options.length)];
+    }
+    const parts = s.split(";").map((x) => x.trim()).filter(Boolean);
+    return parts[Math.floor(Math.random() * parts.length)] ?? s;
+  }
 
   for (const entry of payload.entry) {
     // ----- DMs & story replies (messaging) -----
