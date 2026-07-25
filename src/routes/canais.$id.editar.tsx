@@ -42,7 +42,7 @@ import {
 import { DEFAULT_POST_LAYOUT, type PostLayout } from "@/modules/posts/render";
 import { GroupAutomationList } from "@/components/automation/GroupAutomationList";
 import { getChannel, updateChannel, getChannelProductCounts, type ChannelDTO, type ChannelProductCountsDTO } from "@/modules/channels/channels.functions";
-import { getChannelFlowSummary, type ChannelFlowSummaryDTO } from "@/modules/automation/automation.functions";
+import { getChannelFlowSummary, listAutomationGroups, type ChannelFlowSummaryDTO, type AutomationGroupDTO } from "@/modules/automation/automation.functions";
 import { getManualPost, saveManualPost, type ManualPostDTO } from "@/modules/posts/manual-post.functions";
 import { ensureAffiliateLink, buildMLAffiliateUrl } from "@/lib/affiliate-linker";
 import { EditProductModal, type EditProductTarget } from "@/components/products/EditProductModal";
