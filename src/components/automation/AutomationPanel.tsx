@@ -63,10 +63,11 @@ export interface AutomationPanelProps {
   channelId: string;
   groupId?: string | null;
   groupName?: string | null;
+  instanceId?: string | null;
   title?: string;
 }
 
-export function AutomationPanel({ channelId, groupId = null, groupName = null, title }: AutomationPanelProps) {
+export function AutomationPanel({ channelId, groupId = null, groupName = null, instanceId: seedInstanceId = null, title }: AutomationPanelProps) {
   const getFn = useServerFn(getAutomationConfig);
   const saveFn = useServerFn(saveAutomationConfig);
   const startFn = useServerFn(startAutomation);
@@ -75,7 +76,7 @@ export function AutomationPanel({ channelId, groupId = null, groupName = null, t
 
   const listInstFn = useServerFn(listWhatsAppInstances);
 
-  const scope = { channelId, groupId, groupName };
+  const scope = { channelId, groupId, groupName, instanceId: seedInstanceId };
 
   const [cfg, setCfg] = useState<AutomationConfigDTO | null>(null);
   const [horaInicio, setHoraInicio] = useState("07:00");
