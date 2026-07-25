@@ -197,7 +197,14 @@ function parseMessageMeta(text: string): MessageMeta {
       !/^(de|por|cupom|compre|oferta|promoção|link|frete)\b/i.test(line),
     ) ?? null;
 
-  return { title, price, priceBefore };
+  const salesParsed = parseSalesText(text);
+  return {
+    title,
+    price,
+    priceBefore,
+    sold: salesParsed?.sold ?? null,
+    soldLabel: salesParsed?.label ?? null,
+  };
 }
 
 const OG_USER_AGENTS: Array<{ ua: string; tag: string }> = [
