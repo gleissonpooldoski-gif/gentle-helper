@@ -23,18 +23,18 @@ export interface PostLayout {
 }
 
 export const DEFAULT_POST_LAYOUT: PostLayout = {
-  header: "🚨 <b>OFERTA RELÂMPAGO!!</b>",
+  header: "🔥🔥 <b>OFERTA ENCONTRADA</b> 🔥🔥",
   header_mode: "custom",
-  title_template: "🔥🔥 <b>{title}</b> 🔥🔥",
+  title_template: "<b>{title}</b>",
   upper_title: true,
   hide_sales: false,
-  sales_template: "🛒 <i>{vendas} vendidos</i> 🛒",
-  description_template: "<pre>{description}</pre>",
+  sales_template: "🛒 <i>{vendas} vendidos</i>",
+  description_template: "📌 {description}",
   hide_original: false,
-  original_price_template: "❌❌ <s>{price_original}</s> ❌❌",
-  installment_template: "💳💳 {parcelamento} 💳💳",
-  price_template: "💵💵 <b>{price}</b> 💵💵",
-  link_template: "🔗COMPRE AQUI {link}",
+  original_price_template: "❌ De: <s>{price_original}</s>",
+  installment_template: "💳 {parcelamento}",
+  price_template: "🔥 Agora por: <b>{price}</b>",
+  link_template: "🔗 <b>COMPRAR AGORA:</b>\n{link}",
   footer: "🚨 Promoção sujeita a alteração a qualquer momento!",
 };
 
@@ -108,7 +108,9 @@ export function renderPost(
     price: money(effectivePrice),
     price_original: money(effectiveOriginal),
     parcelamento: product.parcelamento ?? "",
-    vendas: product.vendas != null ? String(product.vendas) : "",
+    vendas: product.vendas != null
+      ? String(product.vendas).replace(/\s*vendid[oa]s?\s*$/i, "").trim()
+      : "",
     link: product.link,
     store: product.store ?? "",
     category: product.category ?? "",
@@ -158,8 +160,10 @@ export function renderPost(
     discountPct = Math.round(((originalNum - promoNum) / originalNum) * 100);
   }
   if (discountPct != null && discountPct > 0 && hasRealDiscount) {
-    blocks.push(`🔥 <b>${discountPct}% OFF</b> 🔥`);
+    blocks.push(`🏷️ <b>${discountPct}% OFF</b>`);
+    blocks.push("🚨 Oferta por tempo limitado\n⚡ Aproveite antes que acabe");
   }
+
 
   if (vars.link && layout.link_template) {
     blocks.push(fill(layout.link_template, vars));

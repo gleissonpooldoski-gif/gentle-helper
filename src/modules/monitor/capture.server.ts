@@ -152,7 +152,26 @@ type MessageMeta = {
   title: string | null;
   price: number | null;
   priceBefore: number | null;
+  sold: number | null;
+  soldLabel: string | null;
 };
+
+/**
+ * Parseia texto de vendas no padrão Shopee: "5 mil vendidos", "1,5 mil+",
+ * "10 mil vendidos", "300+ vendidos". Retorna número absoluto e label limpa.
+ */
+function parseSalesText(text: string): { sold: number; label: string } | null {
+  const m = text.match(/(\d+(?:[.,]\d+)?)\s*(mil|k)?\s*\+?\s*vendid/i);
+  if (!m) return null;
+  const raw = Number((m[1] ?? "").replace(",", "."));
+  if (!Number.isFinite(raw) || raw <= 0) return null;
+  const multiplier = m[2] ? 1000 : 1;
+  const sold = Math.round(raw * multiplier);
+  const label = multiplier === 1000
+    ? `${Number.isInteger(raw) ? raw : String(raw).replace(".", ",")} mil`
+    : `${sold}`;
+  return { sold, label };
+}
 
 function parseBrazilianMoney(value: string): number | null {
   const normalized = value.replace(/\s/g, "").replace(/\./g, "").replace(",", ".");
@@ -178,7 +197,14 @@ function parseMessageMeta(text: string): MessageMeta {
       !/^(de|por|cupom|compre|oferta|promoção|link|frete)\b/i.test(line),
     ) ?? null;
 
-  return { title, price, priceBefore };
+  const salesParsed = parseSalesText(text);
+  return {
+    title,
+    price,
+    priceBefore,
+    sold: salesParsed?.sold ?? null,
+    soldLabel: salesParsed?.label ?? null,
+  };
 }
 
 const OG_USER_AGENTS: Array<{ ua: string; tag: string }> = [
@@ -377,20 +403,17 @@ async function fetchShopeePdp(
  */
 function formatSoldLabel(n: number): string {
   if (n < 1000) {
-    // Arredonda para baixo para múltiplos de 10 (30, 40, 100, 300).
     const rounded = n >= 100 ? Math.floor(n / 100) * 100 : Math.floor(n / 10) * 10;
-    return `${Math.max(rounded, 10)}+`;
+    return `${Math.max(rounded, 10)}`;
   }
   const mil = n / 1000;
   if (mil < 10) {
-    // 1,5 mil+ / 2 mil+
     const rounded = Math.floor(mil * 10) / 10;
     const text = Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1).replace(".", ",");
-    return `${text} mil+`;
+    return `${text} mil`;
   }
-  // 10 mil+, 30 mil+, 100 mil+
   const rounded = Math.floor(mil / 10) * 10 || Math.floor(mil);
-  return `${rounded} mil+`;
+  return `${rounded} mil`;
 }
 
 function tagShopee(url: string, affiliateId: string): string {
@@ -511,6 +534,12 @@ async function captureOne(
       // Fallback dedicado com WhatsApp-UA + validação de CDN Shopee.
       image = await scrapeShopeeImage(canonicalUrl, resolved).catch(() => null);
     }
+  }
+
+  // Fallback de vendas via texto original (quando PDP não retornou).
+  if (sold == null && messageMeta.sold != null) {
+    sold = messageMeta.sold;
+    soldLabel = messageMeta.soldLabel;
   }
 
   // Se DE e POR forem iguais, não é desconto real — descarta o "DE".
