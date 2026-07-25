@@ -500,16 +500,16 @@ export const listGroupProducts = createServerFn({ method: "POST" })
   }))
   .handler(async ({ data, context }): Promise<GroupProductDTO[]> => {
     const { supabase, userId } = context;
-    if (!data.channelId || !data.groupJid) return [];
+    if (!data.groupJid) return [];
     const { data: rows, error } = await supabase
       .from("products")
       .select("id, title, platform, promo_price, image_url, availability")
       .eq("user_id", userId)
-      .eq("channel_id", data.channelId)
       .eq("source_group_jid", data.groupJid)
       .order("created_at", { ascending: false })
       .limit(200);
     if (error) throw new Error(error.message);
+
     return (rows ?? []).map((r: any) => ({
       id: r.id,
       title: r.title,
