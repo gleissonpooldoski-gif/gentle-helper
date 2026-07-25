@@ -17,6 +17,7 @@ import type { Database } from "@/integrations/supabase/types";
 import { scrapeShopeeImage } from "@/modules/products/shopee-import/image-resolver";
 import { generateAffiliateUrl as generateMLAffiliate } from "@/modules/affiliate/mercado-livre/service";
 import { generateAffiliateUrl as generateMagaluAffiliate } from "@/modules/affiliate/magalu/service";
+import { formatSalesLabel } from "@/modules/products/sales-label";
 
 const SHOPEE_FALLBACK_AFFILIATE_ID = "18355410386";
 
