@@ -50,8 +50,10 @@ export function AppSidebar({
 
   const resolvedActive =
     activeId ??
+    (pathname.startsWith("/instagram") ? "instagram" : undefined) ??
     [...MAIN, ...CONFIG].find((i) => i.href && i.href === pathname)?.id ??
     "";
+
 
   return (
     <>
