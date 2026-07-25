@@ -378,6 +378,24 @@ export type Database = {
         }
         Relationships: []
       }
+      cron_secrets: {
+        Row: {
+          name: string
+          updated_at: string
+          value: string
+        }
+        Insert: {
+          name: string
+          updated_at?: string
+          value: string
+        }
+        Update: {
+          name?: string
+          updated_at?: string
+          value?: string
+        }
+        Relationships: []
+      }
       evolution_settings: {
         Row: {
           base_url: string
@@ -2084,6 +2102,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      dispatch_automation_tick: { Args: never; Returns: number }
       try_lock_automation_config: {
         Args: { _config_id: string }
         Returns: boolean
