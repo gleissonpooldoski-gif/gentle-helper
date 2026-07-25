@@ -80,8 +80,8 @@ export function GroupAutomationList({ channelId }: { channelId: string }) {
   }
   if (groups === null) {
     return (
-      <div className="flex items-center gap-2 rounded-2xl border border-border/70 bg-card p-5 text-sm text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin" /> Carregando grupos…
+      <div className="rounded-2xl border border-border/70 bg-card p-4">
+        <SkeletonList rows={3} />
       </div>
     );
   }
@@ -389,48 +389,84 @@ function ProductsDialog({
           <DialogTitle className="flex items-center gap-2 text-base">
             <Package className="h-4 w-4" />
             Produtos — {group?.groupName ?? group?.groupId}
+            {items && items.length > 0 && (
+              <span className="ml-auto text-xs font-normal text-muted-foreground">
+                {items.length.toLocaleString("pt-BR")}
+              </span>
+            )}
           </DialogTitle>
         </DialogHeader>
         {items === null ? (
-          <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" /> Carregando produtos…
+          <div className="py-2">
+            <SkeletonList rows={5} />
           </div>
         ) : items.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">
             Nenhum produto capturado deste grupo ainda.
           </p>
         ) : (
-          <div className="max-h-[60vh] space-y-2 overflow-y-auto pr-1">
-            {items.map((p) => (
-              <div key={p.id} className="flex items-center gap-3 rounded-xl border border-border/60 bg-card p-2.5">
-                {p.imageUrl ? (
-                  <img src={p.imageUrl} alt="" className="h-12 w-12 shrink-0 rounded-lg object-cover" />
-                ) : (
-                  <div className="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-muted">
-                    <Package className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                )}
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-[12.5px] font-medium text-foreground">{p.title}</p>
-                  <p className="text-[10.5px] uppercase tracking-wide text-muted-foreground">
-                    {p.platform}
-                    {p.promoPrice != null ? ` · R$ ${p.promoPrice.toFixed(2)}` : ""}
-                  </p>
-                </div>
-                <span
-                  className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                    p.availability === "active"
-                      ? "bg-emerald-500/15 text-emerald-700"
-                      : "bg-muted text-muted-foreground"
-                  }`}
-                >
-                  {p.availability === "active" ? "Ativo" : p.availability}
-                </span>
-              </div>
-            ))}
-          </div>
+          <VirtualProductList items={items} />
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+function VirtualProductList({ items }: { items: GroupProductDTO[] }) {
+  const parentRef = useRef<HTMLDivElement>(null);
+  const rowVirtualizer = useVirtualizer({
+    count: items.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 68, // altura de cada linha (~64px + gap)
+    overscan: 6,
+  });
+
+  return (
+    <div ref={parentRef} className="max-h-[60vh] overflow-y-auto pr-1">
+      <div
+        style={{ height: rowVirtualizer.getTotalSize(), position: "relative", width: "100%" }}
+      >
+        {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+          const p = items[virtualRow.index];
+          return (
+            <div
+              key={p.id}
+              className="absolute left-0 right-0 flex items-center gap-3 rounded-xl border border-border/60 bg-card p-2.5"
+              style={{
+                top: 0,
+                transform: `translateY(${virtualRow.start}px)`,
+                height: virtualRow.size - 4,
+              }}
+            >
+              {p.imageUrl ? (
+                <img src={p.imageUrl} alt="" className="h-12 w-12 shrink-0 rounded-lg object-cover" />
+              ) : (
+                <div className="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-muted">
+                  <Package className="h-4 w-4 text-muted-foreground" />
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[12.5px] font-medium text-foreground">{p.title}</p>
+                <p className="text-[10.5px] uppercase tracking-wide text-muted-foreground">
+                  {p.platform}
+                  {p.promoPrice != null ? ` · R$ ${p.promoPrice.toFixed(2)}` : ""}
+                </p>
+              </div>
+              <span
+                className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                  p.availability === "active"
+                    ? "bg-emerald-500/15 text-emerald-700"
+                    : "bg-muted text-muted-foreground"
+                }`}
+              >
+                {p.availability === "active" ? "Ativo" : p.availability}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
   );
 }
