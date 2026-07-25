@@ -1030,6 +1030,23 @@ function LayoutPostPanel({ channelId }: { channelId: string }) {
     }
   };
 
+  const handleSendTest = async () => {
+    const phone = testPhone.trim();
+    if (!phone) {
+      toast.error("Informe seu número (com DDD)");
+      return;
+    }
+    setTesting(true);
+    try {
+      const res = await sendTestFn({ data: { channelId, phone, layout } });
+      toast.success(`Teste enviado no WhatsApp para ${res.jid.split("@")[0]} usando "${res.productTitle}".`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao enviar teste");
+    } finally {
+      setTesting(false);
+    }
+  };
+
   return (
     <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
       {/* LEFT */}
