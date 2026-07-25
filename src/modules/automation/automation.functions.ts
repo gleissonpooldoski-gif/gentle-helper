@@ -359,8 +359,10 @@ export interface AutomationGroupDTO {
   configId: string | null;
   automationStatus: "idle" | "running" | "waiting" | "error" | "done" | "paused" | null;
   productCount: number;
+  productTotal: number;
   lastSentAt: string | null;
 }
+
 
 /**
  * Lista TODOS os grupos que o usuário selecionou em QUALQUER instância
@@ -417,23 +419,51 @@ export const listAutomationGroups = createServerFn({ method: "POST" })
     const cfgMap = new Map<string, any>();
     for (const c of (cfgs ?? []) as any[]) if (c.group_id) cfgMap.set(c.group_id, c);
 
-    const countMap = new Map<string, number>();
+    // Contagem real de produtos vinculados ao grupo (ativos e total)
+    const countMap = new Map<string, { active: number; total: number }>();
     await Promise.all(
       jids.map(async (jid) => {
-        const { count } = await supabase
-          .from("products")
-          .select("id", { count: "exact", head: true })
-          .eq("user_id", userId)
-          .eq("channel_id", data.channelId)
-          .eq("source_group_jid", jid)
-          .eq("availability", "active");
-        countMap.set(jid, count ?? 0);
+        const [{ count: active }, { count: total }] = await Promise.all([
+          supabase
+            .from("products")
+            .select("id", { count: "exact", head: true })
+            .eq("user_id", userId)
+            .eq("channel_id", data.channelId)
+            .eq("source_group_jid", jid)
+            .eq("availability", "active"),
+          supabase
+            .from("products")
+            .select("id", { count: "exact", head: true })
+            .eq("user_id", userId)
+            .eq("channel_id", data.channelId)
+            .eq("source_group_jid", jid),
+        ]);
+        countMap.set(jid, { active: active ?? 0, total: total ?? 0 });
       }),
     );
+
+    // Último envio real por (instância, grupo) via histórico de campanhas
+    const lastSentMap = new Map<string, string>();
+    if (jids.length) {
+      const { data: hist } = await supabase
+        .from("whatsapp_campaign_history")
+        .select("group_id, sent_at, config_id")
+        .eq("user_id", userId)
+        .eq("status", "sent")
+        .in("group_id", jids)
+        .order("sent_at", { ascending: false })
+        .limit(500);
+      for (const h of (hist ?? []) as any[]) {
+        if (!h.group_id) continue;
+        if (!lastSentMap.has(h.group_id)) lastSentMap.set(h.group_id, h.sent_at);
+      }
+    }
 
     return unique.map((r: any) => {
       const inst = instMap.get(r.instance_id);
       const cfg = cfgMap.get(r.group_jid);
+      const counts = countMap.get(r.group_jid) ?? { active: 0, total: 0 };
+      const lastSent = lastSentMap.get(r.group_jid) ?? cfg?.last_sent_at ?? null;
       return {
         groupId: r.group_jid,
         groupName: r.group_name ?? null,
@@ -443,11 +473,13 @@ export const listAutomationGroups = createServerFn({ method: "POST" })
         instanceStatus: inst?.status ?? null,
         configId: cfg?.id ?? null,
         automationStatus: (cfg?.status ?? null) as AutomationGroupDTO["automationStatus"],
-        productCount: countMap.get(r.group_jid) ?? 0,
-        lastSentAt: cfg?.last_sent_at ?? null,
+        productCount: counts.active,
+        productTotal: counts.total,
+        lastSentAt: lastSent,
       };
     });
   });
+
 
 export interface GroupProductDTO {
   id: string;
