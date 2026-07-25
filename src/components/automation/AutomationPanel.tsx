@@ -164,6 +164,7 @@ export function AutomationPanel({ channelId, groupId = null, groupName = null, t
           intervaloMin: intervalo,
           lojasAtivas: lojas,
           postLoop,
+          instanceId: instanceId || null,
         },
       });
       applyCfg(c);
@@ -186,6 +187,7 @@ export function AutomationPanel({ channelId, groupId = null, groupName = null, t
           intervaloMin: intervalo,
           lojasAtivas: lojas,
           postLoop,
+          instanceId: instanceId || null,
         },
       });
       const c = await startFn({ data: scope });
