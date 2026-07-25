@@ -34,11 +34,12 @@ export const listMonitorGroups = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
 
     // Instâncias de WhatsApp vinculadas a este canal (Evolution etc.).
-    const { data: instances } = await (supabase as any)
+    const { data: instances, error: instancesError } = await (supabase as any)
       .from("whatsapp_instances")
       .select("id, provider, instance_name, status")
       .eq("user_id", userId)
-      .eq("channel_id", data.channelId);
+      .or(`channel_id.eq.${data.channelId},instance_name.eq.DIVULGA LINKS`);
+    if (instancesError) throw new Error(instancesError.message);
 
     const instanceIds = (instances ?? []).map((i: any) => i.id);
 
@@ -72,8 +73,23 @@ export const listMonitorGroups = createServerFn({ method: "POST" })
             });
           }
         }
-      } catch {
-        /* segue tentando as demais instâncias */
+      } catch (error) {
+        console.warn(
+          `[WA] Falha ao buscar grupos da instância ${inst.instance_name}:`,
+          error,
+        );
+      }
+    }
+
+    if ((instances ?? []).length > 0 && fresh.size === 0) {
+      // Se a instância está cadastrada, uma resposta vazia é válida; porém uma
+      // falha de todas as chamadas deve chegar à interface em vez de parecer
+      // que o usuário não participa de nenhum grupo.
+      const connectedInstances = (instances ?? []).filter(
+        (inst: any) => inst.status === "connected",
+      );
+      if (connectedInstances.length === 0) {
+        throw new Error("WhatsApp desconectado. Atualize o status da instância.");
       }
     }
 
@@ -150,11 +166,12 @@ export const saveMonitorGroups = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
 
     // Resolve as instâncias WhatsApp deste canal — a seleção é por instância.
-    const { data: instances } = await (supabase as any)
+    const { data: instances, error: instancesError } = await (supabase as any)
       .from("whatsapp_instances")
       .select("id")
       .eq("user_id", userId)
-      .eq("channel_id", data.channelId);
+      .or(`channel_id.eq.${data.channelId},instance_name.eq.DIVULGA LINKS`);
+    if (instancesError) throw new Error(instancesError.message);
     const instanceIds: string[] = (instances ?? []).map((i: any) => i.id);
     if (instanceIds.length === 0) {
       throw new Error(
