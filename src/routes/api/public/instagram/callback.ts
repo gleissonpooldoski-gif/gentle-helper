@@ -29,7 +29,9 @@ export const Route = createFileRoute("/api/public/instagram/callback")({
 
         const clientId = process.env.META_APP_ID!;
         const clientSecret = process.env.META_APP_SECRET!;
-        const redirectUri = `${url.protocol}//${url.host}/api/public/instagram/callback`;
+        const oauthOrigin = process.env.META_OAUTH_ORIGIN;
+        if (!oauthOrigin) return new Response("Instagram OAuth origin is not configured", { status: 500 });
+        const redirectUri = `${new URL(oauthOrigin).origin}/api/public/instagram/callback`;
 
         try {
           const short = await exchangeCodeForToken({ code, clientId, clientSecret, redirectUri });
