@@ -136,31 +136,35 @@ async function handleWebhook(payload: any, started: number) {
 
       // Story reply: try to match campaign by story_id + trigger words
       if (isStoryReply && storyId) {
-        const trig = matchTrigger(text);
-        if (trig) {
-          const { data: camp } = await (supabaseAdmin as any)
-            .from("instagram_campaigns")
-            .select("id,product_id,message,affiliate_link,keyword")
-            .eq("story_id", storyId)
-            .order("created_at", { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          if (camp) {
+        const { data: camp } = await (supabaseAdmin as any)
+          .from("instagram_campaigns")
+          .select("id,product_id,message,affiliate_link,keyword")
+          .eq("story_id", storyId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        const trig = camp
+          ? matchTrigger(text, camp.keyword) ?? matchTrigger(text)
+          : matchTrigger(text);
+        if (trig && camp) {
+          {
             let productTitle = "";
+            let productLink = camp.affiliate_link ?? "";
             if (camp.product_id) {
               const { data: p } = await (supabaseAdmin as any)
                 .from("products")
-                .select("title,affiliate_link")
+                .select("title,affiliate_link,raw_link")
                 .eq("id", camp.product_id)
                 .maybeSingle();
               productTitle = p?.title ?? "";
+              if (!productLink) productLink = p?.affiliate_link ?? p?.raw_link ?? "";
             }
-            const link = camp.affiliate_link ?? "";
             const template =
               camp.message?.trim() ||
               "Olá 👋\n\nSegue sua promoção:\n{{affiliate_link}}";
             const body = fillTemplate(template, {
-              affiliate_link: link,
+              affiliate_link: productLink,
+              link: productLink,
               title: productTitle,
             });
             try {
@@ -185,6 +189,7 @@ async function handleWebhook(payload: any, started: number) {
           }
         }
       }
+
 
       // Generic keyword automations for DMs
       const rule = rules.find(
