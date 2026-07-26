@@ -787,7 +787,7 @@ export const sendWhatsAppProduct = createServerFn({ method: "POST" })
         price: prod.promo_price,
         price_original: prod.original_price,
         parcelamento: null,
-        vendas: (prod as { sales_label?: string | null }).sales_label ?? prod.sales,
+        vendas: (await import("@/modules/products/sales-label")).formatSalesLabel(prod.sales == null ? null : Number(prod.sales)),
         link: prod.affiliate_link,
         image: prod.image_url,
       };
