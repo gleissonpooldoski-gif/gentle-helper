@@ -273,8 +273,21 @@ async function handleWebhook(payload: any, started: number) {
             message: "Enviamos no seu direct 📩",
           });
           if (senderId) {
+            let productTitle = "";
+            let productLink = camp.affiliate_link ?? "";
+            if (camp.product_id) {
+              const { data: p } = await (supabaseAdmin as any)
+                .from("products")
+                .select("title,affiliate_link,raw_link")
+                .eq("id", camp.product_id)
+                .maybeSingle();
+              productTitle = p?.title ?? "";
+              if (!productLink) productLink = p?.affiliate_link ?? p?.raw_link ?? "";
+            }
             const body = fillTemplate(camp.message || "{{affiliate_link}}", {
-              affiliate_link: camp.affiliate_link ?? "",
+              affiliate_link: productLink,
+              link: productLink,
+              title: productTitle,
             });
             await sendDirectMessage({
               igId: settings.instagramBusinessId,
@@ -296,6 +309,7 @@ async function handleWebhook(payload: any, started: number) {
           });
         }
       }
+
 
       if (replied) continue;
 
