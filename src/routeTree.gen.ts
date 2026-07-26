@@ -41,6 +41,7 @@ import { Route as ApiPublicMetaWebhookRouteImport } from './routes/api/public/me
 import { Route as ApiPublicInstagramCallbackRouteImport } from './routes/api/public/instagram/callback'
 import { Route as ApiPublicHooksShopeeReportsSyncRouteImport } from './routes/api/public/hooks/shopee-reports-sync'
 import { Route as ApiPublicHooksShopeeRepairV2RouteImport } from './routes/api/public/hooks/shopee-repair-v2'
+import { Route as ApiPublicHooksShopeeRepairRetryRouteImport } from './routes/api/public/hooks/shopee-repair-retry'
 import { Route as ApiPublicHooksShopeeRepairPilotRouteImport } from './routes/api/public/hooks/shopee-repair-pilot'
 import { Route as ApiPublicHooksProductsValidateRouteImport } from './routes/api/public/hooks/products-validate'
 import { Route as ApiPublicHooksPriceBackfillRouteImport } from './routes/api/public/hooks/price-backfill'
@@ -221,6 +222,12 @@ const ApiPublicHooksShopeeRepairV2Route =
     path: '/api/public/hooks/shopee-repair-v2',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicHooksShopeeRepairRetryRoute =
+  ApiPublicHooksShopeeRepairRetryRouteImport.update({
+    id: '/api/public/hooks/shopee-repair-retry',
+    path: '/api/public/hooks/shopee-repair-retry',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicHooksShopeeRepairPilotRoute =
   ApiPublicHooksShopeeRepairPilotRouteImport.update({
     id: '/api/public/hooks/shopee-repair-pilot',
@@ -314,6 +321,7 @@ export interface FileRoutesByFullPath {
   '/api/public/hooks/price-backfill': typeof ApiPublicHooksPriceBackfillRoute
   '/api/public/hooks/products-validate': typeof ApiPublicHooksProductsValidateRoute
   '/api/public/hooks/shopee-repair-pilot': typeof ApiPublicHooksShopeeRepairPilotRoute
+  '/api/public/hooks/shopee-repair-retry': typeof ApiPublicHooksShopeeRepairRetryRoute
   '/api/public/hooks/shopee-repair-v2': typeof ApiPublicHooksShopeeRepairV2Route
   '/api/public/hooks/shopee-reports-sync': typeof ApiPublicHooksShopeeReportsSyncRoute
   '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
@@ -358,6 +366,7 @@ export interface FileRoutesByTo {
   '/api/public/hooks/price-backfill': typeof ApiPublicHooksPriceBackfillRoute
   '/api/public/hooks/products-validate': typeof ApiPublicHooksProductsValidateRoute
   '/api/public/hooks/shopee-repair-pilot': typeof ApiPublicHooksShopeeRepairPilotRoute
+  '/api/public/hooks/shopee-repair-retry': typeof ApiPublicHooksShopeeRepairRetryRoute
   '/api/public/hooks/shopee-repair-v2': typeof ApiPublicHooksShopeeRepairV2Route
   '/api/public/hooks/shopee-reports-sync': typeof ApiPublicHooksShopeeReportsSyncRoute
   '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
@@ -403,6 +412,7 @@ export interface FileRoutesById {
   '/api/public/hooks/price-backfill': typeof ApiPublicHooksPriceBackfillRoute
   '/api/public/hooks/products-validate': typeof ApiPublicHooksProductsValidateRoute
   '/api/public/hooks/shopee-repair-pilot': typeof ApiPublicHooksShopeeRepairPilotRoute
+  '/api/public/hooks/shopee-repair-retry': typeof ApiPublicHooksShopeeRepairRetryRoute
   '/api/public/hooks/shopee-repair-v2': typeof ApiPublicHooksShopeeRepairV2Route
   '/api/public/hooks/shopee-reports-sync': typeof ApiPublicHooksShopeeReportsSyncRoute
   '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
@@ -449,6 +459,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/price-backfill'
     | '/api/public/hooks/products-validate'
     | '/api/public/hooks/shopee-repair-pilot'
+    | '/api/public/hooks/shopee-repair-retry'
     | '/api/public/hooks/shopee-repair-v2'
     | '/api/public/hooks/shopee-reports-sync'
     | '/api/public/instagram/callback'
@@ -493,6 +504,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/price-backfill'
     | '/api/public/hooks/products-validate'
     | '/api/public/hooks/shopee-repair-pilot'
+    | '/api/public/hooks/shopee-repair-retry'
     | '/api/public/hooks/shopee-repair-v2'
     | '/api/public/hooks/shopee-reports-sync'
     | '/api/public/instagram/callback'
@@ -537,6 +549,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/price-backfill'
     | '/api/public/hooks/products-validate'
     | '/api/public/hooks/shopee-repair-pilot'
+    | '/api/public/hooks/shopee-repair-retry'
     | '/api/public/hooks/shopee-repair-v2'
     | '/api/public/hooks/shopee-reports-sync'
     | '/api/public/instagram/callback'
@@ -572,6 +585,7 @@ export interface RootRouteChildren {
   ApiPublicHooksPriceBackfillRoute: typeof ApiPublicHooksPriceBackfillRoute
   ApiPublicHooksProductsValidateRoute: typeof ApiPublicHooksProductsValidateRoute
   ApiPublicHooksShopeeRepairPilotRoute: typeof ApiPublicHooksShopeeRepairPilotRoute
+  ApiPublicHooksShopeeRepairRetryRoute: typeof ApiPublicHooksShopeeRepairRetryRoute
   ApiPublicHooksShopeeRepairV2Route: typeof ApiPublicHooksShopeeRepairV2Route
   ApiPublicHooksShopeeReportsSyncRoute: typeof ApiPublicHooksShopeeReportsSyncRoute
   ApiPublicInstagramCallbackRoute: typeof ApiPublicInstagramCallbackRoute
@@ -811,6 +825,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksShopeeRepairV2RouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/shopee-repair-retry': {
+      id: '/api/public/hooks/shopee-repair-retry'
+      path: '/api/public/hooks/shopee-repair-retry'
+      fullPath: '/api/public/hooks/shopee-repair-retry'
+      preLoaderRoute: typeof ApiPublicHooksShopeeRepairRetryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/shopee-repair-pilot': {
       id: '/api/public/hooks/shopee-repair-pilot'
       path: '/api/public/hooks/shopee-repair-pilot'
@@ -947,6 +968,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicHooksPriceBackfillRoute: ApiPublicHooksPriceBackfillRoute,
   ApiPublicHooksProductsValidateRoute: ApiPublicHooksProductsValidateRoute,
   ApiPublicHooksShopeeRepairPilotRoute: ApiPublicHooksShopeeRepairPilotRoute,
+  ApiPublicHooksShopeeRepairRetryRoute: ApiPublicHooksShopeeRepairRetryRoute,
   ApiPublicHooksShopeeRepairV2Route: ApiPublicHooksShopeeRepairV2Route,
   ApiPublicHooksShopeeReportsSyncRoute: ApiPublicHooksShopeeReportsSyncRoute,
   ApiPublicInstagramCallbackRoute: ApiPublicInstagramCallbackRoute,
