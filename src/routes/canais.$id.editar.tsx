@@ -3913,11 +3913,20 @@ function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {})
           updated += outcome.updated;
           processed += chunk.length;
           setProgress({ done: processed, total: rows.length });
+          // Lote 12G: dispara auto-sync de preço em background (fire-and-forget).
+          // Não bloqueia a importação — API externa pode demorar/falhar.
+          const ids = outcome.productIds ?? [];
+          if (ids.length > 0) {
+            void syncPricesFn({ data: { productIds: ids } }).catch((err) => {
+              console.warn("[SHOPEE_PRICE_AUTO_SYNC] dispatch failed", err);
+            });
+          }
         }
       };
       await Promise.all(
         Array.from({ length: Math.min(PARALLEL, chunks.length) }, () => runner()),
       );
+
 
 
       await reloadProducts();
