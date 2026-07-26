@@ -93,8 +93,19 @@ export const resendWhatsAppSend = createServerFn({ method: "POST" })
 
     const { getWhatsAppProvider } = await import("./index.server");
     const provider = getWhatsAppProvider(inst.provider);
-    const live = await provider.getStatus(inst.instance_name);
-    if (live.status !== "connected") throw new Error("Instância não conectada");
+    // Tolerant status probe: Evolution API pode responder 502 esporadicamente.
+    // Se o probe falhar, confia no status persistido; se o DB também não estiver conectado, aborta.
+    let liveStatus: string = inst.status ?? "unknown";
+    try {
+      const live = await provider.getStatus(inst.instance_name);
+      liveStatus = live.status;
+    } catch {
+      liveStatus = inst.status ?? "unknown";
+    }
+    if (liveStatus !== "connected" && inst.status !== "connected") {
+      throw new Error("Instância não conectada");
+    }
+
 
     let messageId: string | null = null;
     let status: "sent" | "failed" = "sent";
