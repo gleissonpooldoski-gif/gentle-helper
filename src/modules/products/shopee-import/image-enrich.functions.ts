@@ -30,9 +30,11 @@ type PriceUpdate = {
 function derivePriceUpdate(
   pdp: { price: number | null; priceBefore: number | null },
   existingPromo: number | null,
-): PriceUpdate | null {
+): { update: PriceUpdate; reason: "ok_discount" | "no_discount" } | { update: null; reason: "no_promo" } {
   const promo = pdp.price ?? existingPromo;
-  if (promo == null || !Number.isFinite(promo) || promo <= 0) return null;
+  if (promo == null || !Number.isFinite(promo) || promo <= 0) {
+    return { update: null, reason: "no_promo" };
+  }
   const hasDiscount =
     pdp.priceBefore != null && Number.isFinite(pdp.priceBefore) && pdp.priceBefore > promo;
   const original = hasDiscount ? (pdp.priceBefore as number) : null;
@@ -43,8 +45,9 @@ function derivePriceUpdate(
     discount_percentage: pct,
   };
   if (pdp.price != null) update.promo_price = pdp.price;
-  return update;
+  return { update, reason: hasDiscount ? "ok_discount" : "no_discount" };
 }
+
 
 export const listPendingShopeeImages = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
