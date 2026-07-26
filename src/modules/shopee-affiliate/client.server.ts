@@ -27,6 +27,7 @@ export type ShopeeProductOffer = {
   originalPrice: number | null;
   discountRate: number | null; // % ex: 50 → 50%
   commissionRate: number | null; // % ex: 5.5 → 5.5%
+  sales: number | null; // Lote 15E — contagem oficial de vendas
   productLink: string | null;
   offerLink: string | null;
   imageUrl: string | null;
@@ -253,6 +254,12 @@ export async function fetchProductOfferByItem(
     originalPrice: null,
     discountRate,
     commissionRate,
+    sales: (() => {
+      const s = node.sales;
+      if (s == null) return null;
+      const n = typeof s === "number" ? s : Number(String(s).replace(/[^\d]/g, ""));
+      return Number.isFinite(n) && n >= 0 ? Math.floor(n) : null;
+    })(),
     productLink: node.productLink ? String(node.productLink) : null,
     offerLink: node.offerLink ? String(node.offerLink) : null,
     imageUrl: node.imageUrl ? String(node.imageUrl) : null,
