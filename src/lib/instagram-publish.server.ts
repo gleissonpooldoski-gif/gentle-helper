@@ -10,12 +10,16 @@ export async function publishForChannel(input: {
   productId: string;
   kind: "post" | "story";
   userId: string;
+  templateId?: string;
 }): Promise<{ mediaId: string }> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const tplQuery = input.templateId
+    ? supabaseAdmin.from("instagram_story_templates").select("*").eq("id", input.templateId).maybeSingle()
+    : supabaseAdmin.from("instagram_story_templates").select("*").eq("channel_id", input.channelId).eq("active", true).maybeSingle();
   const [{ data: conn }, { data: product }, { data: tpl }] = await Promise.all([
     supabaseAdmin.from("instagram_connections").select("*").eq("channel_id", input.channelId).maybeSingle(),
     supabaseAdmin.from("products").select("*").eq("id", input.productId).maybeSingle(),
-    supabaseAdmin.from("instagram_story_templates").select("*").eq("channel_id", input.channelId).eq("active", true).maybeSingle(),
+    tplQuery,
   ]);
   if (!conn || conn.status !== "connected" || !conn.access_token_ciphertext || !conn.instagram_account_id) {
     throw new Error("Instagram não está conectado neste canal.");
