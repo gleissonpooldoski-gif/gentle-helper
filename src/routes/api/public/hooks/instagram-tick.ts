@@ -100,11 +100,11 @@ export const Route = createFileRoute("/api/public/hooks/instagram-tick")({
             if (!(s.days ?? []).includes(day)) continue;
             if (!(s.hours ?? []).includes(hour)) continue;
             if (s.last_run_at) {
-              const last = new Date(s.last_run_at);
+              const last = new Date(new Date(s.last_run_at).getTime() - 3 * 60 * 60 * 1000);
               if (
-                last.getUTCFullYear() === now.getUTCFullYear() &&
-                last.getUTCMonth() === now.getUTCMonth() &&
-                last.getUTCDate() === now.getUTCDate() &&
+                last.getUTCFullYear() === brt.getUTCFullYear() &&
+                last.getUTCMonth() === brt.getUTCMonth() &&
+                last.getUTCDate() === brt.getUTCDate() &&
                 last.getUTCHours() === hour
               )
                 continue;
