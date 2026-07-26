@@ -260,6 +260,15 @@ export async function subscribeWebhooks(input: {
   igUser: { ok: boolean; error?: string };
 }> {
   const pageToken = await resolvePageToken({ token: input.token, pageId: input.pageId });
+  const igFields = [
+    "comments",
+    "messages",
+    "message_reactions",
+    "messaging_postbacks",
+    "messaging_seen",
+    "live_comments",
+    "mentions",
+  ].join(",");
   const pageFields = [
     "feed",
     "messages",
@@ -267,28 +276,14 @@ export async function subscribeWebhooks(input: {
     "message_reactions",
     "messaging_referrals",
   ].join(",");
-  const igFields = [
-    "comments",
-    "messages",
-    "message_reactions",
-    "messaging_postbacks",
-    "live_comments",
-    "mentions",
-  ].join(",");
   const out: Awaited<ReturnType<typeof subscribeWebhooks>> = {
     page: { ok: false },
     igUser: { ok: false },
   };
-  try {
-    await gfetch(
-      `/${input.pageId}/subscribed_apps`,
-      { access_token: pageToken, subscribed_fields: pageFields },
-      { method: "POST" },
-    );
-    out.page.ok = true;
-  } catch (e: any) {
-    out.page.error = String(e?.message ?? e);
-  }
+
+  // PRIMARY: subscribe on the IG User directly. Only needs
+  // instagram_manage_messages + instagram_manage_comments — you already have both.
+  // Does NOT require pages_manage_metadata.
   try {
     await gfetch(
       `/${input.igId}/subscribed_apps`,
@@ -299,6 +294,20 @@ export async function subscribeWebhooks(input: {
   } catch (e: any) {
     out.igUser.error = String(e?.message ?? e);
   }
+
+  // BEST-EFFORT: also try Page subscription (needs pages_manage_metadata).
+  // Silent fallback — IG User subscription above is enough for comments/DMs.
+  try {
+    await gfetch(
+      `/${input.pageId}/subscribed_apps`,
+      { access_token: pageToken, subscribed_fields: pageFields },
+      { method: "POST" },
+    );
+    out.page.ok = true;
+  } catch (e: any) {
+    out.page.error = String(e?.message ?? e);
+  }
+
   return out;
 }
 
