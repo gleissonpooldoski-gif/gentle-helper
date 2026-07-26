@@ -249,31 +249,29 @@ export const enrichShopeeImagesBatch = createServerFn({ method: "POST" })
       ]),
     );
 
-    // 1) Raspa imagem + PDP em paralelo (I/O bound).
+    // 1) Raspa imagem + consulta oficial Shopee em paralelo (I/O bound).
     const scraped = await Promise.all(
       data.items.map(async (item) => {
-        const [image, pdp] = await Promise.all([
+        const [image, offer] = await Promise.all([
           scrapeShopeeImage(item.productUrl, item.offerUrl ?? null).catch(() => null),
-          fetchShopeePdp(item.productUrl).catch(() => ({
-            title: null, image: null, price: null, priceBefore: null, sold: null, soldLabel: null,
-          })),
+          fetchOffer(context.supabase, context.userId, item.productUrl, item.itemId ?? null),
         ]);
-        return { item, image: image && isRealProductImage(image) ? image : null, pdp };
+        return { item, image: image && isRealProductImage(image) ? image : null, offer };
       }),
     );
 
     // 2) Persiste em paralelo.
     const persisted = await Promise.all(
-      scraped.map(async ({ item, image, pdp }) => {
+      scraped.map(async ({ item, image, offer }) => {
         const prev = existingMap.get(item.id);
-        const priceResult = derivePriceUpdate(pdp, prev?.promo ?? null);
+        const priceResult = derivePriceUpdate(offer, prev?.promo ?? null);
         const priceUpdate = priceResult.update;
 
         const patch: Record<string, unknown> = {};
         if (image) patch.image_url = image;
         if (priceUpdate) Object.assign(patch, priceUpdate);
 
-        console.log("[PRODUCT_PRICE_CAPTURE]", {
+        console.log("[SHOPEE_API_PRICE_SYNC]", {
           source: "enrich-batch",
           product_id: item.id,
           title: prev?.title ?? null,
@@ -281,6 +279,7 @@ export const enrichShopeeImagesBatch = createServerFn({ method: "POST" })
           original_price: priceUpdate?.original_price ?? null,
           discount_exists: priceUpdate?.is_discount ?? false,
           reason: priceResult.reason,
+          original_price_source: priceResult.source,
         });
 
 
