@@ -343,6 +343,38 @@ export function EditorClient({
           )}
         </aside>
       </div>
+
+      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Preview renderizado no servidor</DialogTitle>
+          </DialogHeader>
+          <div className="flex min-h-[400px] items-center justify-center bg-muted/40 p-4">
+            {previewMut.isPending ? (
+              <div className="flex flex-col items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-8 w-8 animate-spin" />
+                Gerando arte...
+              </div>
+            ) : previewMut.data?.success && previewMut.data.imageBase64 ? (
+              <img
+                src={`data:image/png;base64,${previewMut.data.imageBase64}`}
+                alt="Preview do template"
+                className="max-h-[70vh] w-auto rounded shadow-lg"
+              />
+            ) : (
+              <p className="text-sm text-destructive">
+                {previewMut.data?.error ?? "Nenhum preview disponível"}
+              </p>
+            )}
+          </div>
+          {previewMut.data?.success && (
+            <p className="text-xs text-muted-foreground">
+              {previewMut.data.width}×{previewMut.data.height}px — renderizado pelo motor
+              server-side.
+            </p>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
