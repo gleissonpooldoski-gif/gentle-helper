@@ -97,8 +97,9 @@ export const Route = createFileRoute("/api/public/hooks/instagram-tick")({
             .select("id,user_id,days,hours,active,last_run_at,template_id")
             .eq("active", true);
           for (const s of (adminSchedules as any[]) ?? []) {
-            if (!(s.days ?? []).includes(day)) continue;
-            if (!(s.hours ?? []).includes(hour)) continue;
+            const dayOk = (s.days ?? []).includes(day);
+            const hourOk = (s.hours ?? []).includes(hour);
+            let dedupSkip = false;
             if (s.last_run_at) {
               const last = new Date(new Date(s.last_run_at).getTime() - 3 * 60 * 60 * 1000);
               if (
@@ -107,14 +108,28 @@ export const Route = createFileRoute("/api/public/hooks/instagram-tick")({
                 last.getUTCDate() === brt.getUTCDate() &&
                 last.getUTCHours() === hour
               )
-                continue;
+                dedupSkip = true;
             }
+            console.log("[ADMIN_STORY_CHECK]", {
+              schedule_id: s.id,
+              day,
+              hour,
+              day_ok: dayOk,
+              hour_ok: hourOk,
+              dedup_skip: dedupSkip,
+              last_run_at: s.last_run_at,
+            });
+            if (!dayOk || !hourOk || dedupSkip) continue;
+
             const { loadSettings } = await import("@/modules/instagram-admin/settings.server");
             const { composeStoryPng, uploadAndPublishStory } = await import(
               "@/modules/instagram-admin/compose.server"
             );
             const settings = await loadSettings();
-            if (!settings) continue;
+            if (!settings) {
+              console.log("[ADMIN_STORY_SKIP]", { reason: "no-settings" });
+              continue;
+            }
 
             let templateUrl: string | null = null;
             let titleColor: string | undefined;
@@ -127,15 +142,20 @@ export const Route = createFileRoute("/api/public/hooks/instagram-tick")({
               if (tpl?.image_url) templateUrl = tpl.image_url;
               titleColor = (tpl as any)?.title_color ?? undefined;
             }
-            // Rotate across ALL groups/channels (not just the newest one).
             const { pickStoryProduct } = await import(
               "@/modules/instagram-admin/pick-product.server"
             );
             const prod = await pickStoryProduct();
             if (!prod) {
+              console.log("[ADMIN_STORY_SKIP]", { reason: "no-product" });
               results.push({ admin: s.user_id, skipped: "no-product" });
               continue;
             }
+            console.log("[ADMIN_STORY_PUBLISH]", {
+              product_id: (prod as any).id,
+              product_title: (prod as any).title,
+              template_id: s.template_id ?? null,
+            });
 
             try {
               const pngBytes = await composeStoryPng({
@@ -166,16 +186,19 @@ export const Route = createFileRoute("/api/public/hooks/instagram-tick")({
                 status: "published",
                 published_at: new Date().toISOString(),
               });
+              // Only mark schedule as run on SUCCESS — a failure this minute
+              // is retried the next minute within the same hour.
+              await supabaseAdmin
+                .from("instagram_admin_schedule" as any)
+                .update({ last_run_at: now.toISOString() })
+                .eq("id", s.id);
               results.push({ admin: s.user_id, media: storyId });
+              console.log("[ADMIN_STORY_OK]", { story_id: storyId });
             } catch (e: any) {
-              results.push({ admin: s.user_id, error: String(e?.message ?? e) });
+              const msg = String(e?.message ?? e);
+              console.error("[ADMIN_STORY_ERROR]", { error: msg, stack: e?.stack });
+              results.push({ admin: s.user_id, error: msg });
             }
-
-            await supabaseAdmin
-              .from("instagram_admin_schedule" as any)
-              .update({ last_run_at: now.toISOString() })
-              .eq("id", s.id);
-
           }
         } catch (e: any) {
           results.push({ adminScheduleError: String(e?.message ?? e) });

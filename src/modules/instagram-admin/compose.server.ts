@@ -14,32 +14,46 @@
 import { initWasm, Resvg } from "@resvg/resvg-wasm";
 import { publishStory } from "./graph.server";
 
-const WASM_URL =
-  "https://cdn.jsdelivr.net/npm/@resvg/[email protected]/index_bg.wasm";
-const FONT_URL =
-  "https://cdn.jsdelivr.net/npm/@fontsource/inter@4/files/inter-latin-800-normal.woff";
-// Fallback truetype for text metrics — resvg accepts TTF/OTF/WOFF/WOFF2.
-const FONT_URL_TTF =
-  "https://cdn.jsdelivr.net/npm/@fontsource/inter@4/files/inter-latin-800-normal.woff";
+// Match the installed @resvg/resvg-wasm version in package.json.
+// Cloudflare's fetch cache 400s on older/mismatched paths, so keep this
+// pinned to what npm actually resolves and provide a mirror fallback.
+const WASM_URLS = [
+  "https://cdn.jsdelivr.net/npm/@resvg/[email protected]/index_bg.wasm",
+  "https://unpkg.com/@resvg/[email protected]/index_bg.wasm",
+];
+const FONT_URLS = [
+  "https://cdn.jsdelivr.net/npm/@fontsource/inter@4/files/inter-latin-800-normal.woff",
+  "https://unpkg.com/@fontsource/inter@4/files/inter-latin-800-normal.woff",
+];
 
 let wasmReady: Promise<void> | null = null;
 let fontBuffer: Uint8Array | null = null;
 
+async function fetchFirstOk(urls: string[]): Promise<ArrayBuffer> {
+  let lastErr = "";
+  for (const url of urls) {
+    try {
+      const res = await fetch(url);
+      if (res.ok) return await res.arrayBuffer();
+      lastErr = `${url} → ${res.status}`;
+    } catch (e: any) {
+      lastErr = `${url} → ${e?.message ?? e}`;
+    }
+  }
+  throw new Error(`asset fetch failed: ${lastErr}`);
+}
+
 async function ensureReady() {
   if (!wasmReady) {
     wasmReady = (async () => {
-      const res = await fetch(WASM_URL);
-      if (!res.ok) throw new Error(`resvg wasm fetch failed ${res.status}`);
-      const buf = await res.arrayBuffer();
+      const buf = await fetchFirstOk(WASM_URLS);
       await initWasm(new WebAssembly.Module(buf));
     })();
   }
   await wasmReady;
   if (!fontBuffer) {
-    let res = await fetch(FONT_URL);
-    if (!res.ok) res = await fetch(FONT_URL_TTF);
-    if (!res.ok) throw new Error(`font fetch failed ${res.status}`);
-    fontBuffer = new Uint8Array(await res.arrayBuffer());
+    const buf = await fetchFirstOk(FONT_URLS);
+    fontBuffer = new Uint8Array(buf);
   }
 }
 
