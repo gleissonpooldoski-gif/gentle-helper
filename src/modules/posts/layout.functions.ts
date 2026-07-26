@@ -325,7 +325,8 @@ export const sendLayoutTestMessage = createServerFn({ method: "POST" })
     });
     const chosenHeader = await resolveHeader(supabase, userId, layout, [], { hasDiscount });
     const { renderPost } = await import("./render");
-    const vendasFinal = prod.sales_label ?? prod.sales;
+    const { formatSalesLabel } = await import("@/modules/products/sales-label");
+    const vendasFinal = formatSalesLabel(prod.sales == null ? null : Number(prod.sales));
     const caption = renderPost({ ...layout, header: chosenHeader }, {
       title: prod.title,
       description: null,
