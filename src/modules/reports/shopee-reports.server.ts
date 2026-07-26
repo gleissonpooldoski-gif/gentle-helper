@@ -143,31 +143,35 @@ export async function syncShopeeConversions(
   const startTs = endTs - 60 * 60 * 24 * 30;
 
   const PAGE_SIZE = 100;
-  const MAX_PAGES = 20;
-  let page = 1;
+  const MAX_PAGES = 50;
+  let scrollId = "";
+  let pages = 0;
   let inserted = 0;
-  let updated = 0;
 
-  while (page <= MAX_PAGES) {
-    const query = `query{conversionReport(purchaseTimeStart:${startTs},purchaseTimeEnd:${endTs},scrollId:"",page:${page},limit:${PAGE_SIZE}){nodes{orderId purchaseTime purchaseStatus buyerType device shopName totalCommission orderAmount items{itemId itemName imageUrl shopName globalCatName itemPrice actualAmount orderCommission commissionRate quantity}} pageInfo{hasNextPage}}}`;
+  while (pages < MAX_PAGES) {
+    const scrollArg = scrollId ? `,scrollId:${JSON.stringify(scrollId)}` : "";
+    const query = `query{conversionReport(purchaseTimeStart:${startTs},purchaseTimeEnd:${endTs},limit:${PAGE_SIZE}${scrollArg}){nodes{orderId purchaseTime purchaseStatus buyerType device shopName totalCommission orderAmount items{itemId itemName imageUrl shopName globalCatName itemPrice actualAmount orderCommission commissionRate quantity}} pageInfo{scrollId hasNextPage}}}`;
     const json = await shopeeGraphql(appId, secret, query);
-    const nodes: any[] = json?.data?.conversionReport?.nodes ?? [];
-    if (nodes.length === 0) break;
+    const report = json?.data?.conversionReport;
+    const nodes: any[] = report?.nodes ?? [];
+    pages += 1;
 
-    const rows = nodes.map((n) => mapNode(userId, n)).filter((r) => r.order_id);
-    if (rows.length) {
-      const { error: upErr, count } = await supabase
-        .from("shopee_conversions")
-        .upsert(rows, { onConflict: "user_id,platform,order_id,product_id", count: "exact" });
-      if (upErr) throw upErr;
-      inserted += count ?? rows.length;
-      updated += 0;
+    if (nodes.length) {
+      const rows = nodes.map((n) => mapNode(userId, n)).filter((r) => r.order_id);
+      if (rows.length) {
+        const { error: upErr, count } = await supabase
+          .from("shopee_conversions")
+          .upsert(rows, { onConflict: "user_id,platform,order_id,product_id", count: "exact" });
+        if (upErr) throw upErr;
+        inserted += count ?? rows.length;
+      }
     }
 
-    const hasNext = Boolean(json?.data?.conversionReport?.pageInfo?.hasNextPage);
-    if (!hasNext) break;
-    page += 1;
+    const nextScroll = report?.pageInfo?.scrollId ?? "";
+    const hasNext = Boolean(report?.pageInfo?.hasNextPage);
+    if (!hasNext || !nextScroll || nextScroll === scrollId) break;
+    scrollId = nextScroll;
   }
 
-  return { inserted, updated, pages: page };
+  return { inserted, updated: 0, pages };
 }
