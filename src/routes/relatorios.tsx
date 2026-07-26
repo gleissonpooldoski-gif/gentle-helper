@@ -204,12 +204,12 @@ function ReportsPage() {
 
   const sync = useMutation({
     mutationFn: () => runSync({ data: {} }),
-    onSuccess: () => {
-      toast.success("Sincronização concluída");
+    onSuccess: (r: { inserted?: number; pages?: number } | void) => {
+      const ins = r && typeof r === "object" && "inserted" in r ? r.inserted ?? 0 : 0;
+      toast.success(`Sincronização concluída — ${ins} conversões atualizadas`);
       query.refetch();
     },
-    onError: (e: Error) =>
-      toast.error(e.message || "Sincronização automática ainda não disponível"),
+    onError: (e: Error) => toast.error(e.message || "Falha ao sincronizar Shopee"),
   });
 
   const rows = query.data?.rows ?? [];
