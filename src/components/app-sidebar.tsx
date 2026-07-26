@@ -166,10 +166,12 @@ function NavRow({
   item,
   active,
   onNavigate,
+  badge,
 }: {
   item: Item;
   active: boolean;
   onNavigate: () => void;
+  badge?: number | null;
 }) {
   const Icon = item.icon;
   const classes = cn(
@@ -187,6 +189,11 @@ function NavRow({
     <>
       <Icon className={iconClasses} />
       <span className="truncate">{item.label}</span>
+      {badge != null && badge > 0 && (
+        <span className="ml-auto inline-flex min-w-[20px] items-center justify-center rounded-full bg-destructive px-1.5 py-0.5 text-[10px] font-bold text-destructive-foreground">
+          {badge > 99 ? "99+" : badge}
+        </span>
+      )}
     </>
   );
 
