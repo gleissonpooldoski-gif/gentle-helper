@@ -155,11 +155,9 @@ export const enrichShopeeImageOne = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const [image, pdp, existing] = await Promise.all([
+    const [image, offer, existing] = await Promise.all([
       scrapeShopeeImage(data.productUrl, data.offerUrl ?? null).catch(() => null),
-      fetchShopeePdp(data.productUrl).catch(() => ({
-        title: null, image: null, price: null, priceBefore: null, sold: null, soldLabel: null,
-      })),
+      fetchOffer(context.supabase, context.userId, data.productUrl, data.itemId ?? null),
       context.supabase
         .from("products")
         .select("promo_price, title")
@@ -169,7 +167,7 @@ export const enrichShopeeImageOne = createServerFn({ method: "POST" })
     ]);
 
     const priceResult = derivePriceUpdate(
-      pdp,
+      offer,
       existing?.promo_price != null ? Number(existing.promo_price) : null,
     );
     const priceUpdate = priceResult.update;
@@ -178,7 +176,7 @@ export const enrichShopeeImageOne = createServerFn({ method: "POST" })
     if (image && isRealProductImage(image)) patch.image_url = image;
     if (priceUpdate) Object.assign(patch, priceUpdate);
 
-    console.log("[PRODUCT_PRICE_CAPTURE]", {
+    console.log("[SHOPEE_API_PRICE_SYNC]", {
       source: "enrich-one",
       product_id: data.id,
       title: existing?.title ?? null,
@@ -186,6 +184,7 @@ export const enrichShopeeImageOne = createServerFn({ method: "POST" })
       original_price: priceUpdate?.original_price ?? null,
       discount_exists: priceUpdate?.is_discount ?? false,
       reason: priceResult.reason,
+      original_price_source: priceResult.source,
     });
 
 
