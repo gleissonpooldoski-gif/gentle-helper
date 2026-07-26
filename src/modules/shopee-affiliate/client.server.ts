@@ -27,6 +27,7 @@ export type ShopeeProductOffer = {
   originalPrice: number | null;
   discountRate: number | null; // % ex: 50 → 50%
   commissionRate: number | null; // % ex: 5.5 → 5.5%
+  sales: number | null; // Lote 15E — contagem oficial de vendas
   productLink: string | null;
   offerLink: string | null;
   imageUrl: string | null;
