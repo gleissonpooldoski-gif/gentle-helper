@@ -45,8 +45,9 @@ export const listAutomationFailures = createServerFn({ method: "POST" })
       const { data: prods } = await supabase
         .from("products")
         .select(sel("id, title"))
-        .in("id", productIds);
-      for (const p of (prods ?? []) as { id: string; title: string }[]) {
+        .in("id", productIds)
+        .returns<{ id: string; title: string }[]>();
+      for (const p of prods ?? []) {
         productMap.set(p.id, p.title);
       }
     }
