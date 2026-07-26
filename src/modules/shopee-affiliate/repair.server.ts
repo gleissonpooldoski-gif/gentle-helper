@@ -107,18 +107,25 @@ function logRepair(userId: string, r: RepairRecord) {
   );
 }
 
-/** Verifica se o usuário tem credencial ativa em shopee_affiliate_configs. */
+/** Verifica se o usuário tem credencial ativa em affiliate_connections (platform='shopee'). */
 async function hasAffiliateCredentials(
   supabase: SupabaseClient<Database>,
   userId: string,
 ): Promise<boolean> {
   const { data } = await supabase
-    .from("shopee_affiliate_configs")
-    .select("user_id, has_api_key, status")
+    .from("affiliate_connections")
+    .select("affiliate_id, api_key_encrypted, status")
     .eq("user_id", userId)
+    .eq("platform", "shopee")
     .maybeSingle();
-  return !!(data && data.has_api_key && data.status === "active");
+  return !!(
+    data &&
+    data.status === "connected" &&
+    data.affiliate_id &&
+    data.api_key_encrypted
+  );
 }
+
 
 /** Repara UM produto Shopee. Nunca lança. */
 async function repairOne(
