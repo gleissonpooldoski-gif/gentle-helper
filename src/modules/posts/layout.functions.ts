@@ -278,21 +278,25 @@ export const sendLayoutTestMessage = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
 
     // Produto: usa o informado ou pega o mais recente COM imagem do canal.
-    let productQuery = (supabase as any)
-      .from("products")
-      .select("id, title, promo_price, original_price, sales, sales_label, affiliate_link, image_url")
-      .eq("user_id", userId)
-      .eq("channel_id", data.channelId)
-      .not("image_url", "is", null)
-      .order("updated_at", { ascending: false })
-      .limit(1);
+    const PROD_COLS =
+      "id, title, platform, promo_price, original_price, sales, sales_label, sales_recent, sales_historical, sales_source, price_quality, price_quality_reason, affiliate_link, image_url";
+    let productQuery: any;
     if (data.productId) {
       productQuery = (supabase as any)
         .from("products")
-        .select("id, title, promo_price, original_price, sales, sales_label, affiliate_link, image_url")
+        .select(PROD_COLS)
         .eq("user_id", userId)
         .eq("channel_id", data.channelId)
         .eq("id", data.productId)
+        .limit(1);
+    } else {
+      productQuery = (supabase as any)
+        .from("products")
+        .select(PROD_COLS)
+        .eq("user_id", userId)
+        .eq("channel_id", data.channelId)
+        .not("image_url", "is", null)
+        .order("created_at", { ascending: false })
         .limit(1);
     }
     const { data: prods, error: prodErr } = await productQuery;
@@ -325,13 +329,14 @@ export const sendLayoutTestMessage = createServerFn({ method: "POST" })
     });
     const chosenHeader = await resolveHeader(supabase, userId, layout, [], { hasDiscount });
     const { renderPost } = await import("./render");
-    const { formatSalesLabel } = await import("@/modules/products/sales-label");
-    const vendasFinal = formatSalesLabel(prod.sales == null ? null : Number(prod.sales));
+    const { resolveProductDisplay } = await import("@/modules/products/display-resolver");
+    const display = resolveProductDisplay(prod as never);
+    const vendasFinal = display.salesLabel || null;
     const caption = renderPost({ ...layout, header: chosenHeader }, {
       title: prod.title,
       description: null,
-      price: prod.promo_price,
-      price_original: prod.original_price,
+      price: display.priceCurrentDisplay ?? prod.promo_price,
+      price_original: display.priceOriginalDisplay,
       parcelamento: null,
       vendas: vendasFinal,
       link: prod.affiliate_link,

@@ -242,7 +242,7 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
     let q = admin
       .from("products")
       .select(
-        "id, title, platform, promo_price, original_price, image_url, affiliate_link, raw_link, sales, sales_label, store_name, category, source_group_jid, source_group_name, availability, last_validated_at",
+        "id, title, platform, promo_price, original_price, image_url, affiliate_link, raw_link, sales, sales_label, sales_recent, sales_historical, sales_source, price_quality, price_quality_reason, store_name, category, source_group_jid, source_group_name, availability, last_validated_at",
       )
       .eq("user_id", cfg.user_id)
       .eq("channel_id", cfg.channel_id)
@@ -463,40 +463,29 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
     ? await loadSiteConfigByChannel(admin as never, cfg.channel_id)
     : null;
   const wrappedLink = wrapLinkWithSite(product.affiliate_link ?? product.raw_link, siteCfg);
-  const { resolveDisplayOriginalPrice, classifyShopeePriceQuality } = await import(
-    "@/modules/shopee-affiliate/price-quality"
-  );
-  const displayOriginal = resolveDisplayOriginalPrice({
-    title: product.title,
-    promo_price: product.promo_price,
-    original_price: product.original_price,
-    platform: product.platform,
-  });
-  if ((product.platform ?? "").toLowerCase() === "shopee") {
-    const q = classifyShopeePriceQuality({
+  const { resolveProductDisplay } = await import("@/modules/products/display-resolver");
+  const display = resolveProductDisplay(product as never);
+  try {
+    console.log(JSON.stringify({
+      event: "PRODUCT_DISPLAY_RESOLVED",
+      product_id: product.id,
+      platform: product.platform,
       title: product.title,
-      promo_price: product.promo_price,
-      original_price: product.original_price,
-    });
-    try {
-      console.log(JSON.stringify({
-        event: "SHOPEE_PRICE_QUALITY",
-        product_id: product.id,
-        title: product.title,
-        promo: product.promo_price,
-        original: product.original_price,
-        quality: q.quality,
-        reason: q.reason,
-        showComparison: q.showComparison,
-      }));
-    } catch { /* noop */ }
-  }
+      sales_source: display.salesSource,
+      sales_value: display.salesValue,
+      sales_label: display.salesLabel,
+      price_quality: display.priceQuality,
+      price_quality_reason: display.priceQualityReason,
+      price_original_display: display.priceOriginalDisplay,
+      discount_pct: display.discountPct,
+    }));
+  } catch { /* noop */ }
   const productDetail = {
     title: product.title,
     description: null,
-    price: product.promo_price,
-    price_original: displayOriginal,
-    vendas: formatSalesLabel(product.sales == null ? null : Number(product.sales)),
+    price: display.priceCurrentDisplay ?? product.promo_price,
+    price_original: display.priceOriginalDisplay,
+    vendas: display.salesLabel || null,
     link: wrappedLink,
     image: product.image_url,
     store: product.store_name ?? product.platform ?? null,
