@@ -20,8 +20,7 @@ import {
   parseShopeeIds,
   deriveOriginalFromOffer,
 } from "./client.server";
-
-/** Janela de deduplicação: se `updated_at` for mais recente que isto, pula. */
+import { validateShopeePriceUpdate } from "./price-guard";
 const FRESH_WINDOW_MS = 12 * 60 * 60 * 1000; // 12h
 
 export type AutoSyncStatus =
