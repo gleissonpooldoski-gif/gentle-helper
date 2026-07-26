@@ -524,10 +524,18 @@ function PublishBox() {
 const WEEKDAYS = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
 
 function ScheduleCard({ templates }: { templates: any[] }) {
+  const qc = useQueryClient();
   const getFn = useServerFn(getAdminStorySchedule);
   const saveFn = useServerFn(saveAdminStorySchedule);
   const runNowFn = useServerFn(runAdminStoryScheduleNow);
+  const toggleFn = useServerFn(toggleAdminStoryAutomation);
+  const statusFn = useServerFn(getAdminStoryStatus);
   const q = useQuery({ queryKey: ["ig-admin", "schedule"], queryFn: () => getFn() });
+  const statusQ = useQuery({
+    queryKey: ["ig-admin", "story-status"],
+    queryFn: () => statusFn(),
+    refetchInterval: 15_000,
+  });
 
   const [days, setDays] = useState<number[]>([]);
   const [hours, setHours] = useState<number[]>([]);
@@ -549,16 +557,38 @@ function ScheduleCard({ templates }: { templates: any[] }) {
   const mut = useMutation({
     mutationFn: () =>
       saveFn({ data: { days, hours, active, templateId: templateId || null } }),
-    onSuccess: () => toast.success("Agendamento salvo"),
+    onSuccess: () => {
+      toast.success("Agendamento salvo");
+      qc.invalidateQueries({ queryKey: ["ig-admin", "story-status"] });
+    },
     onError: (e: any) => toast.error(e?.message ?? "Falha ao salvar"),
+  });
+
+  const powerMut = useMutation({
+    mutationFn: (next: boolean) => toggleFn({ data: { active: next } }),
+    onSuccess: (r: any) => {
+      setActive(!!r?.active);
+      toast.success(r?.active ? "Automação ATIVADA" : "Automação PAUSADA");
+      qc.invalidateQueries({ queryKey: ["ig-admin", "schedule"] });
+      qc.invalidateQueries({ queryKey: ["ig-admin", "story-status"] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Falha ao alternar"),
   });
 
   const runNow = useMutation({
     mutationFn: () => runNowFn(),
-    onSuccess: (r: any) =>
-      toast.success(`Story publicado! ${r?.productTitle ? `— ${r.productTitle}` : ""}`),
+    onSuccess: (r: any) => {
+      toast.success(`Story publicado! ${r?.productTitle ? `— ${r.productTitle}` : ""}`);
+      qc.invalidateQueries({ queryKey: ["ig-admin", "story-status"] });
+    },
     onError: (e: any) => toast.error(e?.message ?? "Falha ao publicar"),
   });
+
+  const status = statusQ.data;
+  const fmt = (iso?: string | null) =>
+    iso
+      ? new Date(iso).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" })
+      : "—";
 
   return (
     <div className="space-y-4">
