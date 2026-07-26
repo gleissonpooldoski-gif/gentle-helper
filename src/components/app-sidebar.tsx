@@ -1,6 +1,7 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useState } from "react";
 import {
+  AlertTriangle,
   BarChart3,
   CreditCard,
   Instagram,
@@ -13,9 +14,8 @@ import {
   Zap,
 } from "lucide-react";
 
-
-
 import { cn } from "@/lib/utils";
+import { useSystemHealth } from "@/hooks/use-system-health";
 
 type Item = {
   id: string;
@@ -32,6 +32,7 @@ const CONFIG: Item[] = [
   { id: "afiliados", label: "Config Afiliados", icon: Settings, href: "/config-afiliados" },
   { id: "canais", label: "Canais/Grupos", icon: Radio, href: "/" },
   { id: "relatorios", label: "Relatórios", icon: BarChart3, href: "/relatorios" },
+  { id: "falhas", label: "Falhas de Envio", icon: AlertTriangle, href: "/falhas" },
   { id: "envios-whatsapp", label: "Envios WhatsApp", icon: Send, href: "/configuracoes/envios-whatsapp" },
 ];
 
@@ -46,12 +47,19 @@ export function AppSidebar({
 }) {
   const [open, setOpen] = useState(false);
   const pathname = useRouterState({ select: (r) => r.location.pathname });
+  const health = useSystemHealth();
 
   const resolvedActive =
     activeId ??
     (pathname.startsWith("/instagram") ? "instagram" : undefined) ??
     [...MAIN, ...CONFIG].find((i) => i.href && i.href === pathname)?.id ??
     "";
+
+  const badgeFor = (id: string): number | null => {
+    if (id === "falhas" && health.failures > 0) return health.failures;
+    if (id === "canais" && health.downCount > 0) return health.downCount;
+    return null;
+  };
 
 
   return (
@@ -104,6 +112,7 @@ export function AppSidebar({
                 key={item.id}
                 item={item}
                 active={item.id === resolvedActive}
+                badge={badgeFor(item.id)}
                 onNavigate={() => {
                   onSelect?.(item.id);
                   setOpen(false);
@@ -127,6 +136,7 @@ export function AppSidebar({
                 key={item.id}
                 item={item}
                 active={item.id === resolvedActive}
+                badge={badgeFor(item.id)}
                 onNavigate={() => {
                   onSelect?.(item.id);
                   setOpen(false);
@@ -156,10 +166,12 @@ function NavRow({
   item,
   active,
   onNavigate,
+  badge,
 }: {
   item: Item;
   active: boolean;
   onNavigate: () => void;
+  badge?: number | null;
 }) {
   const Icon = item.icon;
   const classes = cn(
@@ -177,6 +189,11 @@ function NavRow({
     <>
       <Icon className={iconClasses} />
       <span className="truncate">{item.label}</span>
+      {badge != null && badge > 0 && (
+        <span className="ml-auto inline-flex min-w-[20px] items-center justify-center rounded-full bg-destructive px-1.5 py-0.5 text-[10px] font-bold text-destructive-foreground">
+          {badge > 99 ? "99+" : badge}
+        </span>
+      )}
     </>
   );
 

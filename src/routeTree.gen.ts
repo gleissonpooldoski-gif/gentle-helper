@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as TemplatesRouteImport } from './routes/templates'
 import { Route as RelatoriosRouteImport } from './routes/relatorios'
 import { Route as InstagramRouteImport } from './routes/instagram'
+import { Route as FalhasRouteImport } from './routes/falhas'
 import { Route as ConfigAfiliadosRouteImport } from './routes/config-afiliados'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as IndexRouteImport } from './routes/index'
@@ -38,7 +39,9 @@ import { Route as ApiPublicWebhooksInstagramRouteImport } from './routes/api/pub
 import { Route as ApiPublicMetaWebhookRouteImport } from './routes/api/public/meta/webhook'
 import { Route as ApiPublicInstagramCallbackRouteImport } from './routes/api/public/instagram/callback'
 import { Route as ApiPublicHooksProductsValidateRouteImport } from './routes/api/public/hooks/products-validate'
+import { Route as ApiPublicHooksPriceBackfillRouteImport } from './routes/api/public/hooks/price-backfill'
 import { Route as ApiPublicHooksInstagramTickRouteImport } from './routes/api/public/hooks/instagram-tick'
+import { Route as ApiPublicHooksEvolutionHealthcheckRouteImport } from './routes/api/public/hooks/evolution-healthcheck'
 import { Route as ApiPublicHooksAutomationTickRouteImport } from './routes/api/public/hooks/automation-tick'
 import { Route as ApiPublicInstabotREventIdRouteImport } from './routes/api/public/instabot/r.$eventId'
 import { Route as ApiPublicChannelsWhatsappSessionStatusRouteImport } from './routes/api/public/channels/whatsapp/session-status'
@@ -57,6 +60,11 @@ const RelatoriosRoute = RelatoriosRouteImport.update({
 const InstagramRoute = InstagramRouteImport.update({
   id: '/instagram',
   path: '/instagram',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FalhasRoute = FalhasRouteImport.update({
+  id: '/falhas',
+  path: '/falhas',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ConfigAfiliadosRoute = ConfigAfiliadosRouteImport.update({
@@ -197,10 +205,22 @@ const ApiPublicHooksProductsValidateRoute =
     path: '/api/public/hooks/products-validate',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicHooksPriceBackfillRoute =
+  ApiPublicHooksPriceBackfillRouteImport.update({
+    id: '/api/public/hooks/price-backfill',
+    path: '/api/public/hooks/price-backfill',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicHooksInstagramTickRoute =
   ApiPublicHooksInstagramTickRouteImport.update({
     id: '/api/public/hooks/instagram-tick',
     path: '/api/public/hooks/instagram-tick',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicHooksEvolutionHealthcheckRoute =
+  ApiPublicHooksEvolutionHealthcheckRouteImport.update({
+    id: '/api/public/hooks/evolution-healthcheck',
+    path: '/api/public/hooks/evolution-healthcheck',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiPublicHooksAutomationTickRoute =
@@ -232,6 +252,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/config-afiliados': typeof ConfigAfiliadosRoute
+  '/falhas': typeof FalhasRoute
   '/instagram': typeof InstagramRouteWithChildren
   '/relatorios': typeof RelatoriosRoute
   '/templates': typeof TemplatesRouteWithChildren
@@ -252,7 +273,9 @@ export interface FileRoutesByFullPath {
   '/canais/$id/editar': typeof CanaisIdEditarRoute
   '/templates/editor/$id': typeof TemplatesEditorIdRoute
   '/api/public/hooks/automation-tick': typeof ApiPublicHooksAutomationTickRoute
+  '/api/public/hooks/evolution-healthcheck': typeof ApiPublicHooksEvolutionHealthcheckRoute
   '/api/public/hooks/instagram-tick': typeof ApiPublicHooksInstagramTickRoute
+  '/api/public/hooks/price-backfill': typeof ApiPublicHooksPriceBackfillRoute
   '/api/public/hooks/products-validate': typeof ApiPublicHooksProductsValidateRoute
   '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
   '/api/public/meta/webhook': typeof ApiPublicMetaWebhookRoute
@@ -268,6 +291,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/config-afiliados': typeof ConfigAfiliadosRoute
+  '/falhas': typeof FalhasRoute
   '/instagram': typeof InstagramRouteWithChildren
   '/relatorios': typeof RelatoriosRoute
   '/templates': typeof TemplatesRouteWithChildren
@@ -288,7 +312,9 @@ export interface FileRoutesByTo {
   '/canais/$id/editar': typeof CanaisIdEditarRoute
   '/templates/editor/$id': typeof TemplatesEditorIdRoute
   '/api/public/hooks/automation-tick': typeof ApiPublicHooksAutomationTickRoute
+  '/api/public/hooks/evolution-healthcheck': typeof ApiPublicHooksEvolutionHealthcheckRoute
   '/api/public/hooks/instagram-tick': typeof ApiPublicHooksInstagramTickRoute
+  '/api/public/hooks/price-backfill': typeof ApiPublicHooksPriceBackfillRoute
   '/api/public/hooks/products-validate': typeof ApiPublicHooksProductsValidateRoute
   '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
   '/api/public/meta/webhook': typeof ApiPublicMetaWebhookRoute
@@ -305,6 +331,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/config-afiliados': typeof ConfigAfiliadosRoute
+  '/falhas': typeof FalhasRoute
   '/instagram': typeof InstagramRouteWithChildren
   '/relatorios': typeof RelatoriosRoute
   '/templates': typeof TemplatesRouteWithChildren
@@ -325,7 +352,9 @@ export interface FileRoutesById {
   '/canais/$id/editar': typeof CanaisIdEditarRoute
   '/templates/editor/$id': typeof TemplatesEditorIdRoute
   '/api/public/hooks/automation-tick': typeof ApiPublicHooksAutomationTickRoute
+  '/api/public/hooks/evolution-healthcheck': typeof ApiPublicHooksEvolutionHealthcheckRoute
   '/api/public/hooks/instagram-tick': typeof ApiPublicHooksInstagramTickRoute
+  '/api/public/hooks/price-backfill': typeof ApiPublicHooksPriceBackfillRoute
   '/api/public/hooks/products-validate': typeof ApiPublicHooksProductsValidateRoute
   '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
   '/api/public/meta/webhook': typeof ApiPublicMetaWebhookRoute
@@ -343,6 +372,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/config-afiliados'
+    | '/falhas'
     | '/instagram'
     | '/relatorios'
     | '/templates'
@@ -363,7 +393,9 @@ export interface FileRouteTypes {
     | '/canais/$id/editar'
     | '/templates/editor/$id'
     | '/api/public/hooks/automation-tick'
+    | '/api/public/hooks/evolution-healthcheck'
     | '/api/public/hooks/instagram-tick'
+    | '/api/public/hooks/price-backfill'
     | '/api/public/hooks/products-validate'
     | '/api/public/instagram/callback'
     | '/api/public/meta/webhook'
@@ -379,6 +411,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/config-afiliados'
+    | '/falhas'
     | '/instagram'
     | '/relatorios'
     | '/templates'
@@ -399,7 +432,9 @@ export interface FileRouteTypes {
     | '/canais/$id/editar'
     | '/templates/editor/$id'
     | '/api/public/hooks/automation-tick'
+    | '/api/public/hooks/evolution-healthcheck'
     | '/api/public/hooks/instagram-tick'
+    | '/api/public/hooks/price-backfill'
     | '/api/public/hooks/products-validate'
     | '/api/public/instagram/callback'
     | '/api/public/meta/webhook'
@@ -415,6 +450,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/config-afiliados'
+    | '/falhas'
     | '/instagram'
     | '/relatorios'
     | '/templates'
@@ -435,7 +471,9 @@ export interface FileRouteTypes {
     | '/canais/$id/editar'
     | '/templates/editor/$id'
     | '/api/public/hooks/automation-tick'
+    | '/api/public/hooks/evolution-healthcheck'
     | '/api/public/hooks/instagram-tick'
+    | '/api/public/hooks/price-backfill'
     | '/api/public/hooks/products-validate'
     | '/api/public/instagram/callback'
     | '/api/public/meta/webhook'
@@ -452,6 +490,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthRoute: typeof AuthRoute
   ConfigAfiliadosRoute: typeof ConfigAfiliadosRoute
+  FalhasRoute: typeof FalhasRoute
   InstagramRoute: typeof InstagramRouteWithChildren
   RelatoriosRoute: typeof RelatoriosRoute
   TemplatesRoute: typeof TemplatesRouteWithChildren
@@ -462,7 +501,9 @@ export interface RootRouteChildren {
   ApiMlProbeRoute: typeof ApiMlProbeRoute
   CanaisIdEditarRoute: typeof CanaisIdEditarRoute
   ApiPublicHooksAutomationTickRoute: typeof ApiPublicHooksAutomationTickRoute
+  ApiPublicHooksEvolutionHealthcheckRoute: typeof ApiPublicHooksEvolutionHealthcheckRoute
   ApiPublicHooksInstagramTickRoute: typeof ApiPublicHooksInstagramTickRoute
+  ApiPublicHooksPriceBackfillRoute: typeof ApiPublicHooksPriceBackfillRoute
   ApiPublicHooksProductsValidateRoute: typeof ApiPublicHooksProductsValidateRoute
   ApiPublicInstagramCallbackRoute: typeof ApiPublicInstagramCallbackRoute
   ApiPublicMetaWebhookRoute: typeof ApiPublicMetaWebhookRoute
@@ -496,6 +537,13 @@ declare module '@tanstack/react-router' {
       path: '/instagram'
       fullPath: '/instagram'
       preLoaderRoute: typeof InstagramRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/falhas': {
+      id: '/falhas'
+      path: '/falhas'
+      fullPath: '/falhas'
+      preLoaderRoute: typeof FalhasRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/config-afiliados': {
@@ -680,11 +728,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksProductsValidateRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/price-backfill': {
+      id: '/api/public/hooks/price-backfill'
+      path: '/api/public/hooks/price-backfill'
+      fullPath: '/api/public/hooks/price-backfill'
+      preLoaderRoute: typeof ApiPublicHooksPriceBackfillRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/instagram-tick': {
       id: '/api/public/hooks/instagram-tick'
       path: '/api/public/hooks/instagram-tick'
       fullPath: '/api/public/hooks/instagram-tick'
       preLoaderRoute: typeof ApiPublicHooksInstagramTickRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/evolution-healthcheck': {
+      id: '/api/public/hooks/evolution-healthcheck'
+      path: '/api/public/hooks/evolution-healthcheck'
+      fullPath: '/api/public/hooks/evolution-healthcheck'
+      preLoaderRoute: typeof ApiPublicHooksEvolutionHealthcheckRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/hooks/automation-tick': {
@@ -762,6 +824,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthRoute: AuthRoute,
   ConfigAfiliadosRoute: ConfigAfiliadosRoute,
+  FalhasRoute: FalhasRoute,
   InstagramRoute: InstagramRouteWithChildren,
   RelatoriosRoute: RelatoriosRoute,
   TemplatesRoute: TemplatesRouteWithChildren,
@@ -772,7 +835,10 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMlProbeRoute: ApiMlProbeRoute,
   CanaisIdEditarRoute: CanaisIdEditarRoute,
   ApiPublicHooksAutomationTickRoute: ApiPublicHooksAutomationTickRoute,
+  ApiPublicHooksEvolutionHealthcheckRoute:
+    ApiPublicHooksEvolutionHealthcheckRoute,
   ApiPublicHooksInstagramTickRoute: ApiPublicHooksInstagramTickRoute,
+  ApiPublicHooksPriceBackfillRoute: ApiPublicHooksPriceBackfillRoute,
   ApiPublicHooksProductsValidateRoute: ApiPublicHooksProductsValidateRoute,
   ApiPublicInstagramCallbackRoute: ApiPublicInstagramCallbackRoute,
   ApiPublicMetaWebhookRoute: ApiPublicMetaWebhookRoute,
@@ -788,13 +854,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
