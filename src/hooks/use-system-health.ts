@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { countUnresolvedFailures } from "@/modules/dlq/dlq.functions";
-import { listInstances } from "@/modules/whatsapp/instances.functions";
+import { listWhatsAppInstances } from "@/modules/whatsapp/instances.functions";
 
 /**
  * Health check global: falhas pendentes + instâncias caídas.
@@ -9,7 +9,7 @@ import { listInstances } from "@/modules/whatsapp/instances.functions";
  */
 export function useSystemHealth() {
   const countFailuresFn = useServerFn(countUnresolvedFailures);
-  const listInstancesFn = useServerFn(listInstances);
+  const listInstancesFn = useServerFn(listWhatsAppInstances);
 
   const failuresQ = useQuery({
     queryKey: ["dlq-count"],
@@ -20,7 +20,7 @@ export function useSystemHealth() {
 
   const instancesQ = useQuery({
     queryKey: ["instances-health"],
-    queryFn: () => listInstancesFn(),
+    queryFn: () => listInstancesFn({ data: {} }),
     refetchInterval: 60_000,
     staleTime: 30_000,
   });
