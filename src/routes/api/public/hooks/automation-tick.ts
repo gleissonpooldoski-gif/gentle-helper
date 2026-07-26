@@ -18,12 +18,17 @@ function log(event: string, fields: LogFields = {}) {
 }
 
 /**
- * Classifica erro da Evolution API.
- * - `permanent`: nunca retentar (401/403/404/400, grupo inexistente, instância inexistente).
- * - `transient`: retentar com backoff (5xx, timeout, connection reset, tunnel, gateway).
+ * Classificador centralizado de erros do worker de automação.
+ * - `permanent`: config inválida — nunca retentar sozinho (401/403/404/400,
+ *   grupo/instância inexistente, token inválido).
+ * - `transient`: indisponibilidade temporária — auto-recupera (5xx, 429, 408,
+ *   timeout, ECONNRESET/ETIMEDOUT/ENOTFOUND, "fetch failed", tunnel, gateway,
+ *   circuit breaker aberto).
+ *
+ * Único ponto de verdade — não replicar regex em outros lugares do worker.
  */
 type ErrorClass = "permanent" | "transient";
-function classifyError(err: unknown): ErrorClass {
+function classifyAutomationError(err: unknown): ErrorClass {
   const msg = err instanceof Error ? err.message : String(err ?? "");
   const lower = msg.toLowerCase();
   if (
@@ -42,16 +47,27 @@ function classifyError(err: unknown): ErrorClass {
     /\b(408|429|5\d\d)\b/.test(msg) ||
     lower.includes("timeout") ||
     lower.includes("timed out") ||
+    lower.includes("etimedout") ||
     lower.includes("econnreset") ||
     lower.includes("connection reset") ||
+    lower.includes("enotfound") ||
+    lower.includes("fetch failed") ||
+    lower.includes("network error") ||
     lower.includes("tunnel") ||
     lower.includes("gateway") ||
-    lower.includes("temporariamente indisponível")
+    lower.includes("circuit breaker") ||
+    lower.includes("temporariamente indisponível") ||
+    lower.includes("temporariamente indisponivel")
   ) {
     return "transient";
   }
+  // Default seguro: tratar desconhecido como transitório para não travar
+  // config em `error` por erro de rede não-catalogado.
   return "transient";
 }
+// Alias retrocompatível — todo o worker deve preferir classifyAutomationError.
+const classifyError = classifyAutomationError;
+
 
 
 /**
