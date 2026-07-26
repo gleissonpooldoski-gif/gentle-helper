@@ -1,5 +1,58 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { requireCronSecret } from "@/lib/public-auth.server";
+import { isBreakerOpen, recordFailure, recordSuccess } from "@/lib/circuit-breaker.server";
+
+/**
+ * Log estruturado para rastreamento do worker.
+ * Emite JSON single-line para facilitar grep e agregação.
+ */
+type LogFields = Record<string, unknown>;
+function log(event: string, fields: LogFields = {}) {
+  try {
+    console.log(
+      `[AUTOMATION_WORKER] ${JSON.stringify({ event, ts: new Date().toISOString(), ...fields })}`,
+    );
+  } catch {
+    /* ignore serialization errors */
+  }
+}
+
+/**
+ * Classifica erro da Evolution API.
+ * - `permanent`: nunca retentar (401/403/404/400, grupo inexistente, instância inexistente).
+ * - `transient`: retentar com backoff (5xx, timeout, connection reset, tunnel, gateway).
+ */
+type ErrorClass = "permanent" | "transient";
+function classifyError(err: unknown): ErrorClass {
+  const msg = err instanceof Error ? err.message : String(err ?? "");
+  const lower = msg.toLowerCase();
+  if (
+    /\b(400|401|403|404)\b/.test(msg) ||
+    lower.includes("group not found") ||
+    lower.includes("grupo não encontrado") ||
+    lower.includes("grupo removido") ||
+    lower.includes("instance not found") ||
+    lower.includes("instância não encontrada") ||
+    lower.includes("token inválido") ||
+    lower.includes("invalid token")
+  ) {
+    return "permanent";
+  }
+  if (
+    /\b(408|429|5\d\d)\b/.test(msg) ||
+    lower.includes("timeout") ||
+    lower.includes("timed out") ||
+    lower.includes("econnreset") ||
+    lower.includes("connection reset") ||
+    lower.includes("tunnel") ||
+    lower.includes("gateway") ||
+    lower.includes("temporariamente indisponível")
+  ) {
+    return "transient";
+  }
+  return "transient";
+}
+
 
 /**
  * Worker de automação. Chamado por pg_cron a cada minuto.
