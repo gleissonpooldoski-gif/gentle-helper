@@ -39,7 +39,6 @@ import { Route as ApiPublicWebhooksInstagramRouteImport } from './routes/api/pub
 import { Route as ApiPublicMetaWebhookRouteImport } from './routes/api/public/meta/webhook'
 import { Route as ApiPublicInstagramCallbackRouteImport } from './routes/api/public/instagram/callback'
 import { Route as ApiPublicHooksShopeeReportsSyncRouteImport } from './routes/api/public/hooks/shopee-reports-sync'
-import { Route as ApiPublicHooksShopeeIntrospectRouteImport } from './routes/api/public/hooks/shopee-introspect'
 import { Route as ApiPublicHooksProductsValidateRouteImport } from './routes/api/public/hooks/products-validate'
 import { Route as ApiPublicHooksPriceBackfillRouteImport } from './routes/api/public/hooks/price-backfill'
 import { Route as ApiPublicHooksInstagramTickRouteImport } from './routes/api/public/hooks/instagram-tick'
@@ -207,12 +206,6 @@ const ApiPublicHooksShopeeReportsSyncRoute =
     path: '/api/public/hooks/shopee-reports-sync',
     getParentRoute: () => rootRouteImport,
   } as any)
-const ApiPublicHooksShopeeIntrospectRoute =
-  ApiPublicHooksShopeeIntrospectRouteImport.update({
-    id: '/api/public/hooks/shopee-introspect',
-    path: '/api/public/hooks/shopee-introspect',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 const ApiPublicHooksProductsValidateRoute =
   ApiPublicHooksProductsValidateRouteImport.update({
     id: '/api/public/hooks/products-validate',
@@ -291,7 +284,6 @@ export interface FileRoutesByFullPath {
   '/api/public/hooks/instagram-tick': typeof ApiPublicHooksInstagramTickRoute
   '/api/public/hooks/price-backfill': typeof ApiPublicHooksPriceBackfillRoute
   '/api/public/hooks/products-validate': typeof ApiPublicHooksProductsValidateRoute
-  '/api/public/hooks/shopee-introspect': typeof ApiPublicHooksShopeeIntrospectRoute
   '/api/public/hooks/shopee-reports-sync': typeof ApiPublicHooksShopeeReportsSyncRoute
   '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
   '/api/public/meta/webhook': typeof ApiPublicMetaWebhookRoute
@@ -332,7 +324,6 @@ export interface FileRoutesByTo {
   '/api/public/hooks/instagram-tick': typeof ApiPublicHooksInstagramTickRoute
   '/api/public/hooks/price-backfill': typeof ApiPublicHooksPriceBackfillRoute
   '/api/public/hooks/products-validate': typeof ApiPublicHooksProductsValidateRoute
-  '/api/public/hooks/shopee-introspect': typeof ApiPublicHooksShopeeIntrospectRoute
   '/api/public/hooks/shopee-reports-sync': typeof ApiPublicHooksShopeeReportsSyncRoute
   '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
   '/api/public/meta/webhook': typeof ApiPublicMetaWebhookRoute
@@ -374,7 +365,6 @@ export interface FileRoutesById {
   '/api/public/hooks/instagram-tick': typeof ApiPublicHooksInstagramTickRoute
   '/api/public/hooks/price-backfill': typeof ApiPublicHooksPriceBackfillRoute
   '/api/public/hooks/products-validate': typeof ApiPublicHooksProductsValidateRoute
-  '/api/public/hooks/shopee-introspect': typeof ApiPublicHooksShopeeIntrospectRoute
   '/api/public/hooks/shopee-reports-sync': typeof ApiPublicHooksShopeeReportsSyncRoute
   '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
   '/api/public/meta/webhook': typeof ApiPublicMetaWebhookRoute
@@ -417,7 +407,6 @@ export interface FileRouteTypes {
     | '/api/public/hooks/instagram-tick'
     | '/api/public/hooks/price-backfill'
     | '/api/public/hooks/products-validate'
-    | '/api/public/hooks/shopee-introspect'
     | '/api/public/hooks/shopee-reports-sync'
     | '/api/public/instagram/callback'
     | '/api/public/meta/webhook'
@@ -458,7 +447,6 @@ export interface FileRouteTypes {
     | '/api/public/hooks/instagram-tick'
     | '/api/public/hooks/price-backfill'
     | '/api/public/hooks/products-validate'
-    | '/api/public/hooks/shopee-introspect'
     | '/api/public/hooks/shopee-reports-sync'
     | '/api/public/instagram/callback'
     | '/api/public/meta/webhook'
@@ -499,7 +487,6 @@ export interface FileRouteTypes {
     | '/api/public/hooks/instagram-tick'
     | '/api/public/hooks/price-backfill'
     | '/api/public/hooks/products-validate'
-    | '/api/public/hooks/shopee-introspect'
     | '/api/public/hooks/shopee-reports-sync'
     | '/api/public/instagram/callback'
     | '/api/public/meta/webhook'
@@ -531,7 +518,6 @@ export interface RootRouteChildren {
   ApiPublicHooksInstagramTickRoute: typeof ApiPublicHooksInstagramTickRoute
   ApiPublicHooksPriceBackfillRoute: typeof ApiPublicHooksPriceBackfillRoute
   ApiPublicHooksProductsValidateRoute: typeof ApiPublicHooksProductsValidateRoute
-  ApiPublicHooksShopeeIntrospectRoute: typeof ApiPublicHooksShopeeIntrospectRoute
   ApiPublicHooksShopeeReportsSyncRoute: typeof ApiPublicHooksShopeeReportsSyncRoute
   ApiPublicInstagramCallbackRoute: typeof ApiPublicInstagramCallbackRoute
   ApiPublicMetaWebhookRoute: typeof ApiPublicMetaWebhookRoute
@@ -756,13 +742,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksShopeeReportsSyncRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/public/hooks/shopee-introspect': {
-      id: '/api/public/hooks/shopee-introspect'
-      path: '/api/public/hooks/shopee-introspect'
-      fullPath: '/api/public/hooks/shopee-introspect'
-      preLoaderRoute: typeof ApiPublicHooksShopeeIntrospectRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/public/hooks/products-validate': {
       id: '/api/public/hooks/products-validate'
       path: '/api/public/hooks/products-validate'
@@ -882,7 +861,6 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicHooksInstagramTickRoute: ApiPublicHooksInstagramTickRoute,
   ApiPublicHooksPriceBackfillRoute: ApiPublicHooksPriceBackfillRoute,
   ApiPublicHooksProductsValidateRoute: ApiPublicHooksProductsValidateRoute,
-  ApiPublicHooksShopeeIntrospectRoute: ApiPublicHooksShopeeIntrospectRoute,
   ApiPublicHooksShopeeReportsSyncRoute: ApiPublicHooksShopeeReportsSyncRoute,
   ApiPublicInstagramCallbackRoute: ApiPublicInstagramCallbackRoute,
   ApiPublicMetaWebhookRoute: ApiPublicMetaWebhookRoute,
