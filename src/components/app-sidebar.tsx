@@ -1,6 +1,7 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useState } from "react";
 import {
+  AlertTriangle,
   BarChart3,
   CreditCard,
   Instagram,
@@ -13,9 +14,8 @@ import {
   Zap,
 } from "lucide-react";
 
-
-
 import { cn } from "@/lib/utils";
+import { useSystemHealth } from "@/hooks/use-system-health";
 
 type Item = {
   id: string;
@@ -32,6 +32,7 @@ const CONFIG: Item[] = [
   { id: "afiliados", label: "Config Afiliados", icon: Settings, href: "/config-afiliados" },
   { id: "canais", label: "Canais/Grupos", icon: Radio, href: "/" },
   { id: "relatorios", label: "Relatórios", icon: BarChart3, href: "/relatorios" },
+  { id: "falhas", label: "Falhas de Envio", icon: AlertTriangle, href: "/falhas" },
   { id: "envios-whatsapp", label: "Envios WhatsApp", icon: Send, href: "/configuracoes/envios-whatsapp" },
 ];
 
