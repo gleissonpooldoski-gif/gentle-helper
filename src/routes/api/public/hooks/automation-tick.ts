@@ -507,33 +507,66 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
       });
       continue;
     }
+    const sendCtx: LogFields = {
+      config_id: cfg.id,
+      instance_id: cfg.instance_id ?? inst?.id ?? null,
+      instance_name: instanceName,
+      group_id: g.group_jid,
+      product_id: product.id,
+      worker_id: (globalThis as { __automation_worker_id?: string }).__automation_worker_id ?? null,
+    };
     let ok = true;
     let err: string | null = null;
-    try {
-      if (!productDetail.image) throw new Error("Produto sem imagem");
-      console.log("[WHATSAPP_FINAL_CAPTION]", { source: "automation", instance: instanceName, jid: g.group_jid, caption });
-      await sendMedia(instanceName, g.group_jid, productDetail.image, caption);
+    let errorClass: ErrorClass | null = null;
+    let sendMetrics: { attempts: number; durationMs: number } | null = null;
 
-      await new Promise((r) => setTimeout(r, 800));
-      anySent = true;
-    } catch (e) {
+    // Circuit breaker: consulta antes do envio.
+    const breakerInstanceId = inst?.id ?? cfg.instance_id ?? null;
+    if (breakerInstanceId && (await isBreakerOpen(breakerInstanceId))) {
+      log("CIRCUIT_OPEN", { ...sendCtx });
       ok = false;
-      err = e instanceof Error ? e.message : String(e);
-      // Dead-Letter Queue: registra falha para reprocessamento manual.
+      err = "Circuit breaker aberto (instância com falhas consecutivas)";
+      errorClass = "transient";
+    } else {
       try {
-        await admin.from("automation_failures").insert({
-          user_id: cfg.user_id,
-          config_id: cfg.id,
-          product_id: product.id,
-          group_id: g.group_jid,
-          instance_id: cfg.instance_id ?? null,
-          error_message: (err ?? "erro desconhecido").slice(0, 500),
-          error_code: "send_failed",
-          attempt_count: 1,
-          next_retry_at: new Date(Date.now() + 5 * 60_000).toISOString(),
-        });
-      } catch { /* ignora falha ao gravar DLQ */ }
+        if (!productDetail.image) throw new Error("Produto sem imagem");
+        log("SEND_STARTED", sendCtx);
+        console.log("[WHATSAPP_FINAL_CAPTION]", { source: "automation", instance: instanceName, jid: g.group_jid, caption });
+        sendMetrics = await sendMedia(instanceName, g.group_jid, productDetail.image, caption, sendCtx);
+        log("SEND_SUCCESS", { ...sendCtx, attempts: sendMetrics.attempts, duration_ms: sendMetrics.durationMs });
+
+        if (breakerInstanceId) await recordSuccess(breakerInstanceId).catch(() => undefined);
+        await new Promise((r) => setTimeout(r, 800));
+        anySent = true;
+      } catch (e) {
+        ok = false;
+        err = e instanceof Error ? e.message : String(e);
+        errorClass = classifyError(e);
+        log("SEND_FAILED", { ...sendCtx, error_class: errorClass, error: err });
+
+        if (breakerInstanceId && errorClass === "transient") {
+          await recordFailure(breakerInstanceId, cfg.user_id, e).catch(() => undefined);
+        }
+
+        // Dead-Letter Queue: registra falha para reprocessamento manual.
+        try {
+          await admin.from("automation_failures").insert({
+            user_id: cfg.user_id,
+            config_id: cfg.id,
+            product_id: product.id,
+            group_id: g.group_jid,
+            instance_id: cfg.instance_id ?? null,
+            error_message: (err ?? "erro desconhecido").slice(0, 500),
+            error_code: errorClass === "permanent" ? "permanent_error" : "send_failed",
+            attempt_count: sendMetrics?.attempts ?? 1,
+            next_retry_at: errorClass === "permanent"
+              ? null
+              : new Date(Date.now() + 5 * 60_000).toISOString(),
+          });
+        } catch { /* ignora falha ao gravar DLQ */ }
+      }
     }
+
     await admin.from("whatsapp_campaign_history").insert({
       user_id: cfg.user_id,
       config_id: cfg.id,
