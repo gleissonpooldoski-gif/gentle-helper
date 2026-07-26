@@ -527,12 +527,35 @@ export const listInstagramProducts = createServerFn({ method: "GET" })
     const { data, error } = await (context.supabase as any)
       .from("products")
       .select(
-        "id,title,image_url,original_price,promo_price,affiliate_link,raw_link,store_name,category,availability,created_at",
+        "id,title,image_url,original_price,promo_price,affiliate_link,raw_link,store_name,category,availability,channel_id,source_group_jid,created_at",
       )
+      .eq("availability", "active")
+      .not("image_url", "is", null)
       .order("created_at", { ascending: false })
-      .limit(200);
+      .limit(2000);
     if (error) throw error;
-    return data ?? [];
+    // Interleave products across (channel_id + source_group_jid) buckets so every
+    // group appears in the dropdown, not just whichever imported most recently.
+    const rows = (data ?? []) as any[];
+    const buckets = new Map<string, any[]>();
+    for (const p of rows) {
+      const key = `${p.channel_id ?? "null"}::${p.source_group_jid ?? "null"}`;
+      const arr = buckets.get(key) ?? [];
+      arr.push(p);
+      buckets.set(key, arr);
+    }
+    const lists = Array.from(buckets.values());
+    const interleaved: any[] = [];
+    let i = 0;
+    while (interleaved.length < rows.length) {
+      let pushed = false;
+      for (const list of lists) {
+        if (i < list.length) { interleaved.push(list[i]); pushed = true; }
+      }
+      if (!pushed) break;
+      i++;
+    }
+    return interleaved;
   });
 
 /* ---- Story Templates (Fabric.js) ---- */
