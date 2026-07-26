@@ -19,35 +19,66 @@ export const Route = createFileRoute("/api/public/hooks/instagram-tick")({
         const hour = now.getUTCHours(); // 0..23
         const results: any[] = [];
 
-        // 1) Schedules
+        // 1) Schedules (per-channel)
         const { data: schedules } = await supabaseAdmin
           .from("instagram_story_schedule")
-          .select("id,user_id,channel_id,days,hours,active,last_run_at")
+          .select("id,user_id,channel_id,days,hours,active,last_run_at,template_id")
           .eq("active", true);
         for (const s of schedules ?? []) {
-          if (!(s.days ?? []).includes(day)) continue;
-          if (!(s.hours ?? []).includes(hour)) continue;
-          if (s.last_run_at) {
+          const dayOk = (s.days ?? []).includes(day);
+          const hourOk = (s.hours ?? []).includes(hour);
+          let shouldPublish = s.active && dayOk && hourOk;
+          if (shouldPublish && s.last_run_at) {
             const last = new Date(s.last_run_at);
             if (last.getUTCFullYear() === now.getUTCFullYear() &&
                 last.getUTCMonth() === now.getUTCMonth() &&
                 last.getUTCDate() === now.getUTCDate() &&
-                last.getUTCHours() === hour) continue;
+                last.getUTCHours() === hour) shouldPublish = false;
           }
+          console.log("[STORY_SCHEDULE_CHECK]", {
+            schedule_id: s.id, day, hour, active: s.active, should_publish: shouldPublish,
+          });
+          if (!shouldPublish) continue;
+
           const { data: alreadyToday } = await supabaseAdmin
             .from("instagram_posts").select("product_id")
             .eq("channel_id", s.channel_id).eq("kind", "story")
             .gte("published_at", new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString());
           const skipIds = (alreadyToday ?? []).map((r: any) => r.product_id).filter(Boolean);
-          let q = supabaseAdmin.from("products").select("id")
+
+          // Priority: real-discount products first (original_price > promo_price), then any active
+          const baseSelect = "id,original_price,promo_price";
+          let discountQ = supabaseAdmin.from("products").select(baseSelect)
             .eq("channel_id", s.channel_id).eq("availability", "active")
+            .not("original_price", "is", null).not("promo_price", "is", null)
+            .eq("is_discount", true)
             .order("created_at", { ascending: false }).limit(1);
-          if (skipIds.length) q = q.not("id", "in", `(${skipIds.join(",")})`);
-          const { data: prod } = await q.maybeSingle();
+          if (skipIds.length) discountQ = discountQ.not("id", "in", `(${skipIds.join(",")})`);
+          let { data: prod } = await discountQ.maybeSingle();
+          if (!prod) {
+            let q = supabaseAdmin.from("products").select(baseSelect)
+              .eq("channel_id", s.channel_id).eq("availability", "active")
+              .order("created_at", { ascending: false }).limit(1);
+            if (skipIds.length) q = q.not("id", "in", `(${skipIds.join(",")})`);
+            const r = await q.maybeSingle();
+            prod = r.data;
+          }
           if (!prod) continue;
+
+          const { data: conn } = await supabaseAdmin
+            .from("instagram_connections").select("instagram_account_id,username")
+            .eq("channel_id", s.channel_id).maybeSingle();
+          console.log("[STORY_PUBLISH]", {
+            product_id: prod.id,
+            template_id: s.template_id ?? null,
+            instagram_account: conn?.username ?? conn?.instagram_account_id ?? null,
+            caption: null,
+          });
+
           try {
             const r = await publishForChannel({
-              channelId: s.channel_id, productId: prod.id, kind: "story", userId: s.user_id,
+              channelId: s.channel_id, productId: prod.id, kind: "story",
+              userId: s.user_id, templateId: s.template_id ?? undefined,
             });
             results.push({ channel: s.channel_id, media: r.mediaId });
           } catch (e: any) {
@@ -56,6 +87,7 @@ export const Route = createFileRoute("/api/public/hooks/instagram-tick")({
           await supabaseAdmin.from("instagram_story_schedule")
             .update({ last_run_at: now.toISOString() }).eq("id", s.id);
         }
+
 
         // 2) Admin (single-account) schedule → publishes latest active product as a Story
         //    using the selected template image_url (fallback to product image).
