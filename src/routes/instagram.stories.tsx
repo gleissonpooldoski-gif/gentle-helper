@@ -592,7 +592,131 @@ function ScheduleCard({ templates }: { templates: any[] }) {
 
   return (
     <div className="space-y-4">
+      {/* BIG ON/OFF BUTTON */}
+      <div
+        className={`overflow-hidden rounded-2xl border-2 shadow-lg transition ${
+          active
+            ? "border-emerald-400/70 bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-transparent"
+            : "border-rose-400/60 bg-gradient-to-br from-rose-500/10 via-rose-500/5 to-transparent"
+        }`}
+      >
+        <div className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <span
+              className={`relative flex h-3 w-3 ${active ? "" : "opacity-60"}`}
+              aria-hidden
+            >
+              {active && (
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+              )}
+              <span
+                className={`relative inline-flex h-3 w-3 rounded-full ${
+                  active ? "bg-emerald-500" : "bg-rose-500"
+                }`}
+              />
+            </span>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Automação de Stories
+              </p>
+              <p className={`text-lg font-bold ${active ? "text-emerald-600" : "text-rose-600"}`}>
+                {active ? "ATIVA — publicando nos horários" : "PAUSADA — nada será publicado"}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => powerMut.mutate(!active)}
+            disabled={powerMut.isPending}
+            className={`inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-bold text-white shadow-md transition disabled:opacity-50 ${
+              active
+                ? "bg-rose-500 hover:bg-rose-600"
+                : "bg-emerald-500 hover:bg-emerald-600"
+            }`}
+          >
+            {powerMut.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Power className="h-4 w-4" />
+            )}
+            {active ? "Desativar automação" : "Ativar automação"}
+          </button>
+        </div>
+      </div>
+
+      {/* LIVE STATUS */}
       <div className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm">
+        <header className="flex items-center justify-between gap-2 border-b border-border/60 bg-muted/40 px-4 py-3">
+          <div className="flex items-center gap-2">
+            <Activity className="h-4 w-4 text-primary" />
+            <h3 className="text-sm font-semibold">Status ao vivo</h3>
+          </div>
+          <span className="text-[10px] text-muted-foreground">
+            {statusQ.isFetching ? "atualizando…" : "atualiza a cada 15s"}
+          </span>
+        </header>
+        <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-3">
+          <div className="rounded-xl border border-border/60 bg-muted/30 p-3">
+            <p className="text-[10px] font-semibold uppercase text-muted-foreground">Status</p>
+            <p className={`mt-1 text-sm font-bold ${active ? "text-emerald-600" : "text-rose-600"}`}>
+              {active ? "🟢 Automação ativa" : "🔴 Pausada"}
+            </p>
+          </div>
+          <div className="rounded-xl border border-border/60 bg-muted/30 p-3">
+            <p className="text-[10px] font-semibold uppercase text-muted-foreground">Próxima publicação</p>
+            <p className="mt-1 text-sm font-semibold">{active ? fmt(status?.nextRunAt) : "—"}</p>
+          </div>
+          <div className="rounded-xl border border-border/60 bg-muted/30 p-3">
+            <p className="text-[10px] font-semibold uppercase text-muted-foreground">Última execução</p>
+            <p className="mt-1 text-sm font-semibold">{fmt(status?.lastRunAt)}</p>
+          </div>
+        </div>
+        <div className="border-t border-border/60 px-5 py-4">
+          <p className="mb-3 text-[10px] font-semibold uppercase text-muted-foreground">
+            📜 Últimos stories publicados
+          </p>
+          {!status?.recent?.length ? (
+            <p className="text-xs text-muted-foreground">Nenhuma publicação ainda.</p>
+          ) : (
+            <ul className="space-y-2">
+              {status.recent.slice(0, 6).map((r: any) => (
+                <li
+                  key={r.id}
+                  className="flex items-center gap-3 rounded-lg border border-border/50 bg-background px-3 py-2 text-xs"
+                >
+                  {r.productImage ? (
+                    <img
+                      src={r.productImage}
+                      alt=""
+                      className="h-10 w-10 flex-shrink-0 rounded object-cover"
+                    />
+                  ) : (
+                    <div className="h-10 w-10 flex-shrink-0 rounded bg-muted" />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-medium">{r.productTitle ?? "(sem título)"}</p>
+                    <p className="text-[10px] text-muted-foreground">{fmt(r.publishedAt)}</p>
+                  </div>
+                  <span
+                    className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                      r.status === "published" || r.status === "sent"
+                        ? "bg-emerald-500/15 text-emerald-600"
+                        : r.status === "failed" || r.error
+                        ? "bg-rose-500/15 text-rose-600"
+                        : "bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    {r.status}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+
+      <div className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm">
+
         <header className="flex items-center gap-2 border-b border-border/60 bg-muted/40 px-4 py-3">
           <CalendarClock className="h-4 w-4 text-primary" />
           <h3 className="text-sm font-semibold">Agendamento Recorrente do Story</h3>
