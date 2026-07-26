@@ -32,8 +32,9 @@ async function ensureReady() {
   if (!wasmReady) {
     wasmReady = (async () => {
       const bytes = decodeBase64(RESVG_WASM_BASE64);
-      await initWasm(new WebAssembly.Module(bytes));
+      await initWasm(new WebAssembly.Module(bytes.buffer as ArrayBuffer));
     })();
+
   }
   await wasmReady;
   if (!fontBuffer) {
