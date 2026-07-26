@@ -8,8 +8,9 @@
  *
  * Regras obrigatórias:
  *  1. Isolado por `user_id` — cada tenant usa a própria credencial em
- *     `shopee_affiliate_configs`. Sem config → aborta com
+ *     `affiliate_connections` (platform='shopee'). Sem config → aborta com
  *     `missing_affiliate_credentials`.
+
  *  2. Reutiliza o `price-guard` do Lote 15C. Preço só é atualizado quando
  *     `status === "accepted"`. Nunca sobrescreve em variant_mismatch /
  *     suspicious_drop / suspicious_jump.
