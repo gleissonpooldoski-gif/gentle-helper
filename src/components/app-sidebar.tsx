@@ -112,6 +112,7 @@ export function AppSidebar({
                 key={item.id}
                 item={item}
                 active={item.id === resolvedActive}
+                badge={badgeFor(item.id)}
                 onNavigate={() => {
                   onSelect?.(item.id);
                   setOpen(false);
@@ -135,6 +136,7 @@ export function AppSidebar({
                 key={item.id}
                 item={item}
                 active={item.id === resolvedActive}
+                badge={badgeFor(item.id)}
                 onNavigate={() => {
                   onSelect?.(item.id);
                   setOpen(false);
