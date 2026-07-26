@@ -154,6 +154,56 @@ export async function syncShopeePriceOne(
     if (res && res.ok) {
       const existingPromo =
         product.promo_price != null ? Number(product.promo_price) : null;
+
+      // Lote 15C — Guarda anti-troca-de-variação.
+      const guard = validateShopeePriceUpdate(
+        {
+          promoPrice: existingPromo,
+          itemId: ids.itemId,
+          shopId: ids.shopId,
+        },
+        {
+          price: res.offer.price,
+          priceMin: res.offer.priceMin,
+          priceMax: res.offer.priceMax,
+          itemId: res.offer.itemId,
+          shopId: res.offer.shopId,
+        },
+      );
+      console.log(
+        "[SHOPEE_PRICE_VALIDATION]",
+        JSON.stringify({
+          productId,
+          itemId: ids.itemId,
+          shopId: ids.shopId,
+          oldPrice: guard.oldPrice,
+          newPrice: guard.newPrice,
+          diffPct: guard.diffPct,
+          priceMin: res.offer.priceMin,
+          priceMax: res.offer.priceMax,
+          status: guard.status,
+          reason: guard.reason,
+        }),
+      );
+
+      if (guard.status === "blocked") {
+        // Não sobrescreve preço. Só marca updated_at para pausar retry.
+        await supabase
+          .from("products")
+          .update({ updated_at: new Date().toISOString() } as never)
+          .eq("id", productId)
+          .eq("user_id", userId);
+        return log({
+          productId,
+          status: "blocked_conflict",
+          source: null,
+          originalPrice:
+            product.original_price != null ? Number(product.original_price) : null,
+          promoPrice: existingPromo,
+          duration: Date.now() - started,
+        });
+      }
+
       const promo = res.offer.price ?? existingPromo ?? 0;
       const { originalPrice, source } = deriveOriginalFromOffer({
         price: promo > 0 ? promo : null,
