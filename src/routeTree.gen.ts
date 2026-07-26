@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as TemplatesRouteImport } from './routes/templates'
 import { Route as RelatoriosRouteImport } from './routes/relatorios'
 import { Route as InstagramRouteImport } from './routes/instagram'
+import { Route as FalhasRouteImport } from './routes/falhas'
 import { Route as ConfigAfiliadosRouteImport } from './routes/config-afiliados'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as IndexRouteImport } from './routes/index'
@@ -59,6 +60,11 @@ const RelatoriosRoute = RelatoriosRouteImport.update({
 const InstagramRoute = InstagramRouteImport.update({
   id: '/instagram',
   path: '/instagram',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FalhasRoute = FalhasRouteImport.update({
+  id: '/falhas',
+  path: '/falhas',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ConfigAfiliadosRoute = ConfigAfiliadosRouteImport.update({
@@ -246,6 +252,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/config-afiliados': typeof ConfigAfiliadosRoute
+  '/falhas': typeof FalhasRoute
   '/instagram': typeof InstagramRouteWithChildren
   '/relatorios': typeof RelatoriosRoute
   '/templates': typeof TemplatesRouteWithChildren
@@ -284,6 +291,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/config-afiliados': typeof ConfigAfiliadosRoute
+  '/falhas': typeof FalhasRoute
   '/instagram': typeof InstagramRouteWithChildren
   '/relatorios': typeof RelatoriosRoute
   '/templates': typeof TemplatesRouteWithChildren
@@ -323,6 +331,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/config-afiliados': typeof ConfigAfiliadosRoute
+  '/falhas': typeof FalhasRoute
   '/instagram': typeof InstagramRouteWithChildren
   '/relatorios': typeof RelatoriosRoute
   '/templates': typeof TemplatesRouteWithChildren
@@ -363,6 +372,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/config-afiliados'
+    | '/falhas'
     | '/instagram'
     | '/relatorios'
     | '/templates'
@@ -401,6 +411,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/config-afiliados'
+    | '/falhas'
     | '/instagram'
     | '/relatorios'
     | '/templates'
@@ -439,6 +450,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/config-afiliados'
+    | '/falhas'
     | '/instagram'
     | '/relatorios'
     | '/templates'
@@ -478,6 +490,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthRoute: typeof AuthRoute
   ConfigAfiliadosRoute: typeof ConfigAfiliadosRoute
+  FalhasRoute: typeof FalhasRoute
   InstagramRoute: typeof InstagramRouteWithChildren
   RelatoriosRoute: typeof RelatoriosRoute
   TemplatesRoute: typeof TemplatesRouteWithChildren
@@ -524,6 +537,13 @@ declare module '@tanstack/react-router' {
       path: '/instagram'
       fullPath: '/instagram'
       preLoaderRoute: typeof InstagramRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/falhas': {
+      id: '/falhas'
+      path: '/falhas'
+      fullPath: '/falhas'
+      preLoaderRoute: typeof FalhasRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/config-afiliados': {
@@ -804,6 +824,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthRoute: AuthRoute,
   ConfigAfiliadosRoute: ConfigAfiliadosRoute,
+  FalhasRoute: FalhasRoute,
   InstagramRoute: InstagramRouteWithChildren,
   RelatoriosRoute: RelatoriosRoute,
   TemplatesRoute: TemplatesRouteWithChildren,
