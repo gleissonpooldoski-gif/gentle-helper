@@ -71,6 +71,68 @@ function toDecimal(v: unknown): number | null {
 }
 
 /**
+ * Extrai `shopId` e `itemId` de uma URL Shopee (raw_link ou affiliate_link).
+ * Formatos suportados: `.../slug-i.<shopId>.<itemId>`,
+ * `.../product/<shopId>/<itemId>` e redirect curto `.../<loja>/<shopId>/<itemId>`.
+ */
+export function parseShopeeIds(
+  url: string | null | undefined,
+): { shopId: string; itemId: string } | null {
+  if (!url) return null;
+  try {
+    const u = new URL(url);
+    const path = u.pathname;
+    const m1 = path.match(/\.(\d+)\.(\d+)(?:\?|$|\/)/);
+    if (m1) return { shopId: m1[1], itemId: m1[2] };
+    const m2 = path.match(/product\/(\d+)\/(\d+)/);
+    if (m2) return { shopId: m2[1], itemId: m2[2] };
+    const m3 = path.match(/\/(\d+)\/(\d+)\/?$/);
+    if (m3) return { shopId: m3[1], itemId: m3[2] };
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Política de preço original (Lote 12F — FASE 1):
+ *  - Fonte 1 (`api_real_field`): usa `offer.originalPrice` quando > promo.
+ *  - Fonte 2 (`derived_from_discount_rate`): calcula
+ *      original = promo / (1 - discountRate/100)
+ *    quando `discountRate > 0` e resultado > promo.
+ *  - Caso contrário: retorna null. Nunca inventa desconto.
+ */
+export function deriveOriginalFromOffer(offer: {
+  price: number | null;
+  originalPrice: number | null;
+  discountRate: number | null;
+}): {
+  originalPrice: number | null;
+  source: "api_real_field" | "derived_from_discount_rate" | null;
+} {
+  const promo = offer.price;
+  if (promo == null || !Number.isFinite(promo) || promo <= 0) {
+    return { originalPrice: null, source: null };
+  }
+  if (
+    offer.originalPrice != null &&
+    Number.isFinite(offer.originalPrice) &&
+    offer.originalPrice > promo
+  ) {
+    return { originalPrice: Number(offer.originalPrice.toFixed(2)), source: "api_real_field" };
+  }
+  const rate = offer.discountRate;
+  if (rate == null || !Number.isFinite(rate) || rate <= 0 || rate >= 100) {
+    return { originalPrice: null, source: null };
+  }
+  const derived = promo / (1 - rate / 100);
+  if (!Number.isFinite(derived) || derived <= promo) {
+    return { originalPrice: null, source: null };
+  }
+  return { originalPrice: Number(derived.toFixed(2)), source: "derived_from_discount_rate" };
+}
+
+/**
  * Query GraphQL `productOfferV2` — filtra por `itemId` (e opcionalmente
  * `shopId`). Retorna apenas o primeiro nó (equivalente a "get by id").
  *
