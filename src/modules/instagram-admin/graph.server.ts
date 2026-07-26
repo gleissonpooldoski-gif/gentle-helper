@@ -58,6 +58,12 @@ export async function testConnection(input: {
   name?: string;
   pageName?: string;
   webhookActive: boolean;
+  webhook: {
+    igUserActive: boolean;
+    pageActive: boolean;
+    igUserError?: string;
+    pageError?: string;
+  };
   capabilities: { stories: boolean; comments: boolean; messages: boolean };
 }> {
   const ig = await gfetch<{ id: string; username: string; name?: string }>(
@@ -66,7 +72,22 @@ export async function testConnection(input: {
   );
 
   let pageName: string | undefined;
-  let webhookActive = false;
+  let pageActive = false;
+  let igUserActive = false;
+  let pageError: string | undefined;
+  let igUserError: string | undefined;
+  const pageToken = await resolvePageToken({ token: input.token, pageId: input.pageId });
+
+  try {
+    const sub = await gfetch<{ data: Array<{ subscribed_fields?: string[] }> }>(
+      `/${input.igId}/subscribed_apps`,
+      { access_token: pageToken },
+    );
+    igUserActive = (sub.data ?? []).length > 0;
+  } catch (error) {
+    igUserError = error instanceof Error ? error.message : String(error);
+  }
+
   if (input.pageId) {
     try {
       const page = await gfetch<{ name?: string }>(`/${input.pageId}`, {
@@ -78,10 +99,12 @@ export async function testConnection(input: {
     try {
       const sub = await gfetch<{ data: Array<{ subscribed_fields?: string[] }> }>(
         `/${input.pageId}/subscribed_apps`,
-        { access_token: input.token },
+        { access_token: pageToken },
       );
-      webhookActive = (sub.data ?? []).length > 0;
-    } catch {}
+      pageActive = (sub.data ?? []).length > 0;
+    } catch (error) {
+      pageError = error instanceof Error ? error.message : String(error);
+    }
   }
 
   const capabilities = { stories: true, comments: true, messages: true };
@@ -104,7 +127,8 @@ export async function testConnection(input: {
     username: ig.username,
     name: ig.name,
     pageName,
-    webhookActive,
+    webhookActive: igUserActive || pageActive,
+    webhook: { igUserActive, pageActive, igUserError, pageError },
     capabilities,
   };
 }
