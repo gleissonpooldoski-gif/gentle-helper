@@ -6,15 +6,17 @@ import { toast } from "sonner";
 import {
   deleteStoryTemplate,
   getAdminStorySchedule,
+  getAdminStoryStatus,
   runAdminStoryScheduleNow,
   listInstagramProducts,
   listStoryTemplates,
   publishStoryCampaign,
   saveAdminStorySchedule,
   saveStoryTemplate,
+  toggleAdminStoryAutomation,
 } from "@/modules/instagram-admin/admin.functions";
 import { InstagramLayout } from "./instagram";
-import { CalendarClock, CheckCircle2, ExternalLink, Image as ImageIcon, Loader2, Save, Send, Trash2, Upload } from "lucide-react";
+import { Activity, CalendarClock, CheckCircle2, ExternalLink, Image as ImageIcon, Loader2, Play, Power, Save, Send, Trash2, Upload } from "lucide-react";
 
 const W = 1080;
 const H = 1920;
@@ -522,10 +524,18 @@ function PublishBox() {
 const WEEKDAYS = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
 
 function ScheduleCard({ templates }: { templates: any[] }) {
+  const qc = useQueryClient();
   const getFn = useServerFn(getAdminStorySchedule);
   const saveFn = useServerFn(saveAdminStorySchedule);
   const runNowFn = useServerFn(runAdminStoryScheduleNow);
+  const toggleFn = useServerFn(toggleAdminStoryAutomation);
+  const statusFn = useServerFn(getAdminStoryStatus);
   const q = useQuery({ queryKey: ["ig-admin", "schedule"], queryFn: () => getFn() });
+  const statusQ = useQuery({
+    queryKey: ["ig-admin", "story-status"],
+    queryFn: () => statusFn(),
+    refetchInterval: 15_000,
+  });
 
   const [days, setDays] = useState<number[]>([]);
   const [hours, setHours] = useState<number[]>([]);
@@ -547,20 +557,166 @@ function ScheduleCard({ templates }: { templates: any[] }) {
   const mut = useMutation({
     mutationFn: () =>
       saveFn({ data: { days, hours, active, templateId: templateId || null } }),
-    onSuccess: () => toast.success("Agendamento salvo"),
+    onSuccess: () => {
+      toast.success("Agendamento salvo");
+      qc.invalidateQueries({ queryKey: ["ig-admin", "story-status"] });
+    },
     onError: (e: any) => toast.error(e?.message ?? "Falha ao salvar"),
+  });
+
+  const powerMut = useMutation({
+    mutationFn: (next: boolean) => toggleFn({ data: { active: next } }),
+    onSuccess: (r: any) => {
+      setActive(!!r?.active);
+      toast.success(r?.active ? "Automação ATIVADA" : "Automação PAUSADA");
+      qc.invalidateQueries({ queryKey: ["ig-admin", "schedule"] });
+      qc.invalidateQueries({ queryKey: ["ig-admin", "story-status"] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Falha ao alternar"),
   });
 
   const runNow = useMutation({
     mutationFn: () => runNowFn(),
-    onSuccess: (r: any) =>
-      toast.success(`Story publicado! ${r?.productTitle ? `— ${r.productTitle}` : ""}`),
+    onSuccess: (r: any) => {
+      toast.success(`Story publicado! ${r?.productTitle ? `— ${r.productTitle}` : ""}`);
+      qc.invalidateQueries({ queryKey: ["ig-admin", "story-status"] });
+    },
     onError: (e: any) => toast.error(e?.message ?? "Falha ao publicar"),
   });
 
+  const status = statusQ.data;
+  const fmt = (iso?: string | null) =>
+    iso
+      ? new Date(iso).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" })
+      : "—";
+
   return (
     <div className="space-y-4">
+      {/* BIG ON/OFF BUTTON */}
+      <div
+        className={`overflow-hidden rounded-2xl border-2 shadow-lg transition ${
+          active
+            ? "border-emerald-400/70 bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-transparent"
+            : "border-rose-400/60 bg-gradient-to-br from-rose-500/10 via-rose-500/5 to-transparent"
+        }`}
+      >
+        <div className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <span
+              className={`relative flex h-3 w-3 ${active ? "" : "opacity-60"}`}
+              aria-hidden
+            >
+              {active && (
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+              )}
+              <span
+                className={`relative inline-flex h-3 w-3 rounded-full ${
+                  active ? "bg-emerald-500" : "bg-rose-500"
+                }`}
+              />
+            </span>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Automação de Stories
+              </p>
+              <p className={`text-lg font-bold ${active ? "text-emerald-600" : "text-rose-600"}`}>
+                {active ? "ATIVA — publicando nos horários" : "PAUSADA — nada será publicado"}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => powerMut.mutate(!active)}
+            disabled={powerMut.isPending}
+            className={`inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-bold text-white shadow-md transition disabled:opacity-50 ${
+              active
+                ? "bg-rose-500 hover:bg-rose-600"
+                : "bg-emerald-500 hover:bg-emerald-600"
+            }`}
+          >
+            {powerMut.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Power className="h-4 w-4" />
+            )}
+            {active ? "Desativar automação" : "Ativar automação"}
+          </button>
+        </div>
+      </div>
+
+      {/* LIVE STATUS */}
       <div className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm">
+        <header className="flex items-center justify-between gap-2 border-b border-border/60 bg-muted/40 px-4 py-3">
+          <div className="flex items-center gap-2">
+            <Activity className="h-4 w-4 text-primary" />
+            <h3 className="text-sm font-semibold">Status ao vivo</h3>
+          </div>
+          <span className="text-[10px] text-muted-foreground">
+            {statusQ.isFetching ? "atualizando…" : "atualiza a cada 15s"}
+          </span>
+        </header>
+        <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-3">
+          <div className="rounded-xl border border-border/60 bg-muted/30 p-3">
+            <p className="text-[10px] font-semibold uppercase text-muted-foreground">Status</p>
+            <p className={`mt-1 text-sm font-bold ${active ? "text-emerald-600" : "text-rose-600"}`}>
+              {active ? "🟢 Automação ativa" : "🔴 Pausada"}
+            </p>
+          </div>
+          <div className="rounded-xl border border-border/60 bg-muted/30 p-3">
+            <p className="text-[10px] font-semibold uppercase text-muted-foreground">Próxima publicação</p>
+            <p className="mt-1 text-sm font-semibold">{active ? fmt(status?.nextRunAt) : "—"}</p>
+          </div>
+          <div className="rounded-xl border border-border/60 bg-muted/30 p-3">
+            <p className="text-[10px] font-semibold uppercase text-muted-foreground">Última execução</p>
+            <p className="mt-1 text-sm font-semibold">{fmt(status?.lastRunAt)}</p>
+          </div>
+        </div>
+        <div className="border-t border-border/60 px-5 py-4">
+          <p className="mb-3 text-[10px] font-semibold uppercase text-muted-foreground">
+            📜 Últimos stories publicados
+          </p>
+          {!status?.recent?.length ? (
+            <p className="text-xs text-muted-foreground">Nenhuma publicação ainda.</p>
+          ) : (
+            <ul className="space-y-2">
+              {status.recent.slice(0, 6).map((r: any) => (
+                <li
+                  key={r.id}
+                  className="flex items-center gap-3 rounded-lg border border-border/50 bg-background px-3 py-2 text-xs"
+                >
+                  {r.productImage ? (
+                    <img
+                      src={r.productImage}
+                      alt=""
+                      className="h-10 w-10 flex-shrink-0 rounded object-cover"
+                    />
+                  ) : (
+                    <div className="h-10 w-10 flex-shrink-0 rounded bg-muted" />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-medium">{r.productTitle ?? "(sem título)"}</p>
+                    <p className="text-[10px] text-muted-foreground">{fmt(r.publishedAt)}</p>
+                  </div>
+                  <span
+                    className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                      r.status === "published" || r.status === "sent"
+                        ? "bg-emerald-500/15 text-emerald-600"
+                        : r.status === "failed" || r.error
+                        ? "bg-rose-500/15 text-rose-600"
+                        : "bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    {r.status}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+
+      <div className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm">
+
         <header className="flex items-center gap-2 border-b border-border/60 bg-muted/40 px-4 py-3">
           <CalendarClock className="h-4 w-4 text-primary" />
           <h3 className="text-sm font-semibold">Agendamento Recorrente do Story</h3>
@@ -612,20 +768,8 @@ function ScheduleCard({ templates }: { templates: any[] }) {
           </section>
 
           <section className="flex flex-wrap items-end gap-4">
-            <label className="flex cursor-pointer items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                className="peer sr-only"
-                checked={active}
-                onChange={(e) => setActive(e.target.checked)}
-              />
-              <span className="relative inline-flex h-5 w-9 rounded-full bg-muted transition peer-checked:bg-primary">
-                <span className="absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow transition peer-checked:translate-x-4" />
-              </span>
-              Ativo?
-            </label>
-
             <label className="block flex-1 min-w-[220px]">
+
               <span className="mb-1 block text-[10px] font-semibold uppercase text-muted-foreground">
                 Template
               </span>
