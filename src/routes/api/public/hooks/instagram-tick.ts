@@ -15,8 +15,10 @@ export const Route = createFileRoute("/api/public/hooks/instagram-tick")({
         if (authFail) return authFail;
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const now = new Date();
-        const day = now.getUTCDay(); // 0..6
-        const hour = now.getUTCHours(); // 0..23
+        // Compare schedules in America/Sao_Paulo (Brasília, UTC-3, no DST).
+        const brt = new Date(now.getTime() - 3 * 60 * 60 * 1000);
+        const day = brt.getUTCDay(); // 0..6 in Brasília
+        const hour = brt.getUTCHours(); // 0..23 in Brasília
         const results: any[] = [];
 
         // 1) Schedules (per-channel)
