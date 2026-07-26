@@ -97,6 +97,77 @@ export const publishInstagramStory = createServerFn({ method: "POST" })
     return { ok: true, mediaId: id };
   });
 
+/**
+ * Runs the admin story schedule immediately (bypasses day/hour checks), using
+ * the exact same product-selection + template rules as the cron. Great for
+ * a "Publish now" button in the schedule UI.
+ */
+export const runAdminStoryScheduleNow = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { loadSettings } = await import("./settings.server");
+    const { publishStory } = await import("./graph.server");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const settings = await loadSettings();
+    if (!settings) throw new Error("Configure a conta Instagram primeiro.");
+
+    const { data: schedule } = await supabaseAdmin
+      .from("instagram_admin_schedule" as any)
+      .select("template_id")
+      .eq("user_id", context.userId)
+      .maybeSingle();
+    const templateId = (schedule as any)?.template_id ?? null;
+
+    let imageUrl: string | null = null;
+    if (templateId) {
+      const { data: tpl } = await supabaseAdmin
+        .from("instagram_story_templates")
+        .select("image_url")
+        .eq("id", templateId)
+        .maybeSingle();
+      if (tpl?.image_url) imageUrl = tpl.image_url;
+    }
+
+    // Priority: real-discount product first
+    let { data: prod } = await supabaseAdmin
+      .from("products")
+      .select("id,title,image_url")
+      .eq("availability", "active")
+      .eq("is_discount", true)
+      .not("image_url", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!prod) {
+      const r = await supabaseAdmin
+        .from("products")
+        .select("id,title,image_url")
+        .eq("availability", "active")
+        .not("image_url", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      prod = r.data;
+    }
+    if (!imageUrl) imageUrl = prod?.image_url ?? null;
+    if (!imageUrl) throw new Error("Nenhum produto/template com imagem disponível.");
+
+    console.log("[STORY_PUBLISH]", {
+      product_id: prod?.id ?? null,
+      template_id: templateId,
+      instagram_account: settings.instagramBusinessId,
+      caption: null,
+      manual: true,
+    });
+
+    const mediaId = await publishStory({
+      igId: settings.instagramBusinessId,
+      token: settings.accessToken,
+      imageUrl,
+    });
+    return { ok: true, mediaId, productTitle: prod?.title ?? null };
+  });
+
 export const listInstagramAdminComments = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {

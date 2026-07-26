@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import {
   deleteStoryTemplate,
   getAdminStorySchedule,
+  runAdminStoryScheduleNow,
   listInstagramProducts,
   listStoryTemplates,
   publishStoryCampaign,
@@ -13,7 +14,7 @@ import {
   saveStoryTemplate,
 } from "@/modules/instagram-admin/admin.functions";
 import { InstagramLayout } from "./instagram";
-import { CalendarClock, CheckCircle2, ExternalLink, Image as ImageIcon, Loader2, Save, Trash2, Upload } from "lucide-react";
+import { CalendarClock, CheckCircle2, ExternalLink, Image as ImageIcon, Loader2, Save, Send, Trash2, Upload } from "lucide-react";
 
 const W = 1080;
 const H = 1920;
@@ -517,6 +518,7 @@ const WEEKDAYS = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "
 function ScheduleCard({ templates }: { templates: any[] }) {
   const getFn = useServerFn(getAdminStorySchedule);
   const saveFn = useServerFn(saveAdminStorySchedule);
+  const runNowFn = useServerFn(runAdminStoryScheduleNow);
   const q = useQuery({ queryKey: ["ig-admin", "schedule"], queryFn: () => getFn() });
 
   const [days, setDays] = useState<number[]>([]);
@@ -541,6 +543,13 @@ function ScheduleCard({ templates }: { templates: any[] }) {
       saveFn({ data: { days, hours, active, templateId: templateId || null } }),
     onSuccess: () => toast.success("Agendamento salvo"),
     onError: (e: any) => toast.error(e?.message ?? "Falha ao salvar"),
+  });
+
+  const runNow = useMutation({
+    mutationFn: () => runNowFn(),
+    onSuccess: (r: any) =>
+      toast.success(`Story publicado! ${r?.productTitle ? `— ${r.productTitle}` : ""}`),
+    onError: (e: any) => toast.error(e?.message ?? "Falha ao publicar"),
   });
 
   return (
@@ -629,15 +638,27 @@ function ScheduleCard({ templates }: { templates: any[] }) {
             </label>
           </section>
 
-          <button
-            type="button"
-            onClick={() => mut.mutate()}
-            disabled={mut.isPending}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-fuchsia-500 via-rose-500 to-orange-400 px-5 py-3 text-sm font-semibold text-white shadow-md transition hover:opacity-95 disabled:opacity-50"
-          >
-            {mut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            Salvar Agendamento
-          </button>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <button
+              type="button"
+              onClick={() => mut.mutate()}
+              disabled={mut.isPending}
+              className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-fuchsia-500 via-rose-500 to-orange-400 px-5 py-3 text-sm font-semibold text-white shadow-md transition hover:opacity-95 disabled:opacity-50"
+            >
+              {mut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              Salvar Agendamento
+            </button>
+            <button
+              type="button"
+              onClick={() => runNow.mutate()}
+              disabled={runNow.isPending}
+              className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-primary/40 bg-primary/10 px-5 py-3 text-sm font-semibold text-primary shadow-sm transition hover:bg-primary/20 disabled:opacity-50"
+              title="Publica agora um Story com as mesmas regras do agendamento (template + produto com desconto prioritário)"
+            >
+              {runNow.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              Publicar agora
+            </button>
+          </div>
         </div>
       </div>
 
