@@ -121,17 +121,28 @@ export const Route = createFileRoute("/api/public/hooks/instagram-tick")({
                 .maybeSingle();
               if (tpl?.image_url) imageUrl = tpl.image_url;
             }
-            if (!imageUrl) {
-              const { data: prod } = await supabaseAdmin
+            // Priority: real-discount product first
+            let { data: prod } = await supabaseAdmin
+              .from("products")
+              .select("id,title,image_url,affiliate_link,raw_link")
+              .eq("availability", "active")
+              .eq("is_discount", true)
+              .not("image_url", "is", null)
+              .order("created_at", { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            if (!prod) {
+              const r = await supabaseAdmin
                 .from("products")
-                .select("image_url")
+                .select("id,title,image_url,affiliate_link,raw_link")
                 .eq("availability", "active")
                 .not("image_url", "is", null)
                 .order("created_at", { ascending: false })
                 .limit(1)
                 .maybeSingle();
-              imageUrl = prod?.image_url ?? null;
+              prod = r.data as any;
             }
+            if (!imageUrl) imageUrl = (prod as any)?.image_url ?? null;
             if (!imageUrl) continue;
 
             try {
@@ -139,6 +150,19 @@ export const Route = createFileRoute("/api/public/hooks/instagram-tick")({
                 igId: settings.instagramBusinessId,
                 token: settings.accessToken,
                 imageUrl,
+              });
+              const affiliateLink =
+                (prod as any)?.affiliate_link ?? (prod as any)?.raw_link ?? "";
+              await supabaseAdmin.from("instagram_campaigns").insert({
+                story_id: storyId,
+                product_id: (prod as any)?.id ?? null,
+                template_id: s.template_id ?? null,
+                keyword: "eu quero",
+                message:
+                  "Olá 👋 Aqui está o link da promoção que você pediu:\n\n{{title}}\n👉 {{affiliate_link}}",
+                affiliate_link: affiliateLink,
+                status: "published",
+                published_at: new Date().toISOString(),
               });
               results.push({ admin: s.user_id, media: storyId });
             } catch (e: any) {
@@ -148,6 +172,7 @@ export const Route = createFileRoute("/api/public/hooks/instagram-tick")({
               .from("instagram_admin_schedule" as any)
               .update({ last_run_at: now.toISOString() })
               .eq("id", s.id);
+
           }
         } catch (e: any) {
           results.push({ adminScheduleError: String(e?.message ?? e) });
