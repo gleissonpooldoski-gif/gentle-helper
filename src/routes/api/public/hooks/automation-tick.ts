@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { requireCronSecret } from "@/lib/public-auth.server";
 import { isBreakerOpen, recordFailure, recordSuccess } from "@/lib/circuit-breaker.server";
+import { formatSalesLabel } from "@/modules/products/sales-label";
 
 /**
  * Log estruturado para rastreamento do worker.
@@ -467,7 +468,7 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
     description: null,
     price: product.promo_price,
     price_original: product.original_price,
-    vendas: (product as { sales_label?: string | null }).sales_label ?? product.sales,
+    vendas: formatSalesLabel(product.sales == null ? null : Number(product.sales)),
     link: wrappedLink,
     image: product.image_url,
     store: product.store_name ?? product.platform ?? null,
