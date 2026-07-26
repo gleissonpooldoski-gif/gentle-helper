@@ -38,9 +38,37 @@ export const saveInstagramAdminSettings = createServerFn({ method: "POST" })
   .inputValidator((d: z.infer<typeof settingsInput>) => settingsInput.parse(d))
   .handler(async ({ data }) => {
     const { saveSettings } = await import("./settings.server");
+    const { subscribeWebhooks } = await import("./graph.server");
     await saveSettings(data);
-    return { ok: true };
+    let subscription: Awaited<ReturnType<typeof subscribeWebhooks>> | null = null;
+    let subscriptionError: string | null = null;
+    try {
+      subscription = await subscribeWebhooks({
+        igId: data.instagramBusinessId,
+        pageId: data.facebookPageId,
+        token: data.accessToken,
+      });
+    } catch (e: any) {
+      subscriptionError = String(e?.message ?? e);
+    }
+    return { ok: true, subscription, subscriptionError };
   });
+
+export const subscribeInstagramWebhooks = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async () => {
+    const { loadSettings } = await import("./settings.server");
+    const { subscribeWebhooks } = await import("./graph.server");
+    const s = await loadSettings();
+    if (!s) throw new Error("Configure a conta Instagram primeiro.");
+    const result = await subscribeWebhooks({
+      igId: s.instagramBusinessId,
+      pageId: s.facebookPageId,
+      token: s.accessToken,
+    });
+    return { ok: true, result };
+  });
+
 
 export const testInstagramAdminConnection = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
