@@ -174,7 +174,7 @@ export const listChannelProductsLite = createServerFn({ method: "GET" })
   .handler(async ({ data, context }) => {
     let q = context.supabase
       .from("products")
-      .select("id,title,image_url,original_price,promo_price,sales,sales_label,store_name")
+      .select("id,title,image_url,original_price,promo_price,sales,sales_label,sales_historical,store_name")
       .eq("user_id", context.userId)
       .not("image_url", "is", null)
       .order("created_at", { ascending: false })

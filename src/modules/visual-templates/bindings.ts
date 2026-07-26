@@ -8,12 +8,12 @@ export function formatBRL(v: number | string | null | undefined) {
 }
 
 /**
- * Fonte única: delega para formatSalesLabel. Mantém `label` pré-computado
- * do banco quando disponível, para não reformatar strings já humanizadas.
+ * Fonte única (LOTE 16): só emite rótulo quando existe sales_historical.
+ * sales_recent / sales legacy / sales_label são ignorados como prova social.
  */
-export function humanizeSales(sales?: number | null, label?: string | null) {
-  if (label) return label;
-  return formatSalesLabel(sales ?? null) ?? "";
+export function humanizeSales(salesHistorical?: number | null) {
+  const label = formatSalesLabel(salesHistorical ?? null);
+  return label ? `${label} vendidos` : "";
 }
 
 export interface ProductLite {
@@ -24,6 +24,7 @@ export interface ProductLite {
   promo_price: number | null;
   sales: number | null;
   sales_label: string | null;
+  sales_historical?: number | null;
   store_name: string | null;
 }
 
@@ -53,7 +54,7 @@ export function resolveProduct(p?: ProductLite | null): ResolvedProduct {
     original,
     price,
     discount: disc > 0 ? `-${disc}%` : "",
-    sold: humanizeSales(p?.sales ?? null, p?.sales_label ?? null),
+    sold: humanizeSales(p?.sales_historical ?? null),
     store: p?.store_name || "",
     hasOriginal,
   };

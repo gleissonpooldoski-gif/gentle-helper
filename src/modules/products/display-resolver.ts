@@ -71,36 +71,22 @@ export function resolveProductDisplay(p: DisplayResolverInput): DisplayResolverR
   const platform = (p.platform ?? "").toLowerCase();
   const isShopee = platform === "shopee";
 
-  // ---------- VENDAS ----------
+  // ---------- VENDAS (LOTE 16: apenas sales_historical) ----------
+  // Regra comercial: só exibir "X vendidos" quando existir contador
+  // histórico real do anúncio. Nunca usar sales_recent, sales legacy
+  // ou dados da Affiliate API como prova social.
   const hist = toInt(p.sales_historical);
-  const recent = toInt(p.sales_recent);
-  const legacy = toInt(p.sales);
-
   let salesValue: number | null = null;
   let salesSource: DisplayResolverResult["salesSource"] = null;
-  let salesIsRecentOnly = false;
+  const salesIsRecentOnly = false;
 
   if (hist != null) {
     salesValue = hist;
     salesSource = "historical";
-  } else if (recent != null) {
-    salesValue = recent;
-    salesSource = "recent";
-    salesIsRecentOnly = true;
-  } else if (legacy != null) {
-    salesValue = legacy;
-    salesSource = "legacy";
-    // Legado da Shopee historicamente veio da Affiliate API → também é "recente".
-    salesIsRecentOnly = isShopee;
   }
 
   const base = formatSalesLabel(salesValue);
-  let salesLabel = "";
-  if (base) {
-    salesLabel = salesIsRecentOnly
-      ? `${base} vendidos recentemente`
-      : `${base} vendidos`;
-  }
+  const salesLabel = base ? `${base} vendidos` : "";
 
   // ---------- PREÇO ----------
   let priceQuality: PriceQuality = "HIGH";
