@@ -15,8 +15,10 @@ export const Route = createFileRoute("/api/public/hooks/instagram-tick")({
         if (authFail) return authFail;
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const now = new Date();
-        const day = now.getUTCDay(); // 0..6
-        const hour = now.getUTCHours(); // 0..23
+        // Compare schedules in America/Sao_Paulo (Brasília, UTC-3, no DST).
+        const brt = new Date(now.getTime() - 3 * 60 * 60 * 1000);
+        const day = brt.getUTCDay(); // 0..6 in Brasília
+        const hour = brt.getUTCHours(); // 0..23 in Brasília
         const results: any[] = [];
 
         // 1) Schedules (per-channel)
@@ -29,10 +31,10 @@ export const Route = createFileRoute("/api/public/hooks/instagram-tick")({
           const hourOk = (s.hours ?? []).includes(hour);
           let shouldPublish = s.active && dayOk && hourOk;
           if (shouldPublish && s.last_run_at) {
-            const last = new Date(s.last_run_at);
-            if (last.getUTCFullYear() === now.getUTCFullYear() &&
-                last.getUTCMonth() === now.getUTCMonth() &&
-                last.getUTCDate() === now.getUTCDate() &&
+            const last = new Date(new Date(s.last_run_at).getTime() - 3 * 60 * 60 * 1000);
+            if (last.getUTCFullYear() === brt.getUTCFullYear() &&
+                last.getUTCMonth() === brt.getUTCMonth() &&
+                last.getUTCDate() === brt.getUTCDate() &&
                 last.getUTCHours() === hour) shouldPublish = false;
           }
           console.log("[STORY_SCHEDULE_CHECK]", {
@@ -98,11 +100,11 @@ export const Route = createFileRoute("/api/public/hooks/instagram-tick")({
             if (!(s.days ?? []).includes(day)) continue;
             if (!(s.hours ?? []).includes(hour)) continue;
             if (s.last_run_at) {
-              const last = new Date(s.last_run_at);
+              const last = new Date(new Date(s.last_run_at).getTime() - 3 * 60 * 60 * 1000);
               if (
-                last.getUTCFullYear() === now.getUTCFullYear() &&
-                last.getUTCMonth() === now.getUTCMonth() &&
-                last.getUTCDate() === now.getUTCDate() &&
+                last.getUTCFullYear() === brt.getUTCFullYear() &&
+                last.getUTCMonth() === brt.getUTCMonth() &&
+                last.getUTCDate() === brt.getUTCDate() &&
                 last.getUTCHours() === hour
               )
                 continue;
