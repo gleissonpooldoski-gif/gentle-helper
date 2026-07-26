@@ -1,68 +1,46 @@
-# Plano — Fluidez + Robustez Total do SaaS
+## Problema
 
-São 20 melhorias, agrupadas em 3 fases entregáveis. Cada fase é auto-contida: se algo quebrar no meio, o sistema continua funcionando com as anteriores aplicadas.
+O **Agendamento Recorrente do Story** e o botão **Publicar agora** publicam apenas a arte crua (ou só o template, ou só a foto do produto). Não fazem a composição que aparece no preview do canvas: template de fundo + foto do produto no card + título + "POR R$ …".
 
-## Fase 1 — Fluidez (percepção instantânea)
+Motivo: a composição hoje mora no `<canvas>` do navegador (`src/routes/instagram.stories.tsx`), e o cron (`src/routes/api/public/hooks/instagram-tick.ts`) e o `runAdminStoryScheduleNow` (`src/modules/instagram-admin/admin.functions.ts`) rodam no Worker, onde não existe DOM/canvas.
 
-**Objetivo:** navegação e ações parecerem instantâneas, mesmo com >10k produtos.
+## Solução
 
-1. **Índices compostos no banco** — cobrir os padrões de leitura mais quentes:
-   - `products (user_id, source_group_jid, availability, affiliate_link)`
-   - `products (user_id, channel_id, platform, availability, created_at DESC)`
-   - `whatsapp_campaign_history (config_id, sent_at DESC)`
-   - `automation_group_sends (config_id, product_id)`
-2. **Hook `useDebounced`** aplicado em todas as barras de busca (dashboard, vitrine, relatórios, produtos do grupo).
-3. **Skeletons** substituindo spinners em: dashboard, `canais.$id.editar`, relatórios, `instagram.stories`.
-4. **Optimistic UI** em: toggle automação, ativar/pausar loop, selecionar grupo, salvar layout.
-5. **Virtualização** (`@tanstack/react-virtual`) no modal de produtos do grupo quando >200 itens.
+Compor a arte 1080×1920 no servidor, salvar como PNG em `story-images`, gerar signed URL e publicar via Graph — reutilizando o pipeline já existente. Um único helper server-side é chamado tanto pelo cron quanto pelo "Publicar agora".
 
-## Fase 2 — Robustez (zero erro operacional)
+### Render server-side sem canvas
 
-**Objetivo:** falhas externas (Evolution/Meta caem) não causam prejuízo — sistema se recupera sozinho.
+Usar SVG + rasterização WASM (funciona no runtime Worker):
 
-6. **Helper `retryWithBackoff`** — retry exponencial (500ms → 1s → 2s → 4s) em toda chamada Evolution/Meta, com jitter e cap.
-7. **Circuit breaker** no `automation-tick`: se Evolution retorna 5xx 3× seguidas na mesma instância, pausa aquela config por 5min ao invés de queimar tentativas.
-8. **Dead-letter queue** — tabela `automation_failures` (config_id, product_id, error, attempt_count, next_retry_at). Card no painel "Falhas recentes" com botão "Reenviar em lote".
-9. **Idempotência de webhooks** — tabela `webhook_events (event_id UNIQUE, provider, received_at)`. Todo webhook Meta/Evolution/Shopee verifica antes de processar.
-10. **Rate-limit hard por instância WhatsApp** — máximo N mensagens/min por instância (config global, default 20/min). Bloqueia envio se ultrapassar, protege de ban.
-11. **Validação HEAD da imagem** antes de enviar via WhatsApp — se URL 404/timeout, envia sem mídia ao invés de falhar o post inteiro.
+- Nova dependência: `@resvg/resvg-wasm`
+- Novo helper: `src/modules/instagram-admin/compose.server.ts`
+  - `composeStoryPng({ templateUrl, product, titleColor, priceColor }) → Uint8Array`
+  - Baixa o template e a foto do produto (via `fetch` com user-agent mobile, mesma tática do image-resolver já usado no projeto)
+  - Converte ambos para `data:` base64
+  - Monta uma string SVG 1080×1920 com:
+    - `<image>` do template cobrindo tudo (fallback: retângulo amarelo)
+    - `<image>` da foto do produto centralizada no card (mesmas coordenadas do canvas: `PROD {180,470,720,640}`)
+    - `<text>` do título quebrado em até 2 linhas na área `TITLE {90,1130,900,170}` com `titleColor`
+    - `<text>` do preço na barra `PRICE_BAR {90,1310,900,170}`; quando há desconto, mostra "DE R$ X" com strikethrough por cima e "POR R$ Y" grande abaixo (branco), igual ao canvas
+  - Rasteriza o SVG para PNG com `@resvg/resvg-wasm`
+- Fallback: se a foto do produto falhar por CORS/404, compõe sem ela (título + preço ainda aparecem).
 
-## Fase 3 — Observabilidade + Auto-Recuperação
+### Upload + publicação
 
-**Objetivo:** você fica sabendo dos problemas antes do cliente reclamar — e o sistema tenta se consertar.
+Extrair a parte de upload/publish que já existe em `publishStoryCampaign` para um helper compartilhado `uploadAndPublishStory({ pngBytes, settings }) → mediaId` em `compose.server.ts`:
 
-12. **Tabela `system_logs`** (level, module, user_id, message, meta jsonb, created_at) com índice por nível+data. Todo `console.error` do server passa a gravar aqui.
-13. **Renovação proativa de tokens** — job diário (pg_cron 4h da manhã) que refresha tokens Meta/ML que expiram em <48h.
-14. **Painel `/saude` — Health Dashboard** com uma única tela mostrando:
-    - Status Evolution (ping)
-    - Instâncias WhatsApp conectadas/desconectadas
-    - Tokens Meta/ML e validade
-    - Últimas 20 falhas do `automation_failures`
-    - Última execução do `pg_cron` e do `automation-tick`
-    - Taxa de sucesso 24h
-15. **Alertas via WhatsApp Admin** — quando taxa de erro >10% em 15min, ou instância cai, mandar DM pro número do admin da conta usando a própria Evolution.
+- Sobe em `story-images` como `story-<timestamp>.png`
+- Gera signed URL (1h)
+- Chama `publishStory` do Graph
 
-## O que NÃO entra agora (débito técnico consciente)
+### Integração
 
-Deixo pra depois porque exigem refactor extenso e o risco é maior que o ganho imediato:
+- `src/modules/instagram-admin/admin.functions.ts` → `runAdminStoryScheduleNow`: em vez de passar `imageUrl` cru pro `publishStory`, chama `composeStoryPng` e `uploadAndPublishStory`.
+- `src/routes/api/public/hooks/instagram-tick.ts` (bloco "2) Admin schedule"): mesma troca. Mantém a lógica de janela de horário, anti-repetição e registro da campanha (`instagram_campaigns`) com `keyword: "eu quero"` e `affiliate_link`.
+- `publishStoryCampaign` (fluxo manual do painel) continua funcionando exatamente como está — o preview no canvas já entrega o PNG pronto.
 
-- Consolidação `whatsapp/` + `channel_whatsapp_*` (3 tabelas duplicadas) → precisa migração de dados cuidadosa.
-- Centralização de DTOs em `src/types/` → refactor amplo, sem ganho funcional.
-- Suite E2E Playwright completa → precisa infraestrutura de CI dedicada.
-- Realtime nos status (Supabase Realtime) → substituído por polling leve de 30s no `/saude`, cobre o caso sem custo extra de billing.
+### Fora do escopo
 
-## Detalhes técnicos
-
-**Ordem estrita das fases:** F1 primeiro porque índices desbloqueiam performance da F2/F3. F2 antes de F3 porque a `automation_failures` alimenta o Health Dashboard. F3 depende de tudo anterior.
-
-**Migrações previstas:** 3 migrations aprovadas separadamente (uma por fase).
-
-**Impacto no código existente:**
-- Novos arquivos: `src/hooks/use-debounced.ts`, `src/components/ui/skeleton-page.tsx`, `src/lib/retry.ts`, `src/lib/circuit-breaker.ts`, `src/lib/logger.server.ts`, `src/routes/saude.tsx`, `src/modules/failures/failures.functions.ts`, `src/modules/health/health.functions.ts`.
-- Edits em: `automation-tick.ts` (retry + circuit breaker + failures), webhooks Meta/Evolution (idempotência), `whatsapp-sender.ts` (rate-limit + HEAD check), rotas com search (debounce), rotas com loader pesado (skeletons).
-
-**Estimativa:** F1 ≈ 25 min, F2 ≈ 40 min, F3 ≈ 30 min de execução em sequência.
-
-## Aprovação
-
-Confirma que quer as **3 fases seguidas** (executo tudo em série), ou prefere que eu pare após cada fase pra você validar antes da próxima?
+- Layout novo, fontes customizadas, ou mudar as coordenadas do template.
+- Novo componente de UI — o botão "Publicar agora" e o painel de agendamento continuam iguais.
+- Composição de Feed post (só Story).
