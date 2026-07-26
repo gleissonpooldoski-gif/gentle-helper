@@ -50,7 +50,7 @@ export const previewVisualTemplateForProduct = createServerFn({ method: "POST" }
     const { data: prod, error: prodErr } = await context.supabase
       .from("products")
       .select(
-        "id,title,image_url,original_price,promo_price,sales,sales_label,store_name,affiliate_link",
+        "id,title,image_url,original_price,promo_price,sales,sales_label,sales_historical,store_name,affiliate_link",
       )
       .eq("id", data.productId)
       .eq("user_id", context.userId)
@@ -77,6 +77,7 @@ export const previewVisualTemplateForProduct = createServerFn({ method: "POST" }
         promo_price: prod.promo_price,
         sales: prod.sales,
         sales_label: prod.sales_label,
+        sales_historical: prod.sales_historical,
         store_name: prod.store_name,
         affiliate_link: prod.affiliate_link,
       },
