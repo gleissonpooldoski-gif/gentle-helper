@@ -768,20 +768,8 @@ function ScheduleCard({ templates }: { templates: any[] }) {
           </section>
 
           <section className="flex flex-wrap items-end gap-4">
-            <label className="flex cursor-pointer items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                className="peer sr-only"
-                checked={active}
-                onChange={(e) => setActive(e.target.checked)}
-              />
-              <span className="relative inline-flex h-5 w-9 rounded-full bg-muted transition peer-checked:bg-primary">
-                <span className="absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow transition peer-checked:translate-x-4" />
-              </span>
-              Ativo?
-            </label>
-
             <label className="block flex-1 min-w-[220px]">
+
               <span className="mb-1 block text-[10px] font-semibold uppercase text-muted-foreground">
                 Template
               </span>
