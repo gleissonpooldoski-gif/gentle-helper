@@ -14,10 +14,7 @@
  * fetches — the previous unpkg/jsdelivr dependency 404'd and broke Stories.
  */
 import { initWasm, Resvg } from "@resvg/resvg-wasm";
-// Bundled WASM: Vite/Nitro resolves `.wasm` imports to a compiled
-// WebAssembly.Module in the Cloudflare Worker bundle.
-// @ts-expect-error - no type declaration for raw .wasm import
-import resvgWasmModule from "@resvg/resvg-wasm/index_bg.wasm";
+import { RESVG_WASM_BASE64 } from "./assets/resvg-wasm";
 import { INTER_800_WOFF_BASE64 } from "./assets/inter-800";
 import { publishStory } from "./graph.server";
 
@@ -34,16 +31,17 @@ function decodeBase64(b64: string): Uint8Array {
 async function ensureReady() {
   if (!wasmReady) {
     wasmReady = (async () => {
-      // Support both shapes: bundler may hand back a WebAssembly.Module
-      // directly, or (rarely) an ArrayBuffer/Uint8Array. initWasm accepts both.
-      await initWasm(resvgWasmModule as unknown as WebAssembly.Module);
+      const bytes = decodeBase64(RESVG_WASM_BASE64);
+      await initWasm(new WebAssembly.Module(bytes.buffer as ArrayBuffer));
     })();
+
   }
   await wasmReady;
   if (!fontBuffer) {
     fontBuffer = decodeBase64(INTER_800_WOFF_BASE64);
   }
 }
+
 
 
 async function fetchAsDataUrl(url: string): Promise<string | null> {
