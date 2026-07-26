@@ -283,6 +283,14 @@ export function EditorClient({
         <Button variant="outline" size="sm" onClick={onSetDefault}>
           <StarIcon className="mr-1 h-4 w-4" /> Padrão
         </Button>
+        <Button variant="outline" size="sm" onClick={handlePreview} disabled={previewMut.isPending}>
+          {previewMut.isPending ? (
+            <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+          ) : (
+            <Eye className="mr-1 h-4 w-4" />
+          )}
+          Testar em produto
+        </Button>
         <Button variant="outline" size="sm" onClick={downloadPNG}>
           <Download className="mr-1 h-4 w-4" /> PNG
         </Button>
