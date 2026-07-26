@@ -152,17 +152,18 @@ export const listReports = createServerFn({ method: "POST" })
   });
 
 /**
- * Sync real Shopee Affiliate API — ainda não implementado.
- *
- * Enquanto a integração oficial não estiver plugada, o botão deve exibir
- * essa mensagem em vez de um toast de sucesso enganoso. As conversões
- * são inseridas apenas via webhook/import manual.
+ * Sincroniza conversões via Shopee Affiliate Open API v2 (GraphQL assinado).
+ * Requer App ID + App Secret salvos em Config Afiliados → Shopee.
  */
 export const syncReports = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: { channelId?: string | null }) => data ?? {})
-  .handler(async () => {
-    throw new Error(
-      "Sincronização automática ainda não disponível. Configure a Shopee Affiliate API em Config Afiliados.",
-    );
+  .handler(async ({ context }) => {
+    const { syncShopeeConversions } = await import("./shopee-reports.server");
+    const result = await syncShopeeConversions(context.supabase, context.userId);
+    await context.supabase
+      .from("channels")
+      .update({ reports_last_sync_at: new Date().toISOString() })
+      .eq("user_id", context.userId);
+    return result;
   });

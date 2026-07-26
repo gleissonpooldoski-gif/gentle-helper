@@ -38,6 +38,7 @@ import { Route as ApiPublicWhatsappConnectRouteImport } from './routes/api/publi
 import { Route as ApiPublicWebhooksInstagramRouteImport } from './routes/api/public/webhooks/instagram'
 import { Route as ApiPublicMetaWebhookRouteImport } from './routes/api/public/meta/webhook'
 import { Route as ApiPublicInstagramCallbackRouteImport } from './routes/api/public/instagram/callback'
+import { Route as ApiPublicHooksShopeeReportsSyncRouteImport } from './routes/api/public/hooks/shopee-reports-sync'
 import { Route as ApiPublicHooksProductsValidateRouteImport } from './routes/api/public/hooks/products-validate'
 import { Route as ApiPublicHooksPriceBackfillRouteImport } from './routes/api/public/hooks/price-backfill'
 import { Route as ApiPublicHooksInstagramTickRouteImport } from './routes/api/public/hooks/instagram-tick'
@@ -199,6 +200,12 @@ const ApiPublicInstagramCallbackRoute =
     path: '/api/public/instagram/callback',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicHooksShopeeReportsSyncRoute =
+  ApiPublicHooksShopeeReportsSyncRouteImport.update({
+    id: '/api/public/hooks/shopee-reports-sync',
+    path: '/api/public/hooks/shopee-reports-sync',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicHooksProductsValidateRoute =
   ApiPublicHooksProductsValidateRouteImport.update({
     id: '/api/public/hooks/products-validate',
@@ -277,6 +284,7 @@ export interface FileRoutesByFullPath {
   '/api/public/hooks/instagram-tick': typeof ApiPublicHooksInstagramTickRoute
   '/api/public/hooks/price-backfill': typeof ApiPublicHooksPriceBackfillRoute
   '/api/public/hooks/products-validate': typeof ApiPublicHooksProductsValidateRoute
+  '/api/public/hooks/shopee-reports-sync': typeof ApiPublicHooksShopeeReportsSyncRoute
   '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
   '/api/public/meta/webhook': typeof ApiPublicMetaWebhookRoute
   '/api/public/webhooks/instagram': typeof ApiPublicWebhooksInstagramRoute
@@ -316,6 +324,7 @@ export interface FileRoutesByTo {
   '/api/public/hooks/instagram-tick': typeof ApiPublicHooksInstagramTickRoute
   '/api/public/hooks/price-backfill': typeof ApiPublicHooksPriceBackfillRoute
   '/api/public/hooks/products-validate': typeof ApiPublicHooksProductsValidateRoute
+  '/api/public/hooks/shopee-reports-sync': typeof ApiPublicHooksShopeeReportsSyncRoute
   '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
   '/api/public/meta/webhook': typeof ApiPublicMetaWebhookRoute
   '/api/public/webhooks/instagram': typeof ApiPublicWebhooksInstagramRoute
@@ -356,6 +365,7 @@ export interface FileRoutesById {
   '/api/public/hooks/instagram-tick': typeof ApiPublicHooksInstagramTickRoute
   '/api/public/hooks/price-backfill': typeof ApiPublicHooksPriceBackfillRoute
   '/api/public/hooks/products-validate': typeof ApiPublicHooksProductsValidateRoute
+  '/api/public/hooks/shopee-reports-sync': typeof ApiPublicHooksShopeeReportsSyncRoute
   '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
   '/api/public/meta/webhook': typeof ApiPublicMetaWebhookRoute
   '/api/public/webhooks/instagram': typeof ApiPublicWebhooksInstagramRoute
@@ -397,6 +407,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/instagram-tick'
     | '/api/public/hooks/price-backfill'
     | '/api/public/hooks/products-validate'
+    | '/api/public/hooks/shopee-reports-sync'
     | '/api/public/instagram/callback'
     | '/api/public/meta/webhook'
     | '/api/public/webhooks/instagram'
@@ -436,6 +447,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/instagram-tick'
     | '/api/public/hooks/price-backfill'
     | '/api/public/hooks/products-validate'
+    | '/api/public/hooks/shopee-reports-sync'
     | '/api/public/instagram/callback'
     | '/api/public/meta/webhook'
     | '/api/public/webhooks/instagram'
@@ -475,6 +487,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/instagram-tick'
     | '/api/public/hooks/price-backfill'
     | '/api/public/hooks/products-validate'
+    | '/api/public/hooks/shopee-reports-sync'
     | '/api/public/instagram/callback'
     | '/api/public/meta/webhook'
     | '/api/public/webhooks/instagram'
@@ -505,6 +518,7 @@ export interface RootRouteChildren {
   ApiPublicHooksInstagramTickRoute: typeof ApiPublicHooksInstagramTickRoute
   ApiPublicHooksPriceBackfillRoute: typeof ApiPublicHooksPriceBackfillRoute
   ApiPublicHooksProductsValidateRoute: typeof ApiPublicHooksProductsValidateRoute
+  ApiPublicHooksShopeeReportsSyncRoute: typeof ApiPublicHooksShopeeReportsSyncRoute
   ApiPublicInstagramCallbackRoute: typeof ApiPublicInstagramCallbackRoute
   ApiPublicMetaWebhookRoute: typeof ApiPublicMetaWebhookRoute
   ApiPublicWebhooksInstagramRoute: typeof ApiPublicWebhooksInstagramRoute
@@ -721,6 +735,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicInstagramCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/shopee-reports-sync': {
+      id: '/api/public/hooks/shopee-reports-sync'
+      path: '/api/public/hooks/shopee-reports-sync'
+      fullPath: '/api/public/hooks/shopee-reports-sync'
+      preLoaderRoute: typeof ApiPublicHooksShopeeReportsSyncRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/products-validate': {
       id: '/api/public/hooks/products-validate'
       path: '/api/public/hooks/products-validate'
@@ -840,6 +861,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicHooksInstagramTickRoute: ApiPublicHooksInstagramTickRoute,
   ApiPublicHooksPriceBackfillRoute: ApiPublicHooksPriceBackfillRoute,
   ApiPublicHooksProductsValidateRoute: ApiPublicHooksProductsValidateRoute,
+  ApiPublicHooksShopeeReportsSyncRoute: ApiPublicHooksShopeeReportsSyncRoute,
   ApiPublicInstagramCallbackRoute: ApiPublicInstagramCallbackRoute,
   ApiPublicMetaWebhookRoute: ApiPublicMetaWebhookRoute,
   ApiPublicWebhooksInstagramRoute: ApiPublicWebhooksInstagramRoute,
@@ -854,13 +876,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
