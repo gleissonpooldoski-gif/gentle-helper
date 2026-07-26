@@ -729,14 +729,17 @@ export const Route = createFileRoute("/api/public/hooks/automation-tick")({
           } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
             const duration = Date.now() - cfgStart;
-            log("TICK_CONFIG_ERROR", { ...ctx, error: msg, duration_ms: duration });
+            const cls = classifyAutomationError(err);
+            log("TICK_CONFIG_ERROR", { ...ctx, error: msg, error_class: cls, duration_ms: duration });
             results.push({ id: cfg.id, ok: false, error: msg, duration_ms: duration });
+            // Transitório → waiting (auto-recupera). Permanente → error (exige intervenção).
             await supabaseAdmin.from("automation_configs").update({
-              status: "error",
+              status: cls === "transient" ? "waiting" : "error",
               last_error: msg,
               next_run_at: new Date(Date.now() + (cfg.intervalo_min ?? 15) * 60_000).toISOString(),
             }).eq("id", cfg.id);
           }
+
         }
 
         const workers = Array.from({ length: Math.min(CONCURRENCY, queue.length) }, async () => {
