@@ -49,20 +49,21 @@ export const Route = createFileRoute("/api/public/hooks/instagram-tick")({
           const skipIds = (alreadyToday ?? []).map((r: any) => r.product_id).filter(Boolean);
 
           // Priority: real-discount products first (is_discount=true), then any active
-          let discountQ = supabaseAdmin.from("products").select("id")
+          let discountQ = supabaseAdmin.from("products").select("id,platform,price_quality,promo_price,original_price,title,image_url,affiliate_link,raw_link")
             .eq("channel_id", s.channel_id).eq("availability", "active")
             .eq("is_discount", true)
             .not("original_price", "is", null).not("promo_price", "is", null)
             .order("created_at", { ascending: false }).limit(1);
           if (skipIds.length) discountQ = discountQ.not("id", "in", `(${skipIds.join(",")})`);
-          let prod: { id: string } | null = (await discountQ.maybeSingle()).data;
+          let prod: any = (await discountQ.maybeSingle()).data;
           if (!prod) {
-            let q = supabaseAdmin.from("products").select("id")
+            let q = supabaseAdmin.from("products").select("id,platform,price_quality,promo_price,original_price,title,image_url,affiliate_link,raw_link")
               .eq("channel_id", s.channel_id).eq("availability", "active")
               .order("created_at", { ascending: false }).limit(1);
             if (skipIds.length) q = q.not("id", "in", `(${skipIds.join(",")})`);
             prod = (await q.maybeSingle()).data;
           }
+
           if (!prod) continue;
 
           const { data: conn } = await supabaseAdmin
