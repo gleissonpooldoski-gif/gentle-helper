@@ -308,10 +308,15 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
   try {
     state = await connectionState(instanceName);
   } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const transient = /temporariamente indisponível|Tunnel|indisponível|502|503|504|timeout/i.test(message);
+    // Erros transitórios da Evolution (upstream 5xx / túnel) apenas adiam a
+    // próxima execução — não marcam o config como "error" na UI para não
+    // parecer que o WhatsApp caiu.
     await admin.from("automation_configs").update({
-      status: "error",
-      last_error: err instanceof Error ? err.message : String(err),
-      next_run_at: new Date(Date.now() + cfg.intervalo_min * 60_000).toISOString(),
+      status: transient ? cfg.status : "error",
+      last_error: transient ? null : message,
+      next_run_at: new Date(Date.now() + Math.max(1, Math.min(cfg.intervalo_min, 2)) * 60_000).toISOString(),
     }).eq("id", cfg.id);
     return;
   }

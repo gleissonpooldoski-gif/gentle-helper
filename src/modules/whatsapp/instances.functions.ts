@@ -174,7 +174,20 @@ export const refreshWhatsAppInstance = createServerFn({ method: "POST" })
 
     // Regra: SEMPRE consultar /instance/connectionState primeiro. Se state=open,
     // apenas marcar como conectado e NÃO chamar /instance/connect nem abrir QR.
-    const st = await provider.getStatus(row.instance_name);
+    let st: Awaited<ReturnType<typeof provider.getStatus>>;
+    try {
+      st = await provider.getStatus(row.instance_name);
+    } catch (err) {
+      // Erros transitórios da Evolution (502/503/504/timeout/tunnel) NÃO devem
+      // marcar a instância como desconectada. Preserva último estado no banco
+      // e devolve o DTO atual para não derrubar a UI.
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[WA] getStatus falhou (instance=${row.instance_name}) — preservando estado do banco:`,
+        (err as Error)?.message ?? err,
+      );
+      return rowToDTO(row);
+    }
     // eslint-disable-next-line no-console
     console.log(`[WA] connectionState recebido: ${st.status} (instance=${row.instance_name})`);
 
