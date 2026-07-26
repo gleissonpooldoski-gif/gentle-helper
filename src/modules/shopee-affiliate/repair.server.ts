@@ -108,7 +108,7 @@ function logRepair(userId: string, r: RepairRecord) {
 }
 
 /** Verifica se o usuário tem credencial ativa em affiliate_connections (platform='shopee'). */
-async function hasAffiliateCredentials(
+export async function hasAffiliateCredentials(
   supabase: SupabaseClient<Database>,
   userId: string,
 ): Promise<boolean> {
@@ -128,6 +128,7 @@ async function hasAffiliateCredentials(
 
 
 /** Repara UM produto Shopee. Nunca lança. */
+export { repairOne as repairOneExposed };
 async function repairOne(
   supabase: SupabaseClient<Database>,
   userId: string,
@@ -352,14 +353,24 @@ export async function repairShopeeProducts(
 
     products = [...shuffled, ...random];
   } else {
-    const { data: all } = await supabase
-      .from("products")
-      .select(
-        "id, title, item_id, raw_link, promo_price, original_price, sales, sales_label",
-      )
-      .eq("user_id", userId)
-      .eq("platform", "shopee");
-    products = (all as ProductRow[] | null) ?? [];
+    // Paginação obrigatória: Supabase limita 1000 linhas por query.
+    const pageSize = 1000;
+    const collected: ProductRow[] = [];
+    for (let from = 0; ; from += pageSize) {
+      const { data: page } = await supabase
+        .from("products")
+        .select(
+          "id, title, item_id, raw_link, promo_price, original_price, sales, sales_label",
+        )
+        .eq("user_id", userId)
+        .eq("platform", "shopee")
+        .order("id", { ascending: true })
+        .range(from, from + pageSize - 1);
+      const rows = (page as ProductRow[] | null) ?? [];
+      collected.push(...rows);
+      if (rows.length < pageSize) break;
+    }
+    products = collected;
   }
 
   // Executa com concorrência limitada

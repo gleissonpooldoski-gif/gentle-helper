@@ -41,22 +41,51 @@ export const Route = createFileRoute("/api/public/hooks/shopee-repair-pilot")({
             userId,
             { mode },
           );
-          return Response.json({
-            mode: summary.mode,
-            total: summary.total,
-            byStatus: summary.byStatus,
-            sample: summary.records.slice(0, 20).map((r) => ({
+          const reasonBreakdown: Record<string, number> = {};
+          let salesRecovered = 0;
+          let originalFilled = 0;
+          for (const r of summary.records) {
+            const key = `${r.status}:${r.reason ?? ""}`;
+            reasonBreakdown[key] = (reasonBreakdown[key] ?? 0) + 1;
+            if (
+              typeof r.newSales === "number" &&
+              typeof r.oldSales === "number" &&
+              r.newSales > r.oldSales
+            ) {
+              salesRecovered += r.newSales - r.oldSales;
+            }
+            if (r.oldOriginal == null && r.newOriginal != null) {
+              originalFilled += 1;
+            }
+          }
+          const topImpacts = [...summary.records]
+            .filter(
+              (r) =>
+                typeof r.newSales === "number" &&
+                typeof r.oldSales === "number" &&
+                r.newSales > r.oldSales,
+            )
+            .sort(
+              (a, b) => (b.newSales! - b.oldSales!) - (a.newSales! - a.oldSales!),
+            )
+            .slice(0, 20)
+            .map((r) => ({
               productId: r.productId,
               title: r.title?.slice(0, 60) ?? null,
               oldSales: r.oldSales,
               newSales: r.newSales,
-              oldPrice: r.oldPrice,
-              newPrice: r.newPrice,
               oldOriginal: r.oldOriginal,
               newOriginal: r.newOriginal,
               status: r.status,
-              reason: r.reason,
-            })),
+            }));
+          return Response.json({
+            mode: summary.mode,
+            total: summary.total,
+            byStatus: summary.byStatus,
+            reasonBreakdown,
+            salesRecovered,
+            originalFilled,
+            topImpacts,
           });
         } catch (error) {
           return Response.json(

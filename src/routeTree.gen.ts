@@ -40,6 +40,7 @@ import { Route as ApiPublicWebhooksInstagramRouteImport } from './routes/api/pub
 import { Route as ApiPublicMetaWebhookRouteImport } from './routes/api/public/meta/webhook'
 import { Route as ApiPublicInstagramCallbackRouteImport } from './routes/api/public/instagram/callback'
 import { Route as ApiPublicHooksShopeeReportsSyncRouteImport } from './routes/api/public/hooks/shopee-reports-sync'
+import { Route as ApiPublicHooksShopeeRepairV2RouteImport } from './routes/api/public/hooks/shopee-repair-v2'
 import { Route as ApiPublicHooksShopeeRepairPilotRouteImport } from './routes/api/public/hooks/shopee-repair-pilot'
 import { Route as ApiPublicHooksProductsValidateRouteImport } from './routes/api/public/hooks/products-validate'
 import { Route as ApiPublicHooksPriceBackfillRouteImport } from './routes/api/public/hooks/price-backfill'
@@ -214,6 +215,12 @@ const ApiPublicHooksShopeeReportsSyncRoute =
     path: '/api/public/hooks/shopee-reports-sync',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicHooksShopeeRepairV2Route =
+  ApiPublicHooksShopeeRepairV2RouteImport.update({
+    id: '/api/public/hooks/shopee-repair-v2',
+    path: '/api/public/hooks/shopee-repair-v2',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicHooksShopeeRepairPilotRoute =
   ApiPublicHooksShopeeRepairPilotRouteImport.update({
     id: '/api/public/hooks/shopee-repair-pilot',
@@ -307,6 +314,7 @@ export interface FileRoutesByFullPath {
   '/api/public/hooks/price-backfill': typeof ApiPublicHooksPriceBackfillRoute
   '/api/public/hooks/products-validate': typeof ApiPublicHooksProductsValidateRoute
   '/api/public/hooks/shopee-repair-pilot': typeof ApiPublicHooksShopeeRepairPilotRoute
+  '/api/public/hooks/shopee-repair-v2': typeof ApiPublicHooksShopeeRepairV2Route
   '/api/public/hooks/shopee-reports-sync': typeof ApiPublicHooksShopeeReportsSyncRoute
   '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
   '/api/public/meta/webhook': typeof ApiPublicMetaWebhookRoute
@@ -350,6 +358,7 @@ export interface FileRoutesByTo {
   '/api/public/hooks/price-backfill': typeof ApiPublicHooksPriceBackfillRoute
   '/api/public/hooks/products-validate': typeof ApiPublicHooksProductsValidateRoute
   '/api/public/hooks/shopee-repair-pilot': typeof ApiPublicHooksShopeeRepairPilotRoute
+  '/api/public/hooks/shopee-repair-v2': typeof ApiPublicHooksShopeeRepairV2Route
   '/api/public/hooks/shopee-reports-sync': typeof ApiPublicHooksShopeeReportsSyncRoute
   '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
   '/api/public/meta/webhook': typeof ApiPublicMetaWebhookRoute
@@ -394,6 +403,7 @@ export interface FileRoutesById {
   '/api/public/hooks/price-backfill': typeof ApiPublicHooksPriceBackfillRoute
   '/api/public/hooks/products-validate': typeof ApiPublicHooksProductsValidateRoute
   '/api/public/hooks/shopee-repair-pilot': typeof ApiPublicHooksShopeeRepairPilotRoute
+  '/api/public/hooks/shopee-repair-v2': typeof ApiPublicHooksShopeeRepairV2Route
   '/api/public/hooks/shopee-reports-sync': typeof ApiPublicHooksShopeeReportsSyncRoute
   '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
   '/api/public/meta/webhook': typeof ApiPublicMetaWebhookRoute
@@ -439,6 +449,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/price-backfill'
     | '/api/public/hooks/products-validate'
     | '/api/public/hooks/shopee-repair-pilot'
+    | '/api/public/hooks/shopee-repair-v2'
     | '/api/public/hooks/shopee-reports-sync'
     | '/api/public/instagram/callback'
     | '/api/public/meta/webhook'
@@ -482,6 +493,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/price-backfill'
     | '/api/public/hooks/products-validate'
     | '/api/public/hooks/shopee-repair-pilot'
+    | '/api/public/hooks/shopee-repair-v2'
     | '/api/public/hooks/shopee-reports-sync'
     | '/api/public/instagram/callback'
     | '/api/public/meta/webhook'
@@ -525,6 +537,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/price-backfill'
     | '/api/public/hooks/products-validate'
     | '/api/public/hooks/shopee-repair-pilot'
+    | '/api/public/hooks/shopee-repair-v2'
     | '/api/public/hooks/shopee-reports-sync'
     | '/api/public/instagram/callback'
     | '/api/public/meta/webhook'
@@ -559,6 +572,7 @@ export interface RootRouteChildren {
   ApiPublicHooksPriceBackfillRoute: typeof ApiPublicHooksPriceBackfillRoute
   ApiPublicHooksProductsValidateRoute: typeof ApiPublicHooksProductsValidateRoute
   ApiPublicHooksShopeeRepairPilotRoute: typeof ApiPublicHooksShopeeRepairPilotRoute
+  ApiPublicHooksShopeeRepairV2Route: typeof ApiPublicHooksShopeeRepairV2Route
   ApiPublicHooksShopeeReportsSyncRoute: typeof ApiPublicHooksShopeeReportsSyncRoute
   ApiPublicInstagramCallbackRoute: typeof ApiPublicInstagramCallbackRoute
   ApiPublicMetaWebhookRoute: typeof ApiPublicMetaWebhookRoute
@@ -790,6 +804,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksShopeeReportsSyncRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/shopee-repair-v2': {
+      id: '/api/public/hooks/shopee-repair-v2'
+      path: '/api/public/hooks/shopee-repair-v2'
+      fullPath: '/api/public/hooks/shopee-repair-v2'
+      preLoaderRoute: typeof ApiPublicHooksShopeeRepairV2RouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/shopee-repair-pilot': {
       id: '/api/public/hooks/shopee-repair-pilot'
       path: '/api/public/hooks/shopee-repair-pilot'
@@ -926,6 +947,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicHooksPriceBackfillRoute: ApiPublicHooksPriceBackfillRoute,
   ApiPublicHooksProductsValidateRoute: ApiPublicHooksProductsValidateRoute,
   ApiPublicHooksShopeeRepairPilotRoute: ApiPublicHooksShopeeRepairPilotRoute,
+  ApiPublicHooksShopeeRepairV2Route: ApiPublicHooksShopeeRepairV2Route,
   ApiPublicHooksShopeeReportsSyncRoute: ApiPublicHooksShopeeReportsSyncRoute,
   ApiPublicInstagramCallbackRoute: ApiPublicInstagramCallbackRoute,
   ApiPublicMetaWebhookRoute: ApiPublicMetaWebhookRoute,
