@@ -30,6 +30,9 @@ export const Route = createFileRoute("/api/public/hooks/price-backfill")({
           parseShopeeIds,
           deriveOriginalFromOffer,
         } = await import("@/modules/shopee-affiliate/client.server");
+        const { validateShopeePriceUpdate } = await import(
+          "@/modules/shopee-affiliate/price-guard"
+        );
 
         const { data: candidates } = await supabaseAdmin
           .from("products")
@@ -121,6 +124,37 @@ export const Route = createFileRoute("/api/public/hooks/price-backfill")({
                   );
                   return;
                 }
+                // Lote 15C — Guarda anti-troca-de-variação.
+                const guard = validateShopeePriceUpdate(
+                  {
+                    promoPrice: r.promo_price != null ? Number(r.promo_price) : null,
+                    itemId: ids.itemId,
+                    shopId: ids.shopId,
+                  },
+                  {
+                    price: res.offer.price,
+                    priceMin: res.offer.priceMin,
+                    priceMax: res.offer.priceMax,
+                    itemId: res.offer.itemId,
+                    shopId: res.offer.shopId,
+                  },
+                );
+                console.log(
+                  "[SHOPEE_PRICE_VALIDATION]",
+                  JSON.stringify({
+                    productId: r.id,
+                    itemId: ids.itemId,
+                    shopId: ids.shopId,
+                    oldPrice: guard.oldPrice,
+                    newPrice: guard.newPrice,
+                    diffPct: guard.diffPct,
+                    priceMin: res.offer.priceMin,
+                    priceMax: res.offer.priceMax,
+                    status: guard.status,
+                    reason: guard.reason,
+                  }),
+                );
+
                 const promo = Number(r.promo_price) || res.offer.price || 0;
                 const { originalPrice, source } = deriveOriginalFromOffer({
                   price: promo,
@@ -128,7 +162,8 @@ export const Route = createFileRoute("/api/public/hooks/price-backfill")({
                   discountRate: res.offer.discountRate,
                 });
                 let reason: string;
-                if (promo <= 0) reason = "no_promo";
+                if (guard.status === "blocked") reason = `blocked_${guard.reason}`;
+                else if (promo <= 0) reason = "no_promo";
                 else if (originalPrice == null) reason = "no_discount";
                 else reason = "ok_discount";
                 bump(reason);
