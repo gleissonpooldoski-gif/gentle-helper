@@ -362,14 +362,20 @@ function PublishBox() {
         pi.crossOrigin = "anonymous";
         pi.onload = () => {
           drawProduct(pi);
+          drawTitle();
           drawPrice();
         };
-        pi.onerror = drawPrice;
+        pi.onerror = () => {
+          drawTitle();
+          drawPrice();
+        };
         pi.src = product.image_url;
       } else {
+        drawTitle();
         drawPrice();
       }
     };
+
 
     if (template?.image_url) {
       const bg = new Image();
