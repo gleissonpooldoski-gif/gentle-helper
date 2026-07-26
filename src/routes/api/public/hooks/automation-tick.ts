@@ -424,13 +424,15 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
       status: "failed",
       error_message: `WhatsApp desconectado (state=${state || "unknown"})`,
     });
+    // WhatsApp offline é transitório: aguarda reconexão.
     await admin.from("automation_configs").update({
-      status: "error",
+      status: "waiting",
       last_error: "WhatsApp desconectado",
       next_run_at: new Date(Date.now() + cfg.intervalo_min * 60_000).toISOString(),
     }).eq("id", cfg.id);
     return;
   }
+
 
   // Renderiza legenda
   const { loadLayoutFor, resolveHeader, productHasDiscount } = await import("@/modules/posts/layout.functions");
