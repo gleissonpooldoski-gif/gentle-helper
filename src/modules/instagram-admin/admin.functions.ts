@@ -907,3 +907,98 @@ export const saveAdminStorySchedule = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+/** Quick toggle for the big Ativar/Desativar button. Creates the row if missing. */
+export const toggleAdminStoryAutomation = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { active: boolean }) => z.object({ active: z.boolean() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: existing } = await (context.supabase as any)
+      .from("instagram_admin_schedule")
+      .select("id,days,hours,template_id")
+      .eq("user_id", context.userId)
+      .maybeSingle();
+    const payload = {
+      user_id: context.userId,
+      days: existing?.days ?? [0, 1, 2, 3, 4, 5, 6],
+      hours: existing?.hours ?? [9, 12, 15, 18, 21],
+      template_id: existing?.template_id ?? null,
+      active: data.active,
+    };
+    const { error } = await (context.supabase as any)
+      .from("instagram_admin_schedule")
+      .upsert(payload, { onConflict: "user_id" });
+    if (error) throw error;
+    return { ok: true, active: data.active };
+  });
+
+/**
+ * Live status for the "o que está funcionando" panel: current schedule state,
+ * next run computed in Brasília time, and the last stories actually published.
+ */
+export const getAdminStoryStatus = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data: sch } = await (context.supabase as any)
+      .from("instagram_admin_schedule")
+      .select("days,hours,active,last_run_at,template_id")
+      .eq("user_id", context.userId)
+      .maybeSingle();
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: recent } = await supabaseAdmin
+      .from("instagram_campaigns")
+      .select("id,story_id,product_id,status,error,published_at,affiliate_link")
+      .order("published_at", { ascending: false })
+      .limit(10);
+
+    const productIds = Array.from(
+      new Set(((recent as any[]) ?? []).map((r) => r.product_id).filter(Boolean)),
+    );
+    let titles: Record<string, { title: string; image_url: string | null }> = {};
+    if (productIds.length) {
+      const { data: prods } = await supabaseAdmin
+        .from("products")
+        .select("id,title,image_url")
+        .in("id", productIds);
+      for (const p of (prods as any[]) ?? []) titles[p.id] = { title: p.title, image_url: p.image_url };
+    }
+
+    const days: number[] = sch?.days ?? [];
+    const hours: number[] = sch?.hours ?? [];
+    const active: boolean = sch?.active ?? false;
+
+    // Compute next run in Brasília (UTC-3)
+    let nextRunAtIso: string | null = null;
+    if (active && days.length && hours.length) {
+      const now = new Date();
+      for (let addMin = 1; addMin <= 60 * 24 * 8; addMin++) {
+        const cand = new Date(now.getTime() + addMin * 60 * 1000);
+        const brt = new Date(cand.getTime() - 3 * 60 * 60 * 1000);
+        if (brt.getUTCMinutes() !== 0) continue;
+        if (!days.includes(brt.getUTCDay())) continue;
+        if (!hours.includes(brt.getUTCHours())) continue;
+        nextRunAtIso = cand.toISOString();
+        break;
+      }
+    }
+
+    return {
+      active,
+      days,
+      hours,
+      lastRunAt: (sch?.last_run_at as string | null) ?? null,
+      nextRunAt: nextRunAtIso,
+      recent: ((recent as any[]) ?? []).map((r) => ({
+        id: r.id,
+        storyId: r.story_id as string | null,
+        status: r.status as string,
+        error: r.error as string | null,
+        publishedAt: r.published_at as string | null,
+        affiliateLink: r.affiliate_link as string | null,
+        productTitle: r.product_id ? titles[r.product_id]?.title ?? null : null,
+        productImage: r.product_id ? titles[r.product_id]?.image_url ?? null : null,
+      })),
+    };
+  });
+
+
