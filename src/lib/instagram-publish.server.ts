@@ -29,17 +29,25 @@ export async function publishForChannel(input: {
 
   const token = decryptToken(conn.access_token_ciphertext);
   const brl = (n: number | null | undefined) => n != null ? `R$ ${Number(n).toFixed(2).replace(".", ",")}` : "";
-  const discount = product.original_price && product.promo_price
-    ? `${Math.round((1 - Number(product.promo_price) / Number(product.original_price)) * 100)}%`
-    : "";
+  // LOTE 17A: DE/POR e desconto vêm EXCLUSIVAMENTE da camada central.
+  const { resolveProductDisplay } = await import("@/modules/products/display-resolver");
+  const disp = resolveProductDisplay({
+    title: product.title,
+    platform: product.platform,
+    promo_price: product.promo_price,
+    original_price: product.original_price,
+    price_quality: (product as any).price_quality,
+  });
+  const discount = disp.discountPct != null ? `${disp.discountPct}%` : "";
   const vars = {
     title: product.title ?? "",
-    price: brl(product.promo_price ?? product.original_price),
-    price_original: brl(product.original_price),
+    price: brl(disp.priceCurrentDisplay ?? product.promo_price ?? product.original_price),
+    price_original: disp.priceOriginalDisplay != null ? brl(disp.priceOriginalDisplay) : "",
     discount,
     store: product.store_name ?? product.platform ?? "",
     link: product.affiliate_link ?? product.raw_link ?? "",
   };
+
   const captionTpl = tpl?.caption_template ?? "🔥 {title}\n💰 {price}\n\nClique no link 👇\n{link}";
   const caption = fillVars(captionTpl, vars);
 
