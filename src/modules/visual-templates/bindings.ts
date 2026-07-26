@@ -1,4 +1,5 @@
 // Placeholder + real value resolution for smart elements.
+import { formatSalesLabel } from "@/modules/products/sales-label";
 
 export function formatBRL(v: number | string | null | undefined) {
   const n = typeof v === "string" ? Number(v) : v;
@@ -6,11 +7,13 @@ export function formatBRL(v: number | string | null | undefined) {
   return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
+/**
+ * Fonte única: delega para formatSalesLabel. Mantém `label` pré-computado
+ * do banco quando disponível, para não reformatar strings já humanizadas.
+ */
 export function humanizeSales(sales?: number | null, label?: string | null) {
   if (label) return label;
-  if (!sales || sales < 10) return "";
-  if (sales >= 1000) return `${Math.floor(sales / 1000)} mil+ vendidos`;
-  return `${sales}+ vendidos`;
+  return formatSalesLabel(sales ?? null) ?? "";
 }
 
 export interface ProductLite {
