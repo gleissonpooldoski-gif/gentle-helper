@@ -252,38 +252,100 @@ function PublishBox() {
     canvas.height = H;
 
     // Overlay zones tuned to the reference template (1080x1920).
-    // Product photo sits inside the central white card; price sits over
-    // the purple "POR R$ …" bar.
-    const PROD = { x: 180, y: 470, w: 720, h: 760 };
+    // Product photo sits inside the central white card, product title
+    // right below the photo, and price sits over the purple "POR R$ …" bar.
+    const PROD = { x: 180, y: 470, w: 720, h: 640 };
+    const TITLE = { x: 90, y: 1130, w: 900, h: 170 };
     const PRICE_BAR = { x: 90, y: 1310, w: 900, h: 170 };
+
+    const drawTitle = () => {
+      const title = product?.title?.trim();
+      if (!title) return;
+      ctx.save();
+      ctx.fillStyle = template?.title_color ?? "#111111";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      // fit up to 2 lines, shrink font if needed
+      const maxW = TITLE.w - 40;
+      let size = 58;
+      const wrap = (s: number) => {
+        ctx.font = `800 ${s}px Inter, system-ui, sans-serif`;
+        const words = title.split(/\s+/);
+        const lines: string[] = [];
+        let line = "";
+        for (const w of words) {
+          const test = line ? `${line} ${w}` : w;
+          if (ctx.measureText(test).width > maxW && line) {
+            lines.push(line);
+            line = w;
+          } else line = test;
+        }
+        if (line) lines.push(line);
+        return lines;
+      };
+      let lines = wrap(size);
+      while (lines.length > 2 && size > 34) {
+        size -= 4;
+        lines = wrap(size);
+      }
+      lines = lines.slice(0, 2);
+      const lineH = size * 1.15;
+      const totalH = lineH * lines.length;
+      const startY = TITLE.y + (TITLE.h - totalH) / 2 + lineH / 2;
+      lines.forEach((ln, i) => ctx.fillText(ln, TITLE.x + TITLE.w / 2, startY + i * lineH));
+      ctx.restore();
+    };
 
     const drawPrice = () => {
       const promo = product?.promo_price ?? null;
       const original = product?.original_price ?? null;
+      const hasDiscount =
+        promo != null && original != null && Number(original) > Number(promo);
       const priceStr = formatBRL(promo ?? original);
       if (!priceStr) return;
 
       ctx.save();
       ctx.fillStyle = "#ffffff";
       ctx.textBaseline = "middle";
-      ctx.textAlign = "left";
+      ctx.textAlign = "center";
 
-      const porFont = "800 60px Inter, system-ui, sans-serif";
-      const priceFont = "900 120px Inter, system-ui, sans-serif";
+      if (hasDiscount) {
+        // "DE R$ X" small with strikethrough, centered on top half
+        const deStr = `DE ${formatBRL(original)}`;
+        ctx.font = "700 42px Inter, system-ui, sans-serif";
+        const deY = PRICE_BAR.y + 48;
+        ctx.fillText(deStr, PRICE_BAR.x + PRICE_BAR.w / 2, deY);
+        const dw = ctx.measureText(deStr).width;
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 4;
+        const sx = PRICE_BAR.x + (PRICE_BAR.w - dw) / 2;
+        ctx.beginPath();
+        ctx.moveTo(sx, deY);
+        ctx.lineTo(sx + dw, deY);
+        ctx.stroke();
+      }
+
+      // POR + big price
+      const porFont = "800 56px Inter, system-ui, sans-serif";
+      const priceFont = `900 ${hasDiscount ? 92 : 120}px Inter, system-ui, sans-serif`;
       ctx.font = porFont;
       const porW = ctx.measureText("POR ").width;
       ctx.font = priceFont;
       const priceW = ctx.measureText(priceStr).width;
       const totalW = porW + priceW;
       const startX = PRICE_BAR.x + (PRICE_BAR.w - totalW) / 2;
-      const centerY = PRICE_BAR.y + PRICE_BAR.h / 2;
+      const centerY = hasDiscount
+        ? PRICE_BAR.y + PRICE_BAR.h - 55
+        : PRICE_BAR.y + PRICE_BAR.h / 2;
 
+      ctx.textAlign = "left";
       ctx.font = porFont;
       ctx.fillText("POR", startX, centerY);
       ctx.font = priceFont;
       ctx.fillText(priceStr, startX + porW, centerY);
       ctx.restore();
     };
+
 
     const drawProduct = (img: HTMLImageElement) => {
       const ratio = Math.min(PROD.w / img.width, PROD.h / img.height);
