@@ -120,7 +120,7 @@ export const previewActiveVisualTemplateForProduct = createServerFn({ method: "P
     const { data: prod, error: prodErr } = await context.supabase
       .from("products")
       .select(
-        "id,title,image_url,original_price,promo_price,sales,sales_label,store_name,affiliate_link,channel_id",
+        "id,title,image_url,original_price,promo_price,sales,sales_label,sales_historical,store_name,affiliate_link,channel_id",
       )
       .eq("id", data.productId)
       .eq("user_id", context.userId)
@@ -168,6 +168,7 @@ export const previewActiveVisualTemplateForProduct = createServerFn({ method: "P
         promo_price: prod.promo_price,
         sales: prod.sales,
         sales_label: prod.sales_label,
+        sales_historical: prod.sales_historical,
         store_name: prod.store_name,
         affiliate_link: prod.affiliate_link,
       },
