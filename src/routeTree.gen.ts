@@ -38,7 +38,9 @@ import { Route as ApiPublicWebhooksInstagramRouteImport } from './routes/api/pub
 import { Route as ApiPublicMetaWebhookRouteImport } from './routes/api/public/meta/webhook'
 import { Route as ApiPublicInstagramCallbackRouteImport } from './routes/api/public/instagram/callback'
 import { Route as ApiPublicHooksProductsValidateRouteImport } from './routes/api/public/hooks/products-validate'
+import { Route as ApiPublicHooksPriceBackfillRouteImport } from './routes/api/public/hooks/price-backfill'
 import { Route as ApiPublicHooksInstagramTickRouteImport } from './routes/api/public/hooks/instagram-tick'
+import { Route as ApiPublicHooksEvolutionHealthcheckRouteImport } from './routes/api/public/hooks/evolution-healthcheck'
 import { Route as ApiPublicHooksAutomationTickRouteImport } from './routes/api/public/hooks/automation-tick'
 import { Route as ApiPublicInstabotREventIdRouteImport } from './routes/api/public/instabot/r.$eventId'
 import { Route as ApiPublicChannelsWhatsappSessionStatusRouteImport } from './routes/api/public/channels/whatsapp/session-status'
@@ -197,10 +199,22 @@ const ApiPublicHooksProductsValidateRoute =
     path: '/api/public/hooks/products-validate',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicHooksPriceBackfillRoute =
+  ApiPublicHooksPriceBackfillRouteImport.update({
+    id: '/api/public/hooks/price-backfill',
+    path: '/api/public/hooks/price-backfill',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicHooksInstagramTickRoute =
   ApiPublicHooksInstagramTickRouteImport.update({
     id: '/api/public/hooks/instagram-tick',
     path: '/api/public/hooks/instagram-tick',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicHooksEvolutionHealthcheckRoute =
+  ApiPublicHooksEvolutionHealthcheckRouteImport.update({
+    id: '/api/public/hooks/evolution-healthcheck',
+    path: '/api/public/hooks/evolution-healthcheck',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiPublicHooksAutomationTickRoute =
@@ -252,7 +266,9 @@ export interface FileRoutesByFullPath {
   '/canais/$id/editar': typeof CanaisIdEditarRoute
   '/templates/editor/$id': typeof TemplatesEditorIdRoute
   '/api/public/hooks/automation-tick': typeof ApiPublicHooksAutomationTickRoute
+  '/api/public/hooks/evolution-healthcheck': typeof ApiPublicHooksEvolutionHealthcheckRoute
   '/api/public/hooks/instagram-tick': typeof ApiPublicHooksInstagramTickRoute
+  '/api/public/hooks/price-backfill': typeof ApiPublicHooksPriceBackfillRoute
   '/api/public/hooks/products-validate': typeof ApiPublicHooksProductsValidateRoute
   '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
   '/api/public/meta/webhook': typeof ApiPublicMetaWebhookRoute
@@ -288,7 +304,9 @@ export interface FileRoutesByTo {
   '/canais/$id/editar': typeof CanaisIdEditarRoute
   '/templates/editor/$id': typeof TemplatesEditorIdRoute
   '/api/public/hooks/automation-tick': typeof ApiPublicHooksAutomationTickRoute
+  '/api/public/hooks/evolution-healthcheck': typeof ApiPublicHooksEvolutionHealthcheckRoute
   '/api/public/hooks/instagram-tick': typeof ApiPublicHooksInstagramTickRoute
+  '/api/public/hooks/price-backfill': typeof ApiPublicHooksPriceBackfillRoute
   '/api/public/hooks/products-validate': typeof ApiPublicHooksProductsValidateRoute
   '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
   '/api/public/meta/webhook': typeof ApiPublicMetaWebhookRoute
@@ -325,7 +343,9 @@ export interface FileRoutesById {
   '/canais/$id/editar': typeof CanaisIdEditarRoute
   '/templates/editor/$id': typeof TemplatesEditorIdRoute
   '/api/public/hooks/automation-tick': typeof ApiPublicHooksAutomationTickRoute
+  '/api/public/hooks/evolution-healthcheck': typeof ApiPublicHooksEvolutionHealthcheckRoute
   '/api/public/hooks/instagram-tick': typeof ApiPublicHooksInstagramTickRoute
+  '/api/public/hooks/price-backfill': typeof ApiPublicHooksPriceBackfillRoute
   '/api/public/hooks/products-validate': typeof ApiPublicHooksProductsValidateRoute
   '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
   '/api/public/meta/webhook': typeof ApiPublicMetaWebhookRoute
@@ -363,7 +383,9 @@ export interface FileRouteTypes {
     | '/canais/$id/editar'
     | '/templates/editor/$id'
     | '/api/public/hooks/automation-tick'
+    | '/api/public/hooks/evolution-healthcheck'
     | '/api/public/hooks/instagram-tick'
+    | '/api/public/hooks/price-backfill'
     | '/api/public/hooks/products-validate'
     | '/api/public/instagram/callback'
     | '/api/public/meta/webhook'
@@ -399,7 +421,9 @@ export interface FileRouteTypes {
     | '/canais/$id/editar'
     | '/templates/editor/$id'
     | '/api/public/hooks/automation-tick'
+    | '/api/public/hooks/evolution-healthcheck'
     | '/api/public/hooks/instagram-tick'
+    | '/api/public/hooks/price-backfill'
     | '/api/public/hooks/products-validate'
     | '/api/public/instagram/callback'
     | '/api/public/meta/webhook'
@@ -435,7 +459,9 @@ export interface FileRouteTypes {
     | '/canais/$id/editar'
     | '/templates/editor/$id'
     | '/api/public/hooks/automation-tick'
+    | '/api/public/hooks/evolution-healthcheck'
     | '/api/public/hooks/instagram-tick'
+    | '/api/public/hooks/price-backfill'
     | '/api/public/hooks/products-validate'
     | '/api/public/instagram/callback'
     | '/api/public/meta/webhook'
@@ -462,7 +488,9 @@ export interface RootRouteChildren {
   ApiMlProbeRoute: typeof ApiMlProbeRoute
   CanaisIdEditarRoute: typeof CanaisIdEditarRoute
   ApiPublicHooksAutomationTickRoute: typeof ApiPublicHooksAutomationTickRoute
+  ApiPublicHooksEvolutionHealthcheckRoute: typeof ApiPublicHooksEvolutionHealthcheckRoute
   ApiPublicHooksInstagramTickRoute: typeof ApiPublicHooksInstagramTickRoute
+  ApiPublicHooksPriceBackfillRoute: typeof ApiPublicHooksPriceBackfillRoute
   ApiPublicHooksProductsValidateRoute: typeof ApiPublicHooksProductsValidateRoute
   ApiPublicInstagramCallbackRoute: typeof ApiPublicInstagramCallbackRoute
   ApiPublicMetaWebhookRoute: typeof ApiPublicMetaWebhookRoute
@@ -680,11 +708,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksProductsValidateRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/price-backfill': {
+      id: '/api/public/hooks/price-backfill'
+      path: '/api/public/hooks/price-backfill'
+      fullPath: '/api/public/hooks/price-backfill'
+      preLoaderRoute: typeof ApiPublicHooksPriceBackfillRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/instagram-tick': {
       id: '/api/public/hooks/instagram-tick'
       path: '/api/public/hooks/instagram-tick'
       fullPath: '/api/public/hooks/instagram-tick'
       preLoaderRoute: typeof ApiPublicHooksInstagramTickRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/evolution-healthcheck': {
+      id: '/api/public/hooks/evolution-healthcheck'
+      path: '/api/public/hooks/evolution-healthcheck'
+      fullPath: '/api/public/hooks/evolution-healthcheck'
+      preLoaderRoute: typeof ApiPublicHooksEvolutionHealthcheckRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/hooks/automation-tick': {
@@ -772,7 +814,10 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMlProbeRoute: ApiMlProbeRoute,
   CanaisIdEditarRoute: CanaisIdEditarRoute,
   ApiPublicHooksAutomationTickRoute: ApiPublicHooksAutomationTickRoute,
+  ApiPublicHooksEvolutionHealthcheckRoute:
+    ApiPublicHooksEvolutionHealthcheckRoute,
   ApiPublicHooksInstagramTickRoute: ApiPublicHooksInstagramTickRoute,
+  ApiPublicHooksPriceBackfillRoute: ApiPublicHooksPriceBackfillRoute,
   ApiPublicHooksProductsValidateRoute: ApiPublicHooksProductsValidateRoute,
   ApiPublicInstagramCallbackRoute: ApiPublicInstagramCallbackRoute,
   ApiPublicMetaWebhookRoute: ApiPublicMetaWebhookRoute,
