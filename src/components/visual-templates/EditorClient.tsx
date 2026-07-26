@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as fabric from "fabric";
 import { toast } from "sonner";
+import { useMutation } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { previewVisualTemplateForProduct } from "@/modules/visual-renderer/preview.functions";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Eye, Loader2 } from "lucide-react";
 import {
   loadElements,
   serializeCanvas,
@@ -77,6 +82,32 @@ export function EditorClient({
   const [productId, setProductId] = useState<string>("");
   const [selected, setSelected] = useState<fabric.Object | null>(null);
   const [dirty, setDirty] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const previewFn = useServerFn(previewVisualTemplateForProduct);
+  const previewMut = useMutation({
+    mutationFn: (vars: { templateId: string; productId: string }) =>
+      previewFn({ data: vars }),
+  });
+
+  async function handlePreview() {
+    if (!productId) {
+      toast.error("Selecione um produto para pré-visualizar");
+      return;
+    }
+    // Salva pendências antes de renderizar
+    if (dirty && fabricRef.current) {
+      const elements = serializeCanvas(fabricRef.current, format);
+      onSave({ name, elements });
+      setDirty(false);
+    }
+    setPreviewOpen(true);
+    try {
+      const res = await previewMut.mutateAsync({ templateId: template.id, productId });
+      if (!res.success) toast.error(res.error ?? "Falha ao renderizar preview");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao gerar preview");
+    }
+  }
 
   const format = template.format as VTFormat;
   const size = FORMAT_SIZE[format];
@@ -252,6 +283,14 @@ export function EditorClient({
         <Button variant="outline" size="sm" onClick={onSetDefault}>
           <StarIcon className="mr-1 h-4 w-4" /> Padrão
         </Button>
+        <Button variant="outline" size="sm" onClick={handlePreview} disabled={previewMut.isPending}>
+          {previewMut.isPending ? (
+            <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+          ) : (
+            <Eye className="mr-1 h-4 w-4" />
+          )}
+          Testar em produto
+        </Button>
         <Button variant="outline" size="sm" onClick={downloadPNG}>
           <Download className="mr-1 h-4 w-4" /> PNG
         </Button>
@@ -304,6 +343,38 @@ export function EditorClient({
           )}
         </aside>
       </div>
+
+      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Preview renderizado no servidor</DialogTitle>
+          </DialogHeader>
+          <div className="flex min-h-[400px] items-center justify-center bg-muted/40 p-4">
+            {previewMut.isPending ? (
+              <div className="flex flex-col items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-8 w-8 animate-spin" />
+                Gerando arte...
+              </div>
+            ) : previewMut.data?.success && previewMut.data.imageBase64 ? (
+              <img
+                src={`data:image/png;base64,${previewMut.data.imageBase64}`}
+                alt="Preview do template"
+                className="max-h-[70vh] w-auto rounded shadow-lg"
+              />
+            ) : (
+              <p className="text-sm text-destructive">
+                {previewMut.data?.error ?? "Nenhum preview disponível"}
+              </p>
+            )}
+          </div>
+          {previewMut.data?.success && (
+            <p className="text-xs text-muted-foreground">
+              {previewMut.data.width}×{previewMut.data.height}px — renderizado pelo motor
+              server-side.
+            </p>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
