@@ -125,31 +125,11 @@ export const Route = createFileRoute("/api/public/hooks/instagram-tick")({
               if (tpl?.image_url) templateUrl = tpl.image_url;
               titleColor = (tpl as any)?.title_color ?? undefined;
             }
-            // Priority: real-discount product first
-            let { data: prod } = await supabaseAdmin
-              .from("products")
-              .select(
-                "id,title,image_url,affiliate_link,raw_link,promo_price,original_price",
-              )
-              .eq("availability", "active")
-              .eq("is_discount", true)
-              .not("image_url", "is", null)
-              .order("created_at", { ascending: false })
-              .limit(1)
-              .maybeSingle();
-            if (!prod) {
-              const r = await supabaseAdmin
-                .from("products")
-                .select(
-                  "id,title,image_url,affiliate_link,raw_link,promo_price,original_price",
-                )
-                .eq("availability", "active")
-                .not("image_url", "is", null)
-                .order("created_at", { ascending: false })
-                .limit(1)
-                .maybeSingle();
-              prod = r.data as any;
-            }
+            // Rotate across ALL groups/channels (not just the newest one).
+            const { pickStoryProduct } = await import(
+              "@/modules/instagram-admin/pick-product.server"
+            );
+            const prod = await pickStoryProduct();
             if (!prod) {
               results.push({ admin: s.user_id, skipped: "no-product" });
               continue;
