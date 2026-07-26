@@ -518,6 +518,7 @@ const WEEKDAYS = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "
 function ScheduleCard({ templates }: { templates: any[] }) {
   const getFn = useServerFn(getAdminStorySchedule);
   const saveFn = useServerFn(saveAdminStorySchedule);
+  const runNowFn = useServerFn(runAdminStoryScheduleNow);
   const q = useQuery({ queryKey: ["ig-admin", "schedule"], queryFn: () => getFn() });
 
   const [days, setDays] = useState<number[]>([]);
