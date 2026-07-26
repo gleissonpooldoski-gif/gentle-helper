@@ -131,7 +131,7 @@ export const runAdminStoryScheduleNow = createServerFn({ method: "POST" })
     // Priority: real-discount product first
     let { data: prod } = await supabaseAdmin
       .from("products")
-      .select("id,title,image_url")
+      .select("id,title,image_url,affiliate_link,raw_link")
       .eq("availability", "active")
       .eq("is_discount", true)
       .not("image_url", "is", null)
@@ -141,7 +141,7 @@ export const runAdminStoryScheduleNow = createServerFn({ method: "POST" })
     if (!prod) {
       const r = await supabaseAdmin
         .from("products")
-        .select("id,title,image_url")
+        .select("id,title,image_url,affiliate_link,raw_link")
         .eq("availability", "active")
         .not("image_url", "is", null)
         .order("created_at", { ascending: false })
@@ -165,8 +165,26 @@ export const runAdminStoryScheduleNow = createServerFn({ method: "POST" })
       token: settings.accessToken,
       imageUrl,
     });
+
+    // Register campaign so the webhook can auto-DM the affiliate link when
+    // someone replies to the story or comments "eu quero".
+    const affiliateLink =
+      (prod as any)?.affiliate_link ?? (prod as any)?.raw_link ?? "";
+    await supabaseAdmin.from("instagram_campaigns").insert({
+      story_id: mediaId,
+      product_id: prod?.id ?? null,
+      template_id: templateId,
+      keyword: "eu quero",
+      message:
+        "Olá 👋 Aqui está o link da promoção que você pediu:\n\n{{title}}\n👉 {{affiliate_link}}",
+      affiliate_link: affiliateLink,
+      status: "published",
+      published_at: new Date().toISOString(),
+    });
+
     return { ok: true, mediaId, productTitle: prod?.title ?? null };
   });
+
 
 export const listInstagramAdminComments = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
