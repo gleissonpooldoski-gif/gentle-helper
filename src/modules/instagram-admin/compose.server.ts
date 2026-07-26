@@ -7,18 +7,15 @@
  *  - the recurring schedule cron (`/api/public/hooks/instagram-tick`)
  *  - the "Publicar agora" button (`runAdminStoryScheduleNow`)
  *
- * Rendering pipeline: build an SVG string, rasterize with @resvg/resvg-wasm.
- * WASM binary is bundled from the installed @resvg/resvg-wasm package via a
- * Vite/Nitro `.wasm` import (resolves to a WebAssembly.Module in the Worker),
- * and the Inter 800 font is base64-inlined at build time. No runtime CDN
- * fetches — the previous unpkg/jsdelivr dependency 404'd and broke Stories.
+ * Rendering pipeline: build an SVG string, rasterize with @cf-wasm/resvg
+ * (workerd build). The package ships the WASM as a bundler-imported module
+ * compiled at build time — no runtime WebAssembly.Module(bytes), no CDN
+ * fetches. Inter 800 font is base64-inlined at build time.
  */
-import { initWasm, Resvg } from "@resvg/resvg-wasm";
-import { RESVG_WASM_BASE64 } from "./assets/resvg-wasm";
+import { Resvg } from "@cf-wasm/resvg";
 import { INTER_800_WOFF_BASE64 } from "./assets/inter-800";
 import { publishStory } from "./graph.server";
 
-let wasmReady: Promise<void> | null = null;
 let fontBuffer: Uint8Array | null = null;
 
 function decodeBase64(b64: string): Uint8Array {
@@ -28,19 +25,13 @@ function decodeBase64(b64: string): Uint8Array {
   return out;
 }
 
-async function ensureReady() {
-  if (!wasmReady) {
-    wasmReady = (async () => {
-      const bytes = decodeBase64(RESVG_WASM_BASE64);
-      await initWasm(new WebAssembly.Module(bytes.buffer as ArrayBuffer));
-    })();
-
-  }
-  await wasmReady;
+function ensureFont() {
   if (!fontBuffer) {
     fontBuffer = decodeBase64(INTER_800_WOFF_BASE64);
   }
 }
+
+
 
 
 
