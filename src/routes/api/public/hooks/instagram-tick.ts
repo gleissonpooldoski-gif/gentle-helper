@@ -46,12 +46,11 @@ export const Route = createFileRoute("/api/public/hooks/instagram-tick")({
             .gte("published_at", new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString());
           const skipIds = (alreadyToday ?? []).map((r: any) => r.product_id).filter(Boolean);
 
-          // Priority: real-discount products first (original_price > promo_price), then any active
-          const baseSelect = "id,original_price,promo_price";
-          let discountQ = supabaseAdmin.from("products").select(baseSelect)
+          // Priority: real-discount products first (is_discount=true), then any active
+          let discountQ = supabaseAdmin.from("products").select("id")
             .eq("channel_id", s.channel_id).eq("availability", "active")
-            .not("original_price", "is", null).not("promo_price", "is", null)
             .eq("is_discount", true)
+            .not("original_price", "is", null).not("promo_price", "is", null)
             .order("created_at", { ascending: false }).limit(1);
           if (skipIds.length) discountQ = discountQ.not("id", "in", `(${skipIds.join(",")})`);
           let prod: { id: string } | null = (await discountQ.maybeSingle()).data;
