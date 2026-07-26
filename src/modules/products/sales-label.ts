@@ -29,7 +29,7 @@ export function formatSalesLabel(n: number | null | undefined): string | null {
   const text = Number.isInteger(mi)
     ? String(mi)
     : mi.toFixed(1).replace(".", ",");
-  // Plural: exatamente 1 → "milhão"; qualquer outro (incluindo 1,5) → "milhões"
-  const unit = mi === 1 ? "milhão" : "milhões";
+  // Singular quando parte inteira é 1 (1 milhão, 1,5 milhão); plural a partir de 2.
+  const unit = Math.floor(mi) < 2 ? "milhão" : "milhões";
   return `${text} ${unit}`;
 }
