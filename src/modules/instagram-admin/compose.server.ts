@@ -98,7 +98,7 @@ export type ComposeInput = {
 };
 
 export async function composeStoryPng(input: ComposeInput): Promise<Uint8Array> {
-  await ensureReady();
+  ensureFont();
 
   const W = 1080;
   const H = 1920;
