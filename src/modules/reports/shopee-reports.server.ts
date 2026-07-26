@@ -57,8 +57,7 @@ async function shopeeGraphql(appId: string, secret: string, query: string): Prom
   return json;
 }
 
-/** Map cru → linha shopee_conversions (idempotente por order_id+item_id) */
-function mapNode(userId: string, node: any): {
+type ConvRow = {
   user_id: string;
   platform: string;
   order_id: string;
@@ -76,48 +75,58 @@ function mapNode(userId: string, node: any): {
   device: string;
   order_date: string;
   raw: any;
-} {
-  const item = node?.items?.[0] ?? node?.item ?? {};
-  const purchaseTime = Number(node?.purchaseTime ?? node?.purchase_time ?? 0);
-  const orderDate = purchaseTime > 0
-    ? new Date(purchaseTime * 1000).toISOString()
-    : new Date().toISOString();
+};
 
-  const rawStatus = String(
-    node?.purchaseStatus ?? node?.orderStatus ?? node?.status ?? "PENDING",
-  ).toUpperCase();
-  const status =
-    rawStatus.includes("COMPLET") || rawStatus === "PAID"
-      ? "COMPLETO"
-      : rawStatus.includes("CANCEL")
-        ? "CANCELADO"
-        : "PENDENTE";
+function mapStatus(orderStatus: string, convStatus: string): string {
+  const s = `${orderStatus} ${convStatus}`.toUpperCase();
+  if (s.includes("COMPLET") || s.includes("PAID") || s.includes("FULFIL")) return "COMPLETO";
+  if (s.includes("CANCEL") || s.includes("RETURN") || s.includes("REFUND")) return "CANCELADO";
+  return "PENDENTE";
+}
 
-  const value = Number(item?.actualAmount ?? item?.orderAmount ?? item?.itemPrice ?? node?.orderAmount ?? 0);
-  const commission = Number(
-    item?.orderCommission ?? item?.commission ?? node?.orderCommission ?? node?.totalCommission ?? 0,
-  );
-  const commissionPct = Number(item?.commissionRate ?? item?.rate ?? 0) * (item?.commissionRate > 1 ? 1 : 100);
-
-  return {
-    user_id: userId,
-    platform: "shopee",
-    order_id: String(node?.orderId ?? node?.purchaseId ?? item?.orderId ?? ""),
-    product_id: item?.itemId ? String(item.itemId) : null,
-    product_name: String(item?.itemName ?? node?.itemName ?? "Produto Shopee"),
-    product_image: item?.imageUrl ?? item?.image ?? null,
-    store_name: item?.shopName ?? node?.shopName ?? null,
-    category: item?.globalCatName ?? item?.category ?? null,
-    status,
-    value: Number.isFinite(value) ? value : 0,
-    commission: Number.isFinite(commission) ? commission : 0,
-    commission_pct: Number.isFinite(commissionPct) ? commissionPct : 0,
-    qty: Number(item?.quantity ?? 1),
-    buyer_type: String(node?.buyerType ?? "NEW").toUpperCase().includes("NEW") ? "NOVO" : "EXISTENTE",
-    device: String(node?.device ?? "UNKNOWN").toUpperCase().includes("MOB") ? "MOBILE" : "DESKTOP",
-    order_date: orderDate,
-    raw: node,
-  };
+/**
+ * Achata conversion → orders → items em linhas.
+ * order_id de uma conversion pode conter vários items. Guardamos uma linha por (order, item).
+ */
+function flattenConversion(userId: string, conv: any): ConvRow[] {
+  const purchaseTime = Number(conv?.purchaseTime ?? 0);
+  const orderDate = purchaseTime > 0 ? new Date(purchaseTime * 1000).toISOString() : new Date().toISOString();
+  const buyer = String(conv?.buyerType ?? "NEW").toUpperCase();
+  const device = String(conv?.device ?? "").toUpperCase();
+  const convStatus = String(conv?.conversionStatus ?? "");
+  const orders: any[] = Array.isArray(conv?.orders) ? conv.orders : [];
+  const out: ConvRow[] = [];
+  for (const ord of orders) {
+    const orderId = String(ord?.orderId ?? conv?.conversionId ?? "");
+    const orderStatus = String(ord?.orderStatus ?? "");
+    const items: any[] = Array.isArray(ord?.items) ? ord.items : [];
+    if (items.length === 0) continue;
+    for (const item of items) {
+      const value = Number(item?.actualAmount ?? item?.itemPrice ?? 0);
+      const commission = Number(item?.itemTotalCommission ?? item?.itemCommission ?? 0);
+      const rate = Number(item?.itemSellerCommissionRate ?? 0);
+      out.push({
+        user_id: userId,
+        platform: "shopee",
+        order_id: orderId,
+        product_id: item?.itemId ? String(item.itemId) : null,
+        product_name: String(item?.itemName ?? "Produto Shopee"),
+        product_image: item?.imageUrl || null,
+        store_name: item?.shopName || null,
+        category: item?.globalCategoryLv1Name || item?.categoryLv1Name || null,
+        status: mapStatus(orderStatus, convStatus),
+        value: Number.isFinite(value) ? value : 0,
+        commission: Number.isFinite(commission) ? commission : 0,
+        commission_pct: Number.isFinite(rate) ? (rate > 1 ? rate : rate * 100) : 0,
+        qty: Number(item?.qty ?? 1),
+        buyer_type: buyer.includes("NEW") ? "NOVO" : "EXISTENTE",
+        device: device.includes("MOB") || device.includes("APP") ? "MOBILE" : "DESKTOP",
+        order_date: orderDate,
+        raw: { conv, ord, item },
+      });
+    }
+  }
+  return out;
 }
 
 export type SyncResult = { inserted: number; updated: number; pages: number };
@@ -138,7 +147,6 @@ export async function syncShopeeConversions(
   if (!appId || !enc) throw new Error("Configure App ID e App Secret da Shopee em Config Afiliados.");
   const secret = decryptApiKey(enc);
 
-  // Últimos 30 dias
   const endTs = Math.floor(Date.now() / 1000);
   const startTs = endTs - 60 * 60 * 24 * 30;
 
@@ -150,21 +158,21 @@ export async function syncShopeeConversions(
 
   while (pages < MAX_PAGES) {
     const scrollArg = scrollId ? `,scrollId:${JSON.stringify(scrollId)}` : "";
-    const query = `query{conversionReport(purchaseTimeStart:${startTs},purchaseTimeEnd:${endTs},limit:${PAGE_SIZE}${scrollArg}){nodes{orderId purchaseTime purchaseStatus buyerType device shopName totalCommission orderAmount items{itemId itemName imageUrl shopName globalCatName itemPrice actualAmount orderCommission commissionRate quantity}} pageInfo{scrollId hasNextPage}}}`;
+    const query = `query{conversionReport(purchaseTimeStart:${startTs},purchaseTimeEnd:${endTs},limit:${PAGE_SIZE}${scrollArg}){nodes{conversionId purchaseTime conversionStatus buyerType device totalCommission orders{orderId orderStatus items{itemId itemName itemPrice actualAmount qty imageUrl shopName itemCommission itemTotalCommission itemSellerCommissionRate categoryLv1Name globalCategoryLv1Name}}} pageInfo{scrollId hasNextPage}}}`;
     const json = await shopeeGraphql(appId, secret, query);
     const report = json?.data?.conversionReport;
     const nodes: any[] = report?.nodes ?? [];
     pages += 1;
 
-    if (nodes.length) {
-      const rows = nodes.map((n) => mapNode(userId, n)).filter((r) => r.order_id);
-      if (rows.length) {
-        const { error: upErr, count } = await supabase
-          .from("shopee_conversions")
-          .upsert(rows, { onConflict: "user_id,platform,order_id,product_id", count: "exact" });
-        if (upErr) throw upErr;
-        inserted += count ?? rows.length;
-      }
+    const rows: ConvRow[] = [];
+    for (const n of nodes) rows.push(...flattenConversion(userId, n));
+    const clean = rows.filter((r) => r.order_id && r.product_id);
+    if (clean.length) {
+      const { error: upErr, count } = await supabase
+        .from("shopee_conversions")
+        .upsert(clean, { onConflict: "user_id,platform,order_id,product_id", count: "exact" });
+      if (upErr) throw upErr;
+      inserted += count ?? clean.length;
     }
 
     const nextScroll = report?.pageInfo?.scrollId ?? "";
@@ -175,3 +183,4 @@ export async function syncShopeeConversions(
 
   return { inserted, updated: 0, pages };
 }
+
