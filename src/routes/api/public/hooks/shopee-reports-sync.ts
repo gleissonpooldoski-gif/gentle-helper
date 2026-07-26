@@ -24,13 +24,13 @@ export const Route = createFileRoute("/api/public/hooks/shopee-reports-sync")({
           try {
             const r = await syncShopeeConversions(supabaseAdmin, u.user_id);
             results.push({ userId: u.user_id, ok: true, inserted: r.inserted });
-          } catch (err) {
-            results.push({
-              userId: u.user_id,
-              ok: false,
-              error: err instanceof Error ? err.message : String(err),
-            });
+          } catch (err: any) {
+            const msg = err instanceof Error
+              ? err.message
+              : (err?.message || err?.details || err?.hint || JSON.stringify(err));
+            results.push({ userId: u.user_id, ok: false, error: msg });
           }
+
         }
         return Response.json({ ok: true, processed: results.length, results });
       },
