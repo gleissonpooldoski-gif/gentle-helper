@@ -26,7 +26,7 @@ export function useSystemHealth() {
   });
 
   const downInstances = (instancesQ.data ?? []).filter(
-    (i) => i.status !== "connected" && i.status !== "open",
+    (i: { status: string | null }) => i.status !== "connected" && i.status !== "open",
   );
 
   return {
