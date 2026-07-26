@@ -260,6 +260,7 @@ export async function fetchProductOfferByItem(
       const n = typeof s === "number" ? s : Number(String(s).replace(/[^\d]/g, ""));
       return Number.isFinite(n) && n >= 0 ? Math.floor(n) : null;
     })(),
+    productLink: node.productLink ? String(node.productLink) : null,
     offerLink: node.offerLink ? String(node.offerLink) : null,
     imageUrl: node.imageUrl ? String(node.imageUrl) : null,
     raw: node,
