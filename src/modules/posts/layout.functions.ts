@@ -278,12 +278,25 @@ export const sendLayoutTestMessage = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
 
     // Produto: usa o informado ou pega o mais recente COM imagem do canal.
-    let productQuery = (supabase as any)
-      .from("products")
-        .select("id, title, platform, promo_price, original_price, sales, sales_label, sales_recent, sales_historical, sales_source, price_quality, price_quality_reason, affiliate_link, image_url")
+    const PROD_COLS =
+      "id, title, platform, promo_price, original_price, sales, sales_label, sales_recent, sales_historical, sales_source, price_quality, price_quality_reason, affiliate_link, image_url";
+    let productQuery: any;
+    if (data.productId) {
+      productQuery = (supabase as any)
+        .from("products")
+        .select(PROD_COLS)
         .eq("user_id", userId)
         .eq("channel_id", data.channelId)
         .eq("id", data.productId)
+        .limit(1);
+    } else {
+      productQuery = (supabase as any)
+        .from("products")
+        .select(PROD_COLS)
+        .eq("user_id", userId)
+        .eq("channel_id", data.channelId)
+        .not("image_url", "is", null)
+        .order("created_at", { ascending: false })
         .limit(1);
     }
     const { data: prods, error: prodErr } = await productQuery;
