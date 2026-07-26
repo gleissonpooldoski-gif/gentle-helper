@@ -94,6 +94,9 @@ export type ComposeInput = {
     image_url?: string | null;
     promo_price?: number | null;
     original_price?: number | null;
+    // LOTE 17A: campos necessários à camada central de qualidade.
+    platform?: string | null;
+    price_quality?: string | null;
   };
 };
 
@@ -115,11 +118,21 @@ export async function composeStoryPng(input: ComposeInput): Promise<Uint8Array> 
   const rawTitle = (input.product.title ?? "").trim();
   const titleLines = rawTitle ? wrapTitle(rawTitle, 32) : [];
 
-  const promo = input.product.promo_price;
-  const original = input.product.original_price;
-  const hasDiscount =
-    promo != null && original != null && Number(original) > Number(promo);
-  const priceStr = formatBRL(promo ?? original ?? null);
+  // LOTE 17A: DE/POR decidido EXCLUSIVAMENTE pela camada central.
+  // Nunca comparar original_price > promo_price diretamente.
+  const { resolveProductDisplay } = await import("@/modules/products/display-resolver");
+  const disp = resolveProductDisplay({
+    title: input.product.title ?? null,
+    platform: input.product.platform ?? null,
+    promo_price: input.product.promo_price ?? null,
+    original_price: input.product.original_price ?? null,
+    price_quality: input.product.price_quality ?? null,
+  });
+  const promo = disp.priceCurrentDisplay ?? input.product.promo_price ?? null;
+  const original = disp.priceOriginalDisplay;
+  const hasDiscount = original != null;
+  const priceStr = formatBRL(promo ?? input.product.original_price ?? null);
+
 
   const parts: string[] = [];
   parts.push(
