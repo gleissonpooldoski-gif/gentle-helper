@@ -6,15 +6,17 @@ import { toast } from "sonner";
 import {
   deleteStoryTemplate,
   getAdminStorySchedule,
+  getAdminStoryStatus,
   runAdminStoryScheduleNow,
   listInstagramProducts,
   listStoryTemplates,
   publishStoryCampaign,
   saveAdminStorySchedule,
   saveStoryTemplate,
+  toggleAdminStoryAutomation,
 } from "@/modules/instagram-admin/admin.functions";
 import { InstagramLayout } from "./instagram";
-import { CalendarClock, CheckCircle2, ExternalLink, Image as ImageIcon, Loader2, Save, Send, Trash2, Upload } from "lucide-react";
+import { Activity, CalendarClock, CheckCircle2, ExternalLink, Image as ImageIcon, Loader2, Play, Power, Save, Send, Trash2, Upload } from "lucide-react";
 
 const W = 1080;
 const H = 1920;
