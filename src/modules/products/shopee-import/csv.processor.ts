@@ -118,7 +118,7 @@ export function parseShopeeCsv(text: string): ParseResult {
       itemId,
       itemName: get("itemName") || "Produto Shopee",
       price: parseNumber(get("price")),
-      sales: parseInteger(get("sales")),
+      sales: normalizeSales(get("sales")),
       storeName: get("storeName"),
       commissionRate: parseNumber(get("commissionRate")),
       commissionValue: parseNumber(get("commissionValue")),
