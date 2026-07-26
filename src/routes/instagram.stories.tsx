@@ -7,8 +7,6 @@ import {
   deleteStoryTemplate,
   getAdminStorySchedule,
   runAdminStoryScheduleNow,
-  saveAdminStorySchedule,
-
   listInstagramProducts,
   listStoryTemplates,
   publishStoryCampaign,
@@ -16,7 +14,7 @@ import {
   saveStoryTemplate,
 } from "@/modules/instagram-admin/admin.functions";
 import { InstagramLayout } from "./instagram";
-import { CalendarClock, CheckCircle2, ExternalLink, Image as ImageIcon, Loader2, Save, Trash2, Upload } from "lucide-react";
+import { CalendarClock, CheckCircle2, ExternalLink, Image as ImageIcon, Loader2, Save, Send, Trash2, Upload } from "lucide-react";
 
 const W = 1080;
 const H = 1920;
