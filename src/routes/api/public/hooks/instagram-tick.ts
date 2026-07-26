@@ -108,23 +108,29 @@ export const Route = createFileRoute("/api/public/hooks/instagram-tick")({
                 continue;
             }
             const { loadSettings } = await import("@/modules/instagram-admin/settings.server");
-            const { publishStory } = await import("@/modules/instagram-admin/graph.server");
+            const { composeStoryPng, uploadAndPublishStory } = await import(
+              "@/modules/instagram-admin/compose.server"
+            );
             const settings = await loadSettings();
             if (!settings) continue;
 
-            let imageUrl: string | null = null;
+            let templateUrl: string | null = null;
+            let titleColor: string | undefined;
             if (s.template_id) {
               const { data: tpl } = await supabaseAdmin
                 .from("instagram_story_templates")
-                .select("image_url")
+                .select("image_url,title_color")
                 .eq("id", s.template_id)
                 .maybeSingle();
-              if (tpl?.image_url) imageUrl = tpl.image_url;
+              if (tpl?.image_url) templateUrl = tpl.image_url;
+              titleColor = (tpl as any)?.title_color ?? undefined;
             }
             // Priority: real-discount product first
             let { data: prod } = await supabaseAdmin
               .from("products")
-              .select("id,title,image_url,affiliate_link,raw_link")
+              .select(
+                "id,title,image_url,affiliate_link,raw_link,promo_price,original_price",
+              )
               .eq("availability", "active")
               .eq("is_discount", true)
               .not("image_url", "is", null)
@@ -134,7 +140,9 @@ export const Route = createFileRoute("/api/public/hooks/instagram-tick")({
             if (!prod) {
               const r = await supabaseAdmin
                 .from("products")
-                .select("id,title,image_url,affiliate_link,raw_link")
+                .select(
+                  "id,title,image_url,affiliate_link,raw_link,promo_price,original_price",
+                )
                 .eq("availability", "active")
                 .not("image_url", "is", null)
                 .order("created_at", { ascending: false })
@@ -142,14 +150,26 @@ export const Route = createFileRoute("/api/public/hooks/instagram-tick")({
                 .maybeSingle();
               prod = r.data as any;
             }
-            if (!imageUrl) imageUrl = (prod as any)?.image_url ?? null;
-            if (!imageUrl) continue;
+            if (!prod) {
+              results.push({ admin: s.user_id, skipped: "no-product" });
+              continue;
+            }
 
             try {
-              const storyId = await publishStory({
+              const pngBytes = await composeStoryPng({
+                templateUrl,
+                titleColor,
+                product: {
+                  title: (prod as any).title,
+                  image_url: (prod as any).image_url,
+                  promo_price: (prod as any).promo_price,
+                  original_price: (prod as any).original_price,
+                },
+              });
+              const storyId = await uploadAndPublishStory({
+                pngBytes,
                 igId: settings.instagramBusinessId,
                 token: settings.accessToken,
-                imageUrl,
               });
               const affiliateLink =
                 (prod as any)?.affiliate_link ?? (prod as any)?.raw_link ?? "";
@@ -168,6 +188,7 @@ export const Route = createFileRoute("/api/public/hooks/instagram-tick")({
             } catch (e: any) {
               results.push({ admin: s.user_id, error: String(e?.message ?? e) });
             }
+
             await supabaseAdmin
               .from("instagram_admin_schedule" as any)
               .update({ last_run_at: now.toISOString() })

@@ -134,7 +134,8 @@ export const runAdminStoryScheduleNow = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { loadSettings } = await import("./settings.server");
-    const { publishStory, subscribeWebhooks } = await import("./graph.server");
+    const { subscribeWebhooks } = await import("./graph.server");
+    const { composeStoryPng, uploadAndPublishStory } = await import("./compose.server");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const settings = await loadSettings();
     if (!settings) throw new Error("Configure a conta Instagram primeiro.");
@@ -154,20 +155,22 @@ export const runAdminStoryScheduleNow = createServerFn({ method: "POST" })
       .maybeSingle();
     const templateId = (schedule as any)?.template_id ?? null;
 
-    let imageUrl: string | null = null;
+    let templateUrl: string | null = null;
+    let titleColor: string | undefined;
     if (templateId) {
       const { data: tpl } = await supabaseAdmin
         .from("instagram_story_templates")
-        .select("image_url")
+        .select("image_url,title_color")
         .eq("id", templateId)
         .maybeSingle();
-      if (tpl?.image_url) imageUrl = tpl.image_url;
+      if (tpl?.image_url) templateUrl = tpl.image_url;
+      titleColor = (tpl as any)?.title_color ?? undefined;
     }
 
     // Priority: real-discount product first
     let { data: prod } = await supabaseAdmin
       .from("products")
-      .select("id,title,image_url,affiliate_link,raw_link")
+      .select("id,title,image_url,affiliate_link,raw_link,promo_price,original_price")
       .eq("availability", "active")
       .eq("is_discount", true)
       .not("image_url", "is", null)
@@ -177,7 +180,7 @@ export const runAdminStoryScheduleNow = createServerFn({ method: "POST" })
     if (!prod) {
       const r = await supabaseAdmin
         .from("products")
-        .select("id,title,image_url,affiliate_link,raw_link")
+        .select("id,title,image_url,affiliate_link,raw_link,promo_price,original_price")
         .eq("availability", "active")
         .not("image_url", "is", null)
         .order("created_at", { ascending: false })
@@ -185,21 +188,29 @@ export const runAdminStoryScheduleNow = createServerFn({ method: "POST" })
         .maybeSingle();
       prod = r.data;
     }
-    if (!imageUrl) imageUrl = prod?.image_url ?? null;
-    if (!imageUrl) throw new Error("Nenhum produto/template com imagem disponível.");
+    if (!prod) throw new Error("Nenhum produto disponível para publicar.");
 
     console.log("[STORY_PUBLISH]", {
       product_id: prod?.id ?? null,
       template_id: templateId,
       instagram_account: settings.instagramBusinessId,
-      caption: null,
       manual: true,
     });
 
-    const mediaId = await publishStory({
+    const pngBytes = await composeStoryPng({
+      templateUrl,
+      titleColor,
+      product: {
+        title: (prod as any).title,
+        image_url: (prod as any).image_url,
+        promo_price: (prod as any).promo_price,
+        original_price: (prod as any).original_price,
+      },
+    });
+    const mediaId = await uploadAndPublishStory({
+      pngBytes,
       igId: settings.instagramBusinessId,
       token: settings.accessToken,
-      imageUrl,
     });
 
     // Register campaign so the webhook can auto-DM the affiliate link when
@@ -218,8 +229,9 @@ export const runAdminStoryScheduleNow = createServerFn({ method: "POST" })
       published_at: new Date().toISOString(),
     });
 
-    return { ok: true, mediaId, productTitle: prod?.title ?? null };
+    return { ok: true, mediaId, productTitle: (prod as any)?.title ?? null };
   });
+
 
 
 export const listInstagramAdminComments = createServerFn({ method: "GET" })
