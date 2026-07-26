@@ -10,6 +10,8 @@ export type StoryProduct = {
   original_price: number | null;
   channel_id: string | null;
   source_group_jid: string | null;
+  platform: string | null;
+  price_quality: string | null;
 };
 
 /**
@@ -31,7 +33,8 @@ export async function pickStoryProduct(): Promise<StoryProduct | null> {
   );
 
   const baseCols =
-    "id,title,image_url,affiliate_link,raw_link,promo_price,original_price,is_discount,channel_id,source_group_jid";
+    "id,title,image_url,affiliate_link,raw_link,promo_price,original_price,is_discount,channel_id,source_group_jid,platform,price_quality";
+
 
   // Pull a wide pool of ALL active products, then rotate across groups client-side.
   // Fetching discounted-only first was skewing to whichever group had discounts;
