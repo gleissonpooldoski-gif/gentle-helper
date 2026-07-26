@@ -86,8 +86,8 @@ export function classifyShopeePriceQuality(product: PriceQualityInput): PriceQua
   const discountPct = ((original - promo) / original) * 100;
   const ratio = original / promo;
 
-  // BLOCKED: desconto absurdo ou multiplicador ≥ 5×
-  if (discountPct > 90 || ratio >= 5) {
+  // BLOCKED: desconto absurdo (>90%) ou variação + multiplicador ≥ 5×
+  if (discountPct > 90 || (variantHit && ratio >= 5)) {
     return {
       quality: "BLOCKED",
       showComparison: false,
