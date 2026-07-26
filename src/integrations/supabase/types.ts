@@ -1609,10 +1609,16 @@ export type Database = {
           original_price: number | null
           platform: string
           price_changed_at: string | null
+          price_quality: string | null
+          price_quality_reason: string | null
           promo_price: number | null
           raw_link: string
           sales: number | null
+          sales_historical: number | null
           sales_label: string | null
+          sales_recent: number | null
+          sales_source: string | null
+          sales_updated_at: string | null
           source: string | null
           source_group_jid: string
           source_group_name: string | null
@@ -1639,10 +1645,16 @@ export type Database = {
           original_price?: number | null
           platform?: string
           price_changed_at?: string | null
+          price_quality?: string | null
+          price_quality_reason?: string | null
           promo_price?: number | null
           raw_link: string
           sales?: number | null
+          sales_historical?: number | null
           sales_label?: string | null
+          sales_recent?: number | null
+          sales_source?: string | null
+          sales_updated_at?: string | null
           source?: string | null
           source_group_jid?: string
           source_group_name?: string | null
@@ -1669,10 +1681,16 @@ export type Database = {
           original_price?: number | null
           platform?: string
           price_changed_at?: string | null
+          price_quality?: string | null
+          price_quality_reason?: string | null
           promo_price?: number | null
           raw_link?: string
           sales?: number | null
+          sales_historical?: number | null
           sales_label?: string | null
+          sales_recent?: number | null
+          sales_source?: string | null
+          sales_updated_at?: string | null
           source?: string | null
           source_group_jid?: string
           source_group_name?: string | null
