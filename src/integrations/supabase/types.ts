@@ -139,6 +139,36 @@ export type Database = {
           },
         ]
       }
+      automation_configs_reconciliation_log: {
+        Row: {
+          config_id: string
+          created_at: string
+          id: string
+          migration_name: string
+          new_status: string
+          previous_status: string | null
+          reason: string
+        }
+        Insert: {
+          config_id: string
+          created_at?: string
+          id?: string
+          migration_name: string
+          new_status: string
+          previous_status?: string | null
+          reason: string
+        }
+        Update: {
+          config_id?: string
+          created_at?: string
+          id?: string
+          migration_name?: string
+          new_status?: string
+          previous_status?: string | null
+          reason?: string
+        }
+        Relationships: []
+      }
       automation_failures: {
         Row: {
           attempt_count: number
