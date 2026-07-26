@@ -1,24 +1,35 @@
 /**
- * Humaniza a contagem de vendas no padrão que a Shopee exibe:
- * 30 → "30", 300 → "300", 1500 → "1,5 mil", 30000 → "30 mil".
- * Fonte única usada tanto na captura (WhatsApp/PDP) quanto na
- * importação em massa (CSV Shopee) para manter `sales_label`
- * consistente no banco.
+ * Fonte ÚNICA de verdade para humanizar contagem de vendas (padrão Shopee).
+ *
+ * Regras oficiais:
+ *  - n < 1000           → número inteiro cru (ex: 380 → "380")
+ *  - 1_000 ≤ n < 1e6    → "X mil" ou "X,Y mil" com 1 casa decimal quando fracionária
+ *                         (ex: 6000 → "6 mil", 12500 → "12,5 mil", 99999 → "99,9 mil")
+ *  - n ≥ 1_000_000      → "X milhão" (1) ou "X,Y milhão/milhões"
+ *                         (ex: 1_500_000 → "1,5 milhão", 2_500_000 → "2,5 milhões")
+ *
+ * Nulos / não-finitos / ≤ 0 retornam null.
  */
 export function formatSalesLabel(n: number | null | undefined): string | null {
   if (n == null || !Number.isFinite(n) || n <= 0) return null;
+
   if (n < 1000) {
-    const rounded = n >= 100 ? Math.floor(n / 100) * 100 : Math.floor(n / 10) * 10;
-    return `${Math.max(rounded, 10)}`;
+    return String(Math.floor(n));
   }
-  const mil = n / 1000;
-  if (mil < 10) {
-    const rounded = Math.floor(mil * 10) / 10;
-    const text = Number.isInteger(rounded)
-      ? String(rounded)
-      : rounded.toFixed(1).replace(".", ",");
+
+  if (n < 1_000_000) {
+    const mil = Math.floor((n / 1000) * 10) / 10; // trunca em 1 casa
+    const text = Number.isInteger(mil)
+      ? String(mil)
+      : mil.toFixed(1).replace(".", ",");
     return `${text} mil`;
   }
-  const rounded = Math.floor(mil / 10) * 10 || Math.floor(mil);
-  return `${rounded} mil`;
+
+  const mi = Math.floor((n / 1_000_000) * 10) / 10;
+  const text = Number.isInteger(mi)
+    ? String(mi)
+    : mi.toFixed(1).replace(".", ",");
+  // Singular quando parte inteira é 1 (1 milhão, 1,5 milhão); plural a partir de 2.
+  const unit = Math.floor(mi) < 2 ? "milhão" : "milhões";
+  return `${text} ${unit}`;
 }
