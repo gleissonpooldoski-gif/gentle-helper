@@ -2293,8 +2293,16 @@ export type Database = {
         Args: { _config_id: string }
         Returns: boolean
       }
+      try_lock_automation_destination: {
+        Args: { _group_id: string; _instance_id: string }
+        Returns: boolean
+      }
       unlock_automation_config: {
         Args: { _config_id: string }
+        Returns: boolean
+      }
+      unlock_automation_destination: {
+        Args: { _group_id: string; _instance_id: string }
         Returns: boolean
       }
     }
