@@ -638,15 +638,27 @@ function ScheduleCard({ templates }: { templates: any[] }) {
             </label>
           </section>
 
-          <button
-            type="button"
-            onClick={() => mut.mutate()}
-            disabled={mut.isPending}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-fuchsia-500 via-rose-500 to-orange-400 px-5 py-3 text-sm font-semibold text-white shadow-md transition hover:opacity-95 disabled:opacity-50"
-          >
-            {mut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            Salvar Agendamento
-          </button>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <button
+              type="button"
+              onClick={() => mut.mutate()}
+              disabled={mut.isPending}
+              className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-fuchsia-500 via-rose-500 to-orange-400 px-5 py-3 text-sm font-semibold text-white shadow-md transition hover:opacity-95 disabled:opacity-50"
+            >
+              {mut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              Salvar Agendamento
+            </button>
+            <button
+              type="button"
+              onClick={() => runNow.mutate()}
+              disabled={runNow.isPending}
+              className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-primary/40 bg-primary/10 px-5 py-3 text-sm font-semibold text-primary shadow-sm transition hover:bg-primary/20 disabled:opacity-50"
+              title="Publica agora um Story com as mesmas regras do agendamento (template + produto com desconto prioritário)"
+            >
+              {runNow.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              Publicar agora
+            </button>
+          </div>
         </div>
       </div>
 
