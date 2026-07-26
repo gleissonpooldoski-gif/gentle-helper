@@ -187,6 +187,8 @@ export const runAdminStoryScheduleNow = createServerFn({ method: "POST" })
         image_url: (prod as any).image_url,
         promo_price: (prod as any).promo_price,
         original_price: (prod as any).original_price,
+        platform: (prod as any).platform,
+        price_quality: (prod as any).price_quality,
       },
     });
     const mediaId = await uploadAndPublishStory({
