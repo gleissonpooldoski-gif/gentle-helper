@@ -1,18 +1,15 @@
-import { createDecipheriv, createHash, createHmac } from "node:crypto";
+import { createDecipheriv, createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 /**
  * Cliente Shopee Affiliate Open API v2 — GraphQL conversionReport.
  *
- * Endpoint: https://open-api.affiliate.shopee.com.br/graphql
- * Auth: Header Authorization: SHA256 Credential=<appId>, Timestamp=<ts>, Signature=<sig>
- *       sig = SHA256(appId + ts + payload + secret)   (formato oficial)
+ * Endpoint oficial BR: https://open-api.affiliate.shopee.com.br/graphql
+ * Auth Header: Authorization: SHA256 Credential=<appId>, Timestamp=<ts>, Signature=<sig>
+ * Signature = SHA256( appId + timestamp + payload + secret ).hex().lower()
  */
 
-const ENDPOINTS = [
-  "https://open-api.affiliate.shopee.com.br/graphql",
-  "https://open-api.affiliate.shopee.com/graphql",
-];
+const ENDPOINT = "https://open-api.affiliate.shopee.com.br/graphql";
 
 function encKey(): Buffer {
   const raw = process.env.SHOPEE_CONFIG_ENC_KEY;
@@ -30,44 +27,34 @@ function decryptApiKey(encoded: string): string {
   return Buffer.concat([d.update(ct), d.final()]).toString("utf8");
 }
 
-async function shopeeGraphql(appId: string, secret: string, query: string): Promise<any | null> {
+async function shopeeGraphql(appId: string, secret: string, query: string): Promise<any> {
   const payload = JSON.stringify({ query });
   const ts = Math.floor(Date.now() / 1000);
   const base = `${appId}${ts}${payload}${secret}`;
-  // Formato documentado: SHA256 direto. Alguns exemplos usam HMAC — mantemos ambos.
-  const sigPlain = createHash("sha256").update(base).digest("hex");
-  const sigHmac = createHmac("sha256", secret).update(base).digest("hex");
+  const sig = createHash("sha256").update(base).digest("hex");
 
-  let lastError: string | null = null;
-  for (const url of ENDPOINTS) {
-    for (const sig of [sigPlain, sigHmac]) {
-      try {
-        const res = await fetch(url, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `SHA256 Credential=${appId}, Timestamp=${ts}, Signature=${sig}`,
-          },
-          body: payload,
-          signal: AbortSignal.timeout(15000),
-        });
-        const json = await res.json().catch(() => null);
-        if (!res.ok) {
-          lastError = `HTTP ${res.status}`;
-          continue;
-        }
-        if (json?.errors) {
-          lastError = JSON.stringify(json.errors).slice(0, 500);
-          continue;
-        }
-        return json;
-      } catch (err) {
-        lastError = err instanceof Error ? err.message : String(err);
-      }
-    }
+  const res = await fetch(ENDPOINT, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `SHA256 Credential=${appId}, Timestamp=${ts}, Signature=${sig}`,
+    },
+    body: payload,
+    signal: AbortSignal.timeout(20000),
+  });
+  const text = await res.text();
+  let json: any = null;
+  try { json = JSON.parse(text); } catch { /* not json */ }
+  if (!res.ok) {
+    throw new Error(`Shopee HTTP ${res.status}: ${text.slice(0, 300)}`);
   }
-  if (lastError) throw new Error(`Shopee API: ${lastError}`);
-  return null;
+  if (json?.errors?.length) {
+    const err = json.errors[0];
+    const code = err?.extensions?.code ?? err?.code ?? "";
+    const msg = err?.message ?? JSON.stringify(err);
+    throw new Error(`Shopee API [${code}]: ${msg}`);
+  }
+  return json;
 }
 
 /** Map cru → linha shopee_conversions (idempotente por order_id+item_id) */
