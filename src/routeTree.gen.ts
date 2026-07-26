@@ -44,6 +44,7 @@ import { Route as ApiPublicHooksProductsValidateRouteImport } from './routes/api
 import { Route as ApiPublicHooksPriceBackfillRouteImport } from './routes/api/public/hooks/price-backfill'
 import { Route as ApiPublicHooksInstagramTickRouteImport } from './routes/api/public/hooks/instagram-tick'
 import { Route as ApiPublicHooksEvolutionHealthcheckRouteImport } from './routes/api/public/hooks/evolution-healthcheck'
+import { Route as ApiPublicHooksDebugShopeeProductRouteImport } from './routes/api/public/hooks/debug-shopee-product'
 import { Route as ApiPublicHooksAutomationTickRouteImport } from './routes/api/public/hooks/automation-tick'
 import { Route as ApiPublicInstabotREventIdRouteImport } from './routes/api/public/instabot/r.$eventId'
 import { Route as ApiPublicChannelsWhatsappSessionStatusRouteImport } from './routes/api/public/channels/whatsapp/session-status'
@@ -236,6 +237,12 @@ const ApiPublicHooksEvolutionHealthcheckRoute =
     path: '/api/public/hooks/evolution-healthcheck',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicHooksDebugShopeeProductRoute =
+  ApiPublicHooksDebugShopeeProductRouteImport.update({
+    id: '/api/public/hooks/debug-shopee-product',
+    path: '/api/public/hooks/debug-shopee-product',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicHooksAutomationTickRoute =
   ApiPublicHooksAutomationTickRouteImport.update({
     id: '/api/public/hooks/automation-tick',
@@ -287,6 +294,7 @@ export interface FileRoutesByFullPath {
   '/canais/$id/editar': typeof CanaisIdEditarRoute
   '/templates/editor/$id': typeof TemplatesEditorIdRoute
   '/api/public/hooks/automation-tick': typeof ApiPublicHooksAutomationTickRoute
+  '/api/public/hooks/debug-shopee-product': typeof ApiPublicHooksDebugShopeeProductRoute
   '/api/public/hooks/evolution-healthcheck': typeof ApiPublicHooksEvolutionHealthcheckRoute
   '/api/public/hooks/instagram-tick': typeof ApiPublicHooksInstagramTickRoute
   '/api/public/hooks/price-backfill': typeof ApiPublicHooksPriceBackfillRoute
@@ -328,6 +336,7 @@ export interface FileRoutesByTo {
   '/canais/$id/editar': typeof CanaisIdEditarRoute
   '/templates/editor/$id': typeof TemplatesEditorIdRoute
   '/api/public/hooks/automation-tick': typeof ApiPublicHooksAutomationTickRoute
+  '/api/public/hooks/debug-shopee-product': typeof ApiPublicHooksDebugShopeeProductRoute
   '/api/public/hooks/evolution-healthcheck': typeof ApiPublicHooksEvolutionHealthcheckRoute
   '/api/public/hooks/instagram-tick': typeof ApiPublicHooksInstagramTickRoute
   '/api/public/hooks/price-backfill': typeof ApiPublicHooksPriceBackfillRoute
@@ -370,6 +379,7 @@ export interface FileRoutesById {
   '/canais/$id/editar': typeof CanaisIdEditarRoute
   '/templates/editor/$id': typeof TemplatesEditorIdRoute
   '/api/public/hooks/automation-tick': typeof ApiPublicHooksAutomationTickRoute
+  '/api/public/hooks/debug-shopee-product': typeof ApiPublicHooksDebugShopeeProductRoute
   '/api/public/hooks/evolution-healthcheck': typeof ApiPublicHooksEvolutionHealthcheckRoute
   '/api/public/hooks/instagram-tick': typeof ApiPublicHooksInstagramTickRoute
   '/api/public/hooks/price-backfill': typeof ApiPublicHooksPriceBackfillRoute
@@ -413,6 +423,7 @@ export interface FileRouteTypes {
     | '/canais/$id/editar'
     | '/templates/editor/$id'
     | '/api/public/hooks/automation-tick'
+    | '/api/public/hooks/debug-shopee-product'
     | '/api/public/hooks/evolution-healthcheck'
     | '/api/public/hooks/instagram-tick'
     | '/api/public/hooks/price-backfill'
@@ -454,6 +465,7 @@ export interface FileRouteTypes {
     | '/canais/$id/editar'
     | '/templates/editor/$id'
     | '/api/public/hooks/automation-tick'
+    | '/api/public/hooks/debug-shopee-product'
     | '/api/public/hooks/evolution-healthcheck'
     | '/api/public/hooks/instagram-tick'
     | '/api/public/hooks/price-backfill'
@@ -495,6 +507,7 @@ export interface FileRouteTypes {
     | '/canais/$id/editar'
     | '/templates/editor/$id'
     | '/api/public/hooks/automation-tick'
+    | '/api/public/hooks/debug-shopee-product'
     | '/api/public/hooks/evolution-healthcheck'
     | '/api/public/hooks/instagram-tick'
     | '/api/public/hooks/price-backfill'
@@ -527,6 +540,7 @@ export interface RootRouteChildren {
   ApiPublicImgProxyRoute: typeof ApiPublicImgProxyRoute
   CanaisIdEditarRoute: typeof CanaisIdEditarRoute
   ApiPublicHooksAutomationTickRoute: typeof ApiPublicHooksAutomationTickRoute
+  ApiPublicHooksDebugShopeeProductRoute: typeof ApiPublicHooksDebugShopeeProductRoute
   ApiPublicHooksEvolutionHealthcheckRoute: typeof ApiPublicHooksEvolutionHealthcheckRoute
   ApiPublicHooksInstagramTickRoute: typeof ApiPublicHooksInstagramTickRoute
   ApiPublicHooksPriceBackfillRoute: typeof ApiPublicHooksPriceBackfillRoute
@@ -790,6 +804,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksEvolutionHealthcheckRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/debug-shopee-product': {
+      id: '/api/public/hooks/debug-shopee-product'
+      path: '/api/public/hooks/debug-shopee-product'
+      fullPath: '/api/public/hooks/debug-shopee-product'
+      preLoaderRoute: typeof ApiPublicHooksDebugShopeeProductRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/automation-tick': {
       id: '/api/public/hooks/automation-tick'
       path: '/api/public/hooks/automation-tick'
@@ -877,6 +898,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicImgProxyRoute: ApiPublicImgProxyRoute,
   CanaisIdEditarRoute: CanaisIdEditarRoute,
   ApiPublicHooksAutomationTickRoute: ApiPublicHooksAutomationTickRoute,
+  ApiPublicHooksDebugShopeeProductRoute: ApiPublicHooksDebugShopeeProductRoute,
   ApiPublicHooksEvolutionHealthcheckRoute:
     ApiPublicHooksEvolutionHealthcheckRoute,
   ApiPublicHooksInstagramTickRoute: ApiPublicHooksInstagramTickRoute,
