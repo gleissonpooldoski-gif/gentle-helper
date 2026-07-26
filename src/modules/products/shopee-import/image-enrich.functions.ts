@@ -1,19 +1,23 @@
 /**
  * Background enrichment for Shopee products (image + prices).
- * Client lists pending products, then calls the batch/one endpoints so we
- * can show live progress. In addition to the image, we now call the Shopee
- * PDP API to also enrich `promo_price`, `original_price`, `is_discount` and
- * `discount_percentage` — the CSV import only carries the current price.
  *
- * Regra de preço:
- *   original_price > promo_price → salvar original_price
- *   caso contrário               → original_price = null
+ * Lote 12F: substituído `fetchShopeePdp` (PDP público bloqueado por
+ * `error 90309999`) pelo cliente oficial `fetchProductOfferByItem` (Shopee
+ * Affiliate Open API). A política de gravação de `original_price` fica
+ * concentrada em `derivePriceUpdate`, que agora consome
+ * `deriveOriginalFromOffer` (Fonte 1: campo real da API; Fonte 2: derivado
+ * de `priceDiscountRate`). Nunca inventa desconto.
  */
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { scrapeShopeeImage, isRealProductImage } from "./image-resolver";
-import { fetchShopeePdp } from "@/modules/monitor/capture.server";
+import {
+  fetchProductOfferByItem,
+  parseShopeeIds,
+  deriveOriginalFromOffer,
+  type ShopeeProductOffer,
+} from "@/modules/shopee-affiliate/client.server";
 
 type PriceUpdate = {
   promo_price?: number;
@@ -22,30 +26,92 @@ type PriceUpdate = {
   discount_percentage: number | null;
 };
 
+type OfferInput = Pick<ShopeeProductOffer, "price" | "originalPrice" | "discountRate">;
+
+const EMPTY_OFFER: OfferInput = { price: null, originalPrice: null, discountRate: null };
+
 /**
- * Deriva os campos de preço a partir do PDP, aplicando a regra:
- *   original_price > promo_price → mantém original_price
- *   caso contrário               → original_price = null
+ * Resolve `{shopId, itemId}` a partir do raw_link (preferencial) ou do
+ * `item_id` armazenado, que ocasionalmente vem como "shopId.itemId".
+ */
+function resolveIds(
+  rawLink: string | null | undefined,
+  storedItemId: string | null | undefined,
+): { shopId: string | null; itemId: string } | null {
+  const fromLink = parseShopeeIds(rawLink ?? null);
+  if (fromLink) return fromLink;
+  if (storedItemId) {
+    const parts = String(storedItemId).split(".");
+    if (parts.length === 2 && /^\d+$/.test(parts[0]) && /^\d+$/.test(parts[1])) {
+      return { shopId: parts[0], itemId: parts[1] };
+    }
+    if (/^\d+$/.test(String(storedItemId))) {
+      return { shopId: null, itemId: String(storedItemId) };
+    }
+  }
+  return null;
+}
+
+/**
+ * Consulta oficial Shopee Affiliate a partir de raw_link + item_id.
+ * Nunca lança — devolve `EMPTY_OFFER` em qualquer falha.
+ */
+async function fetchOffer(
+  supabase: import("@supabase/supabase-js").SupabaseClient,
+  userId: string,
+  rawLink: string | null | undefined,
+  storedItemId: string | null | undefined,
+): Promise<OfferInput> {
+  const ids = resolveIds(rawLink, storedItemId);
+  if (!ids) return EMPTY_OFFER;
+  const res = await fetchProductOfferByItem(supabase, userId, {
+    itemId: ids.itemId,
+    shopId: ids.shopId,
+  }).catch(() => null);
+  if (!res || !res.ok) return EMPTY_OFFER;
+  return {
+    price: res.offer.price,
+    originalPrice: res.offer.originalPrice,
+    discountRate: res.offer.discountRate,
+  };
+}
+
+/**
+ * Deriva os campos de preço a partir da oferta oficial. Aplica a política
+ * do Lote 12F (FASE 1) e nunca grava `original_price` sem base real.
  */
 function derivePriceUpdate(
-  pdp: { price: number | null; priceBefore: number | null },
+  offer: OfferInput,
   existingPromo: number | null,
-): { update: PriceUpdate; reason: "ok_discount" | "no_discount" } | { update: null; reason: "no_promo" } {
-  const promo = pdp.price ?? existingPromo;
+): {
+  update: PriceUpdate | null;
+  reason: "ok_discount" | "no_discount" | "no_promo";
+  source: "api_real_field" | "derived_from_discount_rate" | null;
+} {
+  const promo = offer.price ?? existingPromo;
   if (promo == null || !Number.isFinite(promo) || promo <= 0) {
-    return { update: null, reason: "no_promo" };
+    return { update: null, reason: "no_promo", source: null };
   }
-  const hasDiscount =
-    pdp.priceBefore != null && Number.isFinite(pdp.priceBefore) && pdp.priceBefore > promo;
-  const original = hasDiscount ? (pdp.priceBefore as number) : null;
-  const pct = hasDiscount ? Math.round(((original! - promo) / original!) * 100) : null;
+  const { originalPrice, source } = deriveOriginalFromOffer({
+    price: promo,
+    originalPrice: offer.originalPrice,
+    discountRate: offer.discountRate,
+  });
+  const hasDiscount = originalPrice != null && originalPrice > promo;
+  const pct = hasDiscount
+    ? Math.round(((originalPrice - promo) / originalPrice) * 100)
+    : null;
   const update: PriceUpdate = {
-    original_price: original,
+    original_price: hasDiscount ? originalPrice : null,
     is_discount: hasDiscount,
     discount_percentage: pct,
   };
-  if (pdp.price != null) update.promo_price = pdp.price;
-  return { update, reason: hasDiscount ? "ok_discount" : "no_discount" };
+  if (offer.price != null) update.promo_price = offer.price;
+  return {
+    update,
+    reason: hasDiscount ? "ok_discount" : "no_discount",
+    source: hasDiscount ? source : null,
+  };
 }
 
 
