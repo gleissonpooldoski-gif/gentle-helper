@@ -545,6 +545,13 @@ function ScheduleCard({ templates }: { templates: any[] }) {
     onError: (e: any) => toast.error(e?.message ?? "Falha ao salvar"),
   });
 
+  const runNow = useMutation({
+    mutationFn: () => runNowFn(),
+    onSuccess: (r: any) =>
+      toast.success(`Story publicado! ${r?.productTitle ? `— ${r.productTitle}` : ""}`),
+    onError: (e: any) => toast.error(e?.message ?? "Falha ao publicar"),
+  });
+
   return (
     <div className="space-y-4">
       <div className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm">
