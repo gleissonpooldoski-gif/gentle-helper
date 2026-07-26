@@ -30,9 +30,11 @@ type PriceUpdate = {
 function derivePriceUpdate(
   pdp: { price: number | null; priceBefore: number | null },
   existingPromo: number | null,
-): PriceUpdate | null {
+): { update: PriceUpdate; reason: "ok_discount" | "no_discount" } | { update: null; reason: "no_promo" } {
   const promo = pdp.price ?? existingPromo;
-  if (promo == null || !Number.isFinite(promo) || promo <= 0) return null;
+  if (promo == null || !Number.isFinite(promo) || promo <= 0) {
+    return { update: null, reason: "no_promo" };
+  }
   const hasDiscount =
     pdp.priceBefore != null && Number.isFinite(pdp.priceBefore) && pdp.priceBefore > promo;
   const original = hasDiscount ? (pdp.priceBefore as number) : null;
@@ -43,8 +45,9 @@ function derivePriceUpdate(
     discount_percentage: pct,
   };
   if (pdp.price != null) update.promo_price = pdp.price;
-  return update;
+  return { update, reason: hasDiscount ? "ok_discount" : "no_discount" };
 }
+
 
 export const listPendingShopeeImages = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -99,24 +102,26 @@ export const enrichShopeeImageOne = createServerFn({ method: "POST" })
         .then((r) => r.data),
     ]);
 
-    const priceUpdate = derivePriceUpdate(
+    const priceResult = derivePriceUpdate(
       pdp,
       existing?.promo_price != null ? Number(existing.promo_price) : null,
     );
+    const priceUpdate = priceResult.update;
 
     const patch: Record<string, unknown> = {};
     if (image && isRealProductImage(image)) patch.image_url = image;
     if (priceUpdate) Object.assign(patch, priceUpdate);
 
-    if (priceUpdate) {
-      console.log("[PRODUCT_PRICE_CAPTURE]", {
-        source: "enrich-one",
-        title: existing?.title ?? null,
-        promo_price: priceUpdate.promo_price ?? existing?.promo_price ?? null,
-        original_price: priceUpdate.original_price,
-        discount_exists: priceUpdate.is_discount,
-      });
-    }
+    console.log("[PRODUCT_PRICE_CAPTURE]", {
+      source: "enrich-one",
+      product_id: data.id,
+      title: existing?.title ?? null,
+      promo_price: priceUpdate?.promo_price ?? existing?.promo_price ?? null,
+      original_price: priceUpdate?.original_price ?? null,
+      discount_exists: priceUpdate?.is_discount ?? false,
+      reason: priceResult.reason,
+    });
+
 
     if (Object.keys(patch).length === 0) {
       return { id: data.id, itemId: data.itemId ?? null, found: false as const };
@@ -196,21 +201,23 @@ export const enrichShopeeImagesBatch = createServerFn({ method: "POST" })
     const persisted = await Promise.all(
       scraped.map(async ({ item, image, pdp }) => {
         const prev = existingMap.get(item.id);
-        const priceUpdate = derivePriceUpdate(pdp, prev?.promo ?? null);
+        const priceResult = derivePriceUpdate(pdp, prev?.promo ?? null);
+        const priceUpdate = priceResult.update;
 
         const patch: Record<string, unknown> = {};
         if (image) patch.image_url = image;
         if (priceUpdate) Object.assign(patch, priceUpdate);
 
-        if (priceUpdate) {
-          console.log("[PRODUCT_PRICE_CAPTURE]", {
-            source: "enrich-batch",
-            title: prev?.title ?? null,
-            promo_price: priceUpdate.promo_price ?? prev?.promo ?? null,
-            original_price: priceUpdate.original_price,
-            discount_exists: priceUpdate.is_discount,
-          });
-        }
+        console.log("[PRODUCT_PRICE_CAPTURE]", {
+          source: "enrich-batch",
+          product_id: item.id,
+          title: prev?.title ?? null,
+          promo_price: priceUpdate?.promo_price ?? prev?.promo ?? null,
+          original_price: priceUpdate?.original_price ?? null,
+          discount_exists: priceUpdate?.is_discount ?? false,
+          reason: priceResult.reason,
+        });
+
 
         if (Object.keys(patch).length === 0) {
           return { id: item.id, itemId: item.itemId ?? null, found: false as const };
@@ -278,18 +285,21 @@ export const backfillShopeeOriginalPrice = createServerFn({ method: "POST" })
           const pdp = await fetchShopeePdp(row.raw_link as string).catch(() => ({
             title: null, image: null, price: null, priceBefore: null, sold: null, soldLabel: null,
           }));
-          const priceUpdate = derivePriceUpdate(
+          const priceResult = derivePriceUpdate(
             pdp,
             row.promo_price != null ? Number(row.promo_price) : null,
           );
-          if (!priceUpdate || !priceUpdate.is_discount) return false;
+          const priceUpdate = priceResult.update;
           console.log("[PRODUCT_PRICE_CAPTURE]", {
             source: "backfill",
+            product_id: row.id,
             title: row.title,
-            promo_price: priceUpdate.promo_price ?? row.promo_price,
-            original_price: priceUpdate.original_price,
-            discount_exists: priceUpdate.is_discount,
+            promo_price: priceUpdate?.promo_price ?? row.promo_price,
+            original_price: priceUpdate?.original_price ?? null,
+            discount_exists: priceUpdate?.is_discount ?? false,
+            reason: priceResult.reason,
           });
+          if (!priceUpdate || !priceUpdate.is_discount) return false;
           const { error: uErr } = await context.supabase
             .from("products")
             .update(priceUpdate)
@@ -297,6 +307,7 @@ export const backfillShopeeOriginalPrice = createServerFn({ method: "POST" })
             .eq("user_id", context.userId)
             .eq("channel_id", data.channelId);
           return !uErr;
+
         }),
       );
       updated += results.filter(Boolean).length;

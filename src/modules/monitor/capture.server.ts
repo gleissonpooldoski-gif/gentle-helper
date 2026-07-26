@@ -381,16 +381,39 @@ export async function fetchShopeePdp(
     const item = json?.data?.item;
     if (!item) return empty;
     const rawPrice = item.price ?? item.price_min ?? item.price_max ?? null;
-    const rawBefore =
-      item.price_before_discount ??
-      item.price_min_before_discount ??
-      item.price_max_before_discount ??
-      null;
+    // Ordem de preferência de fonte para "preço original" (documentada — Fase 2 do Lote 12C).
+    let beforeSource: "price_before_discount" | "price_min_before_discount" | "price_max_before_discount" | null = null;
+    let rawBefore: number | null = null;
+    if (item.price_before_discount != null) { rawBefore = item.price_before_discount; beforeSource = "price_before_discount"; }
+    else if (item.price_min_before_discount != null) { rawBefore = item.price_min_before_discount; beforeSource = "price_min_before_discount"; }
+    else if (item.price_max_before_discount != null) { rawBefore = item.price_max_before_discount; beforeSource = "price_max_before_discount"; }
     const price = rawPrice ? rawPrice / 100000 : null;
     let priceBefore = rawBefore && rawBefore > 0 ? rawBefore / 100000 : null;
+    let priceBeforeDiscardReason: "before_le_promo" | null = null;
     // Se o "de" for igual (ou menor) ao "por", não é desconto real — descarta.
-    if (priceBefore != null && price != null && priceBefore <= price) priceBefore = null;
+    if (priceBefore != null && price != null && priceBefore <= price) {
+      priceBefore = null;
+      priceBeforeDiscardReason = "before_le_promo";
+    }
     const image = item.images?.[0] ? `https://down-br.img.susercontent.com/file/${item.images[0]}` : null;
+
+    // [shopee-pdp:price] — observabilidade dedicada de preço (Lote 12C Fase 1).
+    console.log("[shopee-pdp:price]", {
+      title: item.title?.slice(0, 60) ?? null,
+      raw: {
+        price: item.price,
+        price_min: item.price_min,
+        price_max: item.price_max,
+        price_before_discount: item.price_before_discount,
+        price_min_before_discount: item.price_min_before_discount,
+        price_max_before_discount: item.price_max_before_discount,
+      },
+      chosen_before_field: beforeSource,
+      price,
+      priceBefore,
+      discarded: priceBeforeDiscardReason,
+    });
+
 
     // Shopee expõe a contagem de vendas em múltiplos campos, com granularidades
     // diferentes: `sold` = últimos ~30 dias (baixo), `historical_sold` /
