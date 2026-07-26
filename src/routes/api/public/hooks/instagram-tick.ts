@@ -54,14 +54,13 @@ export const Route = createFileRoute("/api/public/hooks/instagram-tick")({
             .eq("is_discount", true)
             .order("created_at", { ascending: false }).limit(1);
           if (skipIds.length) discountQ = discountQ.not("id", "in", `(${skipIds.join(",")})`);
-          let { data: prod } = await discountQ.maybeSingle();
+          let prod: { id: string } | null = (await discountQ.maybeSingle()).data;
           if (!prod) {
-            let q = supabaseAdmin.from("products").select(baseSelect)
+            let q = supabaseAdmin.from("products").select("id")
               .eq("channel_id", s.channel_id).eq("availability", "active")
               .order("created_at", { ascending: false }).limit(1);
             if (skipIds.length) q = q.not("id", "in", `(${skipIds.join(",")})`);
-            const r = await q.maybeSingle();
-            prod = r.data;
+            prod = (await q.maybeSingle()).data;
           }
           if (!prod) continue;
 
