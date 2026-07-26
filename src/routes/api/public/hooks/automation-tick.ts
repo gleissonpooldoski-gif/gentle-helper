@@ -302,8 +302,9 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
     await admin.from("automation_group_sends").delete().eq("config_id", cfg.id);
     product = await pickNext();
     if (!product) {
+      // Estoque momentaneamente vazio: transitório — aguarda novos produtos.
       await admin.from("automation_configs").update({
-        status: "error",
+        status: "waiting",
         last_error: cfg.group_id
           ? "Nenhum produto capturado deste grupo disponível para envio"
           : "Nenhum produto ativo/válido nas lojas selecionadas",
@@ -311,6 +312,7 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
       }).eq("id", cfg.id);
       return;
     }
+
   }
 
   // Localiza a instância WhatsApp que enviará os posts.
