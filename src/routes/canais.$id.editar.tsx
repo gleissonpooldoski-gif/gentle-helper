@@ -3654,7 +3654,9 @@ function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {})
   const importBatchFn = useServerFn(importShopeeBatch);
   const listPendingFn = useServerFn(listPendingShopeeImages);
   const enrichBatchFn = useServerFn(enrichShopeeImagesBatch);
+  const syncPricesFn = useServerFn(syncShopeePricesForProducts);
   const deleteByItemsFn = useServerFn(deleteProductsByItemIds);
+
   const deleteAllFn = useServerFn(deleteAllProducts);
   const listProductsFn = useServerFn(listChannelProducts);
   const listImportGroupsFn = useServerFn(listAutomationGroups);
