@@ -606,29 +606,55 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
 
 
 /**
- * Advisory lock por config: impede execução concorrente do mesmo tickOne
- * (dupla execução por retry do pg_cron ou disparo manual paralelo).
- * Retorna true se conseguiu o lock; libera automaticamente no finally.
+ * Advisory lock por destino (instance_id, group_id). Se dois workers
+ * tentarem processar o mesmo destino simultaneamente, apenas um continua
+ * e o outro é dispensado imediatamente (LOCK_SKIPPED). Fallback para
+ * lock por config_id quando instance_id/group_id são nulos (legado).
+ *
+ * Liberação garantida no bloco finally, mesmo em caso de throw, timeout,
+ * Evolution offline ou cancelamento. Advisory locks também são liberados
+ * automaticamente ao fim da sessão do Postgres.
  */
-async function withConfigLock<T>(admin: any, configId: string, fn: () => Promise<T>): Promise<T | { skipped: true }> {
-  const { data: acquired, error: lockErr } = await admin.rpc("try_lock_automation_config", {
-    _config_id: configId,
-  });
+async function withDestinationLock<T>(
+  admin: any,
+  cfg: { id: string; instance_id: string | null; group_id: string | null },
+  ctx: LogFields,
+  fn: () => Promise<T>,
+): Promise<T | { skipped: true }> {
+  const useDestination = cfg.instance_id && cfg.group_id;
+  const rpcName = useDestination ? "try_lock_automation_destination" : "try_lock_automation_config";
+  const unlockRpc = useDestination ? "unlock_automation_destination" : "unlock_automation_config";
+  const args = useDestination
+    ? { _instance_id: cfg.instance_id, _group_id: cfg.group_id }
+    : { _config_id: cfg.id };
+
+  const { data: acquired, error: lockErr } = await admin.rpc(rpcName, args);
   if (lockErr) {
-    // Se a função RPC não existir ainda, executa sem lock (fail-open p/ não travar operação).
+    // Fallback fail-open apenas se a função não existir (evita travar operação
+    // em ambiente parcialmente migrado). Qualquer outro erro é propagado.
     if (String(lockErr.message || "").includes("does not exist")) {
+      log("LOCK_MISSING_RPC", { ...ctx, rpc: rpcName });
       return fn();
     }
     throw new Error(`lock: ${lockErr.message}`);
   }
-  if (!acquired) return { skipped: true };
+  if (!acquired) {
+    log("LOCK_SKIPPED", { ...ctx, reason: "concurrent_worker" });
+    return { skipped: true };
+  }
+  log("LOCK_ACQUIRED", ctx);
   try {
     return await fn();
   } finally {
     try {
-      await admin.rpc("unlock_automation_config", { _config_id: configId });
-    } catch {
-      /* liberação best-effort; timeout do advisory lock também libera */
+      await admin.rpc(unlockRpc, args);
+      log("LOCK_RELEASED", ctx);
+    } catch (unlockErr) {
+      // Liberação best-effort; advisory lock é liberado ao fim da sessão.
+      log("LOCK_RELEASE_FAILED", {
+        ...ctx,
+        error: unlockErr instanceof Error ? unlockErr.message : String(unlockErr),
+      });
     }
   }
 }
@@ -640,6 +666,12 @@ export const Route = createFileRoute("/api/public/hooks/automation-tick")({
         const authFail = requireCronSecret(request);
         if (authFail) return authFail;
 
+        // Worker ID único por invocação para correlacionar logs.
+        const workerId = crypto.randomUUID();
+        (globalThis as { __automation_worker_id?: string }).__automation_worker_id = workerId;
+        const startedAt = Date.now();
+        log("TICK_STARTED", { worker_id: workerId });
+
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
         const { data: configs, error } = await supabaseAdmin
@@ -647,26 +679,37 @@ export const Route = createFileRoute("/api/public/hooks/automation-tick")({
           .select("*")
           .in("status", ["running", "waiting"]);
         if (error) {
+          log("TICK_ERROR", { worker_id: workerId, error: error.message });
           return Response.json({ ok: false, error: error.message }, { status: 500 });
         }
 
-        // Processa configs em paralelo com concorrência limitada, evitando
-        // que um tick com muitos grupos estoure o timeout do Worker.
         const CONCURRENCY = 5;
         const queue = [...(configs ?? [])];
-        const results: Array<{ id: string; ok: boolean; skipped?: boolean; error?: string }> = [];
+        const results: Array<{ id: string; ok: boolean; skipped?: boolean; error?: string; duration_ms?: number }> = [];
 
         async function processOne(cfg: any) {
+          const cfgStart = Date.now();
+          const ctx: LogFields = {
+            worker_id: workerId,
+            config_id: cfg.id,
+            instance_id: cfg.instance_id,
+            group_id: cfg.group_id,
+          };
           try {
-            const r = await withConfigLock(supabaseAdmin, cfg.id, () => tickOne(supabaseAdmin, cfg));
+            const r = await withDestinationLock(supabaseAdmin, cfg, ctx, () =>
+              tickOne(supabaseAdmin, cfg),
+            );
+            const duration = Date.now() - cfgStart;
             if (r && typeof r === "object" && "skipped" in r) {
-              results.push({ id: cfg.id, ok: true, skipped: true });
+              results.push({ id: cfg.id, ok: true, skipped: true, duration_ms: duration });
             } else {
-              results.push({ id: cfg.id, ok: true });
+              results.push({ id: cfg.id, ok: true, duration_ms: duration });
             }
           } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
-            results.push({ id: cfg.id, ok: false, error: msg });
+            const duration = Date.now() - cfgStart;
+            log("TICK_CONFIG_ERROR", { ...ctx, error: msg, duration_ms: duration });
+            results.push({ id: cfg.id, ok: false, error: msg, duration_ms: duration });
             await supabaseAdmin.from("automation_configs").update({
               status: "error",
               last_error: msg,
@@ -683,9 +726,15 @@ export const Route = createFileRoute("/api/public/hooks/automation-tick")({
           }
         });
         await Promise.all(workers);
-        return Response.json({ ok: true, processed: results.length, results });
+        log("TICK_COMPLETED", {
+          worker_id: workerId,
+          processed: results.length,
+          total_duration_ms: Date.now() - startedAt,
+        });
+        return Response.json({ ok: true, worker_id: workerId, processed: results.length, results });
       },
       GET: async () => Response.json({ ok: true, hint: "POST with x-cron-secret header to trigger" }),
     },
   },
 });
+
