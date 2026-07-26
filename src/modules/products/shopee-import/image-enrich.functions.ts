@@ -325,7 +325,7 @@ export const backfillShopeeOriginalPrice = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { data: rows, error } = await context.supabase
       .from("products")
-      .select("id, promo_price, raw_link, title")
+      .select("id, promo_price, raw_link, item_id, title")
       .eq("user_id", context.userId)
       .eq("channel_id", data.channelId)
       .eq("platform", "shopee")
@@ -335,26 +335,30 @@ export const backfillShopeeOriginalPrice = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
 
     const list = (rows ?? []) as Array<{
-      id: string; promo_price: number | null; raw_link: string | null; title: string | null;
+      id: string; promo_price: number | null; raw_link: string | null;
+      item_id: string | null; title: string | null;
     }>;
     if (list.length === 0) return { scanned: 0, updated: 0 };
 
-    // Processa em janelas de 8 para não bombardear a Shopee.
+    // Processa em janelas de 8 para não sobrecarregar a Affiliate Open API.
     const WINDOW = 8;
     let updated = 0;
     for (let i = 0; i < list.length; i += WINDOW) {
       const chunk = list.slice(i, i + WINDOW);
       const results = await Promise.all(
         chunk.map(async (row) => {
-          const pdp = await fetchShopeePdp(row.raw_link as string).catch(() => ({
-            title: null, image: null, price: null, priceBefore: null, sold: null, soldLabel: null,
-          }));
+          const offer = await fetchOffer(
+            context.supabase,
+            context.userId,
+            row.raw_link,
+            row.item_id,
+          );
           const priceResult = derivePriceUpdate(
-            pdp,
+            offer,
             row.promo_price != null ? Number(row.promo_price) : null,
           );
           const priceUpdate = priceResult.update;
-          console.log("[PRODUCT_PRICE_CAPTURE]", {
+          console.log("[SHOPEE_API_PRICE_SYNC]", {
             source: "backfill",
             product_id: row.id,
             title: row.title,
@@ -362,6 +366,7 @@ export const backfillShopeeOriginalPrice = createServerFn({ method: "POST" })
             original_price: priceUpdate?.original_price ?? null,
             discount_exists: priceUpdate?.is_discount ?? false,
             reason: priceResult.reason,
+            original_price_source: priceResult.source,
           });
           if (!priceUpdate || !priceUpdate.is_discount) return false;
           const { error: uErr } = await context.supabase
@@ -371,7 +376,6 @@ export const backfillShopeeOriginalPrice = createServerFn({ method: "POST" })
             .eq("user_id", context.userId)
             .eq("channel_id", data.channelId);
           return !uErr;
-
         }),
       );
       updated += results.filter(Boolean).length;
