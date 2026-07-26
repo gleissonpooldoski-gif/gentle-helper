@@ -47,7 +47,7 @@ export const Route = createFileRoute("/api/public/hooks/price-backfill")({
               try {
                 const pdp = await fetchShopeePdp(link);
                 const promo = Number(r.promo_price) || 0;
-                const original = Number(pdp?.original_price ?? 0) || 0;
+                const original = Number(pdp?.priceBefore ?? 0) || 0;
                 if (original > promo && promo > 0) {
                   const discount = Math.round(((original - promo) / original) * 100);
                   await supabaseAdmin
