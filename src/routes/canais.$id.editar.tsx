@@ -6,6 +6,8 @@ import { parseShopeeCsv, type ShopeeCsvRow } from "@/modules/products/shopee-imp
 import { importShopeeBatch } from "@/modules/products/shopee-import/shopee-import.controller.functions";
 import { deleteProductsByItemIds, deleteAllProducts } from "@/modules/products/shopee-import/product-delete.functions";
 import { listPendingShopeeImages, enrichShopeeImagesBatch } from "@/modules/products/shopee-import/image-enrich.functions";
+import { syncShopeePricesForProducts } from "@/modules/shopee-affiliate/auto-sync.functions";
+
 import { addMLProductByLink, searchMLProducts, addMLProductsByIds } from "@/modules/products/mercadolivre/controller.functions";
 import {
   getWhatsAppConnection,
@@ -3652,7 +3654,9 @@ function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {})
   const importBatchFn = useServerFn(importShopeeBatch);
   const listPendingFn = useServerFn(listPendingShopeeImages);
   const enrichBatchFn = useServerFn(enrichShopeeImagesBatch);
+  const syncPricesFn = useServerFn(syncShopeePricesForProducts);
   const deleteByItemsFn = useServerFn(deleteProductsByItemIds);
+
   const deleteAllFn = useServerFn(deleteAllProducts);
   const listProductsFn = useServerFn(listChannelProducts);
   const listImportGroupsFn = useServerFn(listAutomationGroups);
@@ -3909,11 +3913,20 @@ function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {})
           updated += outcome.updated;
           processed += chunk.length;
           setProgress({ done: processed, total: rows.length });
+          // Lote 12G: dispara auto-sync de preço em background (fire-and-forget).
+          // Não bloqueia a importação — API externa pode demorar/falhar.
+          const ids = outcome.productIds ?? [];
+          if (ids.length > 0) {
+            void syncPricesFn({ data: { productIds: ids } }).catch((err) => {
+              console.warn("[SHOPEE_PRICE_AUTO_SYNC] dispatch failed", err);
+            });
+          }
         }
       };
       await Promise.all(
         Array.from({ length: Math.min(PARALLEL, chunks.length) }, () => runner()),
       );
+
 
 
       await reloadProducts();

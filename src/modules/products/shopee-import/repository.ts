@@ -6,7 +6,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import type { ShopeeProductUpsert } from "./product.mapper";
 
-export type BatchOutcome = { inserted: number; updated: number };
+export type BatchOutcome = { inserted: number; updated: number; productIds: string[] };
 
 export async function upsertBatch(
   supabase: SupabaseClient<Database>,
@@ -14,7 +14,7 @@ export async function upsertBatch(
   channelId: string | null,
   batch: ShopeeProductUpsert[],
 ): Promise<BatchOutcome> {
-  if (batch.length === 0) return { inserted: 0, updated: 0 };
+  if (batch.length === 0) return { inserted: 0, updated: 0, productIds: [] };
 
   const itemIds = batch.map((b) => b.item_id);
   let existingQuery = supabase
@@ -34,14 +34,17 @@ export async function upsertBatch(
 
   const existingSet = new Set((existing ?? []).map((r) => r.item_id as string));
 
-  const { error: upsertErr } = await supabase
+  const { data: upserted, error: upsertErr } = await supabase
     .from("products")
-    .upsert(batch as never, { onConflict: "user_id,channel_id,source_group_jid,platform,item_id" });
+    .upsert(batch as never, { onConflict: "user_id,channel_id,source_group_jid,platform,item_id" })
+    .select("id");
 
   if (upsertErr) {
     throw new Error(`Falha ao gravar produtos: ${upsertErr.message}`);
   }
 
   const updated = batch.filter((b) => existingSet.has(b.item_id)).length;
-  return { inserted: batch.length - updated, updated };
+  const productIds = (upserted ?? []).map((r) => r.id as string);
+  return { inserted: batch.length - updated, updated, productIds };
 }
+
