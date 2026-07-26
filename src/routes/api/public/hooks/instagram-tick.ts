@@ -31,10 +31,10 @@ export const Route = createFileRoute("/api/public/hooks/instagram-tick")({
           const hourOk = (s.hours ?? []).includes(hour);
           let shouldPublish = s.active && dayOk && hourOk;
           if (shouldPublish && s.last_run_at) {
-            const last = new Date(s.last_run_at);
-            if (last.getUTCFullYear() === now.getUTCFullYear() &&
-                last.getUTCMonth() === now.getUTCMonth() &&
-                last.getUTCDate() === now.getUTCDate() &&
+            const last = new Date(new Date(s.last_run_at).getTime() - 3 * 60 * 60 * 1000);
+            if (last.getUTCFullYear() === brt.getUTCFullYear() &&
+                last.getUTCMonth() === brt.getUTCMonth() &&
+                last.getUTCDate() === brt.getUTCDate() &&
                 last.getUTCHours() === hour) shouldPublish = false;
           }
           console.log("[STORY_SCHEDULE_CHECK]", {
