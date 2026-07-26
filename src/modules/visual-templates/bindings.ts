@@ -1,5 +1,6 @@
 // Placeholder + real value resolution for smart elements.
 import { formatSalesLabel } from "@/modules/products/sales-label";
+import { resolveProductDisplay } from "@/modules/products/display-resolver";
 
 export function formatBRL(v: number | string | null | undefined) {
   const n = typeof v === "string" ? Number(v) : v;
@@ -33,6 +34,9 @@ export interface ProductLite {
   sales_historical?: number | null;
   sales_source?: string | null;
   store_name: string | null;
+  // LOTE 17A: exigidos para decisão de DE/POR via camada central.
+  platform?: string | null;
+  price_quality?: string | null;
 }
 
 export interface ResolvedProduct {
@@ -47,14 +51,21 @@ export interface ResolvedProduct {
 }
 
 export function resolveProduct(p?: ProductLite | null): ResolvedProduct {
-  const price = formatBRL(p?.promo_price ?? p?.original_price ?? 0);
-  const hasOriginal =
-    !!p?.original_price && !!p?.promo_price && Number(p.original_price) > Number(p.promo_price);
-  const original = hasOriginal ? formatBRL(p!.original_price) : "";
-  const disc =
-    hasOriginal && p?.original_price && p?.promo_price
-      ? Math.round((1 - Number(p.promo_price) / Number(p.original_price)) * 100)
-      : 0;
+  // LOTE 17A: DE/POR decidido EXCLUSIVAMENTE por resolveProductDisplay().
+  // Nunca comparar original_price > promo_price aqui.
+  const d = resolveProductDisplay({
+    title: p?.title ?? null,
+    platform: p?.platform ?? null,
+    promo_price: p?.promo_price ?? null,
+    original_price: p?.original_price ?? null,
+    sales_historical: p?.sales_historical ?? null,
+    sales_source: p?.sales_source ?? null,
+    price_quality: p?.price_quality ?? null,
+  });
+  const price = formatBRL(d.priceCurrentDisplay ?? p?.original_price ?? 0);
+  const hasOriginal = d.priceOriginalDisplay != null;
+  const original = hasOriginal ? formatBRL(d.priceOriginalDisplay) : "";
+  const disc = d.discountPct ?? 0;
   return {
     title: p?.title?.trim() || "Título do produto",
     image_url: p?.image_url || "",
@@ -66,6 +77,7 @@ export function resolveProduct(p?: ProductLite | null): ResolvedProduct {
     hasOriginal,
   };
 }
+
 
 // Sample used when no product is selected inside the editor.
 export const SAMPLE: ResolvedProduct = {
