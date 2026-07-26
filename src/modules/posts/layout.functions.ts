@@ -329,13 +329,14 @@ export const sendLayoutTestMessage = createServerFn({ method: "POST" })
     });
     const chosenHeader = await resolveHeader(supabase, userId, layout, [], { hasDiscount });
     const { renderPost } = await import("./render");
-    const { formatSalesLabel } = await import("@/modules/products/sales-label");
-    const vendasFinal = formatSalesLabel(prod.sales == null ? null : Number(prod.sales));
+    const { resolveProductDisplay } = await import("@/modules/products/display-resolver");
+    const display = resolveProductDisplay(prod as never);
+    const vendasFinal = display.salesLabel || null;
     const caption = renderPost({ ...layout, header: chosenHeader }, {
       title: prod.title,
       description: null,
-      price: prod.promo_price,
-      price_original: prod.original_price,
+      price: display.priceCurrentDisplay ?? prod.promo_price,
+      price_original: display.priceOriginalDisplay,
       parcelamento: null,
       vendas: vendasFinal,
       link: prod.affiliate_link,
