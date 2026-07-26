@@ -1,5 +1,58 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { requireCronSecret } from "@/lib/public-auth.server";
+import { isBreakerOpen, recordFailure, recordSuccess } from "@/lib/circuit-breaker.server";
+
+/**
+ * Log estruturado para rastreamento do worker.
+ * Emite JSON single-line para facilitar grep e agregação.
+ */
+type LogFields = Record<string, unknown>;
+function log(event: string, fields: LogFields = {}) {
+  try {
+    console.log(
+      `[AUTOMATION_WORKER] ${JSON.stringify({ event, ts: new Date().toISOString(), ...fields })}`,
+    );
+  } catch {
+    /* ignore serialization errors */
+  }
+}
+
+/**
+ * Classifica erro da Evolution API.
+ * - `permanent`: nunca retentar (401/403/404/400, grupo inexistente, instância inexistente).
+ * - `transient`: retentar com backoff (5xx, timeout, connection reset, tunnel, gateway).
+ */
+type ErrorClass = "permanent" | "transient";
+function classifyError(err: unknown): ErrorClass {
+  const msg = err instanceof Error ? err.message : String(err ?? "");
+  const lower = msg.toLowerCase();
+  if (
+    /\b(400|401|403|404)\b/.test(msg) ||
+    lower.includes("group not found") ||
+    lower.includes("grupo não encontrado") ||
+    lower.includes("grupo removido") ||
+    lower.includes("instance not found") ||
+    lower.includes("instância não encontrada") ||
+    lower.includes("token inválido") ||
+    lower.includes("invalid token")
+  ) {
+    return "permanent";
+  }
+  if (
+    /\b(408|429|5\d\d)\b/.test(msg) ||
+    lower.includes("timeout") ||
+    lower.includes("timed out") ||
+    lower.includes("econnreset") ||
+    lower.includes("connection reset") ||
+    lower.includes("tunnel") ||
+    lower.includes("gateway") ||
+    lower.includes("temporariamente indisponível")
+  ) {
+    return "transient";
+  }
+  return "transient";
+}
+
 
 /**
  * Worker de automação. Chamado por pg_cron a cada minuto.
@@ -67,12 +120,21 @@ async function connectionState(instance: string): Promise<string> {
   return String(j?.instance?.state ?? j?.state ?? "").toLowerCase();
 }
 
-async function sendMedia(instance: string, jid: string, mediaUrl: string, caption: string) {
-  // 1 retry curto em falhas transitórias (rede/5xx).
+async function sendMedia(
+  instance: string,
+  jid: string,
+  mediaUrl: string,
+  caption: string,
+  ctx: LogFields,
+): Promise<{ attempts: number; durationMs: number }> {
+  // Backoff exponencial: 1s → 3s → 8s. Total até 3 tentativas.
+  const BACKOFF_MS = [1000, 3000, 8000];
+  const started = Date.now();
   let lastErr: unknown = null;
-  for (let attempt = 0; attempt < 2; attempt++) {
+
+  for (let attempt = 1; attempt <= BACKOFF_MS.length; attempt++) {
     try {
-      return await evolutionFetch(`/message/sendMedia/${encodeURIComponent(instance)}`, {
+      await evolutionFetch(`/message/sendMedia/${encodeURIComponent(instance)}`, {
         method: "POST",
         body: JSON.stringify({
           number: jid,
@@ -81,16 +143,27 @@ async function sendMedia(instance: string, jid: string, mediaUrl: string, captio
           caption,
         }),
       });
+      return { attempts: attempt, durationMs: Date.now() - started };
     } catch (e) {
       lastErr = e;
+      const cls = classifyError(e);
       const msg = e instanceof Error ? e.message : String(e);
-      // Não retenta em erros permanentes (4xx exceto 408/429).
-      if (/\b4\d\d\b/.test(msg) && !/408|429/.test(msg)) break;
-      await new Promise((r) => setTimeout(r, 1200));
+      if (cls === "permanent") {
+        log("RETRY_ABORTED", { ...ctx, attempt, reason: "permanent_error", error: msg });
+        throw e;
+      }
+      if (attempt >= BACKOFF_MS.length) {
+        log("RETRY_ABORTED", { ...ctx, attempt, reason: "max_attempts", error: msg });
+        break;
+      }
+      const wait = BACKOFF_MS[attempt - 1];
+      log("RETRY", { ...ctx, attempt, next_wait_ms: wait, error: msg });
+      await new Promise((r) => setTimeout(r, wait));
     }
   }
   throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
 }
+
 
 async function tickOne(admin: any, cfg: any): Promise<void> {
   const { hour, minute } = nowInTz();
@@ -434,33 +507,66 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
       });
       continue;
     }
+    const sendCtx: LogFields = {
+      config_id: cfg.id,
+      instance_id: cfg.instance_id ?? inst?.id ?? null,
+      instance_name: instanceName,
+      group_id: g.group_jid,
+      product_id: product.id,
+      worker_id: (globalThis as { __automation_worker_id?: string }).__automation_worker_id ?? null,
+    };
     let ok = true;
     let err: string | null = null;
-    try {
-      if (!productDetail.image) throw new Error("Produto sem imagem");
-      console.log("[WHATSAPP_FINAL_CAPTION]", { source: "automation", instance: instanceName, jid: g.group_jid, caption });
-      await sendMedia(instanceName, g.group_jid, productDetail.image, caption);
+    let errorClass: ErrorClass | null = null;
+    let sendMetrics: { attempts: number; durationMs: number } | null = null;
 
-      await new Promise((r) => setTimeout(r, 800));
-      anySent = true;
-    } catch (e) {
+    // Circuit breaker: consulta antes do envio.
+    const breakerInstanceId = inst?.id ?? cfg.instance_id ?? null;
+    if (breakerInstanceId && (await isBreakerOpen(breakerInstanceId))) {
+      log("CIRCUIT_OPEN", { ...sendCtx });
       ok = false;
-      err = e instanceof Error ? e.message : String(e);
-      // Dead-Letter Queue: registra falha para reprocessamento manual.
+      err = "Circuit breaker aberto (instância com falhas consecutivas)";
+      errorClass = "transient";
+    } else {
       try {
-        await admin.from("automation_failures").insert({
-          user_id: cfg.user_id,
-          config_id: cfg.id,
-          product_id: product.id,
-          group_id: g.group_jid,
-          instance_id: cfg.instance_id ?? null,
-          error_message: (err ?? "erro desconhecido").slice(0, 500),
-          error_code: "send_failed",
-          attempt_count: 1,
-          next_retry_at: new Date(Date.now() + 5 * 60_000).toISOString(),
-        });
-      } catch { /* ignora falha ao gravar DLQ */ }
+        if (!productDetail.image) throw new Error("Produto sem imagem");
+        log("SEND_STARTED", sendCtx);
+        console.log("[WHATSAPP_FINAL_CAPTION]", { source: "automation", instance: instanceName, jid: g.group_jid, caption });
+        sendMetrics = await sendMedia(instanceName, g.group_jid, productDetail.image, caption, sendCtx);
+        log("SEND_SUCCESS", { ...sendCtx, attempts: sendMetrics.attempts, duration_ms: sendMetrics.durationMs });
+
+        if (breakerInstanceId) await recordSuccess(breakerInstanceId).catch(() => undefined);
+        await new Promise((r) => setTimeout(r, 800));
+        anySent = true;
+      } catch (e) {
+        ok = false;
+        err = e instanceof Error ? e.message : String(e);
+        errorClass = classifyError(e);
+        log("SEND_FAILED", { ...sendCtx, error_class: errorClass, error: err });
+
+        if (breakerInstanceId && errorClass === "transient") {
+          await recordFailure(breakerInstanceId, cfg.user_id, e).catch(() => undefined);
+        }
+
+        // Dead-Letter Queue: registra falha para reprocessamento manual.
+        try {
+          await admin.from("automation_failures").insert({
+            user_id: cfg.user_id,
+            config_id: cfg.id,
+            product_id: product.id,
+            group_id: g.group_jid,
+            instance_id: cfg.instance_id ?? null,
+            error_message: (err ?? "erro desconhecido").slice(0, 500),
+            error_code: errorClass === "permanent" ? "permanent_error" : "send_failed",
+            attempt_count: sendMetrics?.attempts ?? 1,
+            next_retry_at: errorClass === "permanent"
+              ? null
+              : new Date(Date.now() + 5 * 60_000).toISOString(),
+          });
+        } catch { /* ignora falha ao gravar DLQ */ }
+      }
     }
+
     await admin.from("whatsapp_campaign_history").insert({
       user_id: cfg.user_id,
       config_id: cfg.id,
@@ -500,29 +606,55 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
 
 
 /**
- * Advisory lock por config: impede execução concorrente do mesmo tickOne
- * (dupla execução por retry do pg_cron ou disparo manual paralelo).
- * Retorna true se conseguiu o lock; libera automaticamente no finally.
+ * Advisory lock por destino (instance_id, group_id). Se dois workers
+ * tentarem processar o mesmo destino simultaneamente, apenas um continua
+ * e o outro é dispensado imediatamente (LOCK_SKIPPED). Fallback para
+ * lock por config_id quando instance_id/group_id são nulos (legado).
+ *
+ * Liberação garantida no bloco finally, mesmo em caso de throw, timeout,
+ * Evolution offline ou cancelamento. Advisory locks também são liberados
+ * automaticamente ao fim da sessão do Postgres.
  */
-async function withConfigLock<T>(admin: any, configId: string, fn: () => Promise<T>): Promise<T | { skipped: true }> {
-  const { data: acquired, error: lockErr } = await admin.rpc("try_lock_automation_config", {
-    _config_id: configId,
-  });
+async function withDestinationLock<T>(
+  admin: any,
+  cfg: { id: string; instance_id: string | null; group_id: string | null },
+  ctx: LogFields,
+  fn: () => Promise<T>,
+): Promise<T | { skipped: true }> {
+  const useDestination = cfg.instance_id && cfg.group_id;
+  const rpcName = useDestination ? "try_lock_automation_destination" : "try_lock_automation_config";
+  const unlockRpc = useDestination ? "unlock_automation_destination" : "unlock_automation_config";
+  const args = useDestination
+    ? { _instance_id: cfg.instance_id, _group_id: cfg.group_id }
+    : { _config_id: cfg.id };
+
+  const { data: acquired, error: lockErr } = await admin.rpc(rpcName, args);
   if (lockErr) {
-    // Se a função RPC não existir ainda, executa sem lock (fail-open p/ não travar operação).
+    // Fallback fail-open apenas se a função não existir (evita travar operação
+    // em ambiente parcialmente migrado). Qualquer outro erro é propagado.
     if (String(lockErr.message || "").includes("does not exist")) {
+      log("LOCK_MISSING_RPC", { ...ctx, rpc: rpcName });
       return fn();
     }
     throw new Error(`lock: ${lockErr.message}`);
   }
-  if (!acquired) return { skipped: true };
+  if (!acquired) {
+    log("LOCK_SKIPPED", { ...ctx, reason: "concurrent_worker" });
+    return { skipped: true };
+  }
+  log("LOCK_ACQUIRED", ctx);
   try {
     return await fn();
   } finally {
     try {
-      await admin.rpc("unlock_automation_config", { _config_id: configId });
-    } catch {
-      /* liberação best-effort; timeout do advisory lock também libera */
+      await admin.rpc(unlockRpc, args);
+      log("LOCK_RELEASED", ctx);
+    } catch (unlockErr) {
+      // Liberação best-effort; advisory lock é liberado ao fim da sessão.
+      log("LOCK_RELEASE_FAILED", {
+        ...ctx,
+        error: unlockErr instanceof Error ? unlockErr.message : String(unlockErr),
+      });
     }
   }
 }
@@ -534,6 +666,12 @@ export const Route = createFileRoute("/api/public/hooks/automation-tick")({
         const authFail = requireCronSecret(request);
         if (authFail) return authFail;
 
+        // Worker ID único por invocação para correlacionar logs.
+        const workerId = crypto.randomUUID();
+        (globalThis as { __automation_worker_id?: string }).__automation_worker_id = workerId;
+        const startedAt = Date.now();
+        log("TICK_STARTED", { worker_id: workerId });
+
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
         const { data: configs, error } = await supabaseAdmin
@@ -541,26 +679,37 @@ export const Route = createFileRoute("/api/public/hooks/automation-tick")({
           .select("*")
           .in("status", ["running", "waiting"]);
         if (error) {
+          log("TICK_ERROR", { worker_id: workerId, error: error.message });
           return Response.json({ ok: false, error: error.message }, { status: 500 });
         }
 
-        // Processa configs em paralelo com concorrência limitada, evitando
-        // que um tick com muitos grupos estoure o timeout do Worker.
         const CONCURRENCY = 5;
         const queue = [...(configs ?? [])];
-        const results: Array<{ id: string; ok: boolean; skipped?: boolean; error?: string }> = [];
+        const results: Array<{ id: string; ok: boolean; skipped?: boolean; error?: string; duration_ms?: number }> = [];
 
         async function processOne(cfg: any) {
+          const cfgStart = Date.now();
+          const ctx: LogFields = {
+            worker_id: workerId,
+            config_id: cfg.id,
+            instance_id: cfg.instance_id,
+            group_id: cfg.group_id,
+          };
           try {
-            const r = await withConfigLock(supabaseAdmin, cfg.id, () => tickOne(supabaseAdmin, cfg));
+            const r = await withDestinationLock(supabaseAdmin, cfg, ctx, () =>
+              tickOne(supabaseAdmin, cfg),
+            );
+            const duration = Date.now() - cfgStart;
             if (r && typeof r === "object" && "skipped" in r) {
-              results.push({ id: cfg.id, ok: true, skipped: true });
+              results.push({ id: cfg.id, ok: true, skipped: true, duration_ms: duration });
             } else {
-              results.push({ id: cfg.id, ok: true });
+              results.push({ id: cfg.id, ok: true, duration_ms: duration });
             }
           } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
-            results.push({ id: cfg.id, ok: false, error: msg });
+            const duration = Date.now() - cfgStart;
+            log("TICK_CONFIG_ERROR", { ...ctx, error: msg, duration_ms: duration });
+            results.push({ id: cfg.id, ok: false, error: msg, duration_ms: duration });
             await supabaseAdmin.from("automation_configs").update({
               status: "error",
               last_error: msg,
@@ -577,9 +726,15 @@ export const Route = createFileRoute("/api/public/hooks/automation-tick")({
           }
         });
         await Promise.all(workers);
-        return Response.json({ ok: true, processed: results.length, results });
+        log("TICK_COMPLETED", {
+          worker_id: workerId,
+          processed: results.length,
+          total_duration_ms: Date.now() - startedAt,
+        });
+        return Response.json({ ok: true, worker_id: workerId, processed: results.length, results });
       },
       GET: async () => Response.json({ ok: true, hint: "POST with x-cron-secret header to trigger" }),
     },
   },
 });
+
