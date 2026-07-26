@@ -65,7 +65,7 @@ export const previewVisualTemplateForProduct = createServerFn({ method: "POST" }
       };
     }
 
-    const elements = Array.isArray(tpl.elements) ? (tpl.elements as VTElement[]) : [];
+    const elements = Array.isArray(tpl.elements) ? (tpl.elements as unknown as VTElement[]) : [];
     const result = await renderVisualTemplatePng({
       userId: context.userId,
       template: { elements, format: tpl.format as VTFormat },
@@ -154,7 +154,7 @@ export const previewActiveVisualTemplateForProduct = createServerFn({ method: "P
     }
 
     const elements = Array.isArray(resolved.template.elements)
-      ? (resolved.template.elements as VTElement[])
+      ? (resolved.template.elements as unknown as VTElement[])
       : [];
     const result = await renderVisualTemplatePng({
       userId: context.userId,
