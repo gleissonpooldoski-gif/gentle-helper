@@ -254,7 +254,12 @@ export async function fetchProductOfferByItem(
     originalPrice: null,
     discountRate,
     commissionRate,
-    productLink: node.productLink ? String(node.productLink) : null,
+    sales: (() => {
+      const s = node.sales;
+      if (s == null) return null;
+      const n = typeof s === "number" ? s : Number(String(s).replace(/[^\d]/g, ""));
+      return Number.isFinite(n) && n >= 0 ? Math.floor(n) : null;
+    })(),
     offerLink: node.offerLink ? String(node.offerLink) : null,
     imageUrl: node.imageUrl ? String(node.imageUrl) : null,
     raw: node,
