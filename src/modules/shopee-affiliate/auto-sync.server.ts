@@ -30,7 +30,8 @@ export type AutoSyncStatus =
   | "already_fresh"
   | "not_found"
   | "api_error"
-  | "product_not_found";
+  | "product_not_found"
+  | "blocked_conflict";
 
 export type AutoSyncResult = {
   productId: string;
