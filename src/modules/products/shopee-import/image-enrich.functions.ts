@@ -102,24 +102,26 @@ export const enrichShopeeImageOne = createServerFn({ method: "POST" })
         .then((r) => r.data),
     ]);
 
-    const priceUpdate = derivePriceUpdate(
+    const priceResult = derivePriceUpdate(
       pdp,
       existing?.promo_price != null ? Number(existing.promo_price) : null,
     );
+    const priceUpdate = priceResult.update;
 
     const patch: Record<string, unknown> = {};
     if (image && isRealProductImage(image)) patch.image_url = image;
     if (priceUpdate) Object.assign(patch, priceUpdate);
 
-    if (priceUpdate) {
-      console.log("[PRODUCT_PRICE_CAPTURE]", {
-        source: "enrich-one",
-        title: existing?.title ?? null,
-        promo_price: priceUpdate.promo_price ?? existing?.promo_price ?? null,
-        original_price: priceUpdate.original_price,
-        discount_exists: priceUpdate.is_discount,
-      });
-    }
+    console.log("[PRODUCT_PRICE_CAPTURE]", {
+      source: "enrich-one",
+      product_id: data.id,
+      title: existing?.title ?? null,
+      promo_price: priceUpdate?.promo_price ?? existing?.promo_price ?? null,
+      original_price: priceUpdate?.original_price ?? null,
+      discount_exists: priceUpdate?.is_discount ?? false,
+      reason: priceResult.reason,
+    });
+
 
     if (Object.keys(patch).length === 0) {
       return { id: data.id, itemId: data.itemId ?? null, found: false as const };
