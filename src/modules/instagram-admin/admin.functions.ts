@@ -38,9 +38,37 @@ export const saveInstagramAdminSettings = createServerFn({ method: "POST" })
   .inputValidator((d: z.infer<typeof settingsInput>) => settingsInput.parse(d))
   .handler(async ({ data }) => {
     const { saveSettings } = await import("./settings.server");
+    const { subscribeWebhooks } = await import("./graph.server");
     await saveSettings(data);
-    return { ok: true };
+    let subscription: Awaited<ReturnType<typeof subscribeWebhooks>> | null = null;
+    let subscriptionError: string | null = null;
+    try {
+      subscription = await subscribeWebhooks({
+        igId: data.instagramBusinessId,
+        pageId: data.facebookPageId,
+        token: data.accessToken,
+      });
+    } catch (e: any) {
+      subscriptionError = String(e?.message ?? e);
+    }
+    return { ok: true, subscription, subscriptionError };
   });
+
+export const subscribeInstagramWebhooks = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async () => {
+    const { loadSettings } = await import("./settings.server");
+    const { subscribeWebhooks } = await import("./graph.server");
+    const s = await loadSettings();
+    if (!s) throw new Error("Configure a conta Instagram primeiro.");
+    const result = await subscribeWebhooks({
+      igId: s.instagramBusinessId,
+      pageId: s.facebookPageId,
+      token: s.accessToken,
+    });
+    return { ok: true, result };
+  });
+
 
 export const testInstagramAdminConnection = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -106,10 +134,18 @@ export const runAdminStoryScheduleNow = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { loadSettings } = await import("./settings.server");
-    const { publishStory } = await import("./graph.server");
+    const { publishStory, subscribeWebhooks } = await import("./graph.server");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const settings = await loadSettings();
     if (!settings) throw new Error("Configure a conta Instagram primeiro.");
+    // Best-effort: guarantee webhook subscription is active so comment/DM
+    // automations trigger even if the user never re-saved settings.
+    subscribeWebhooks({
+      igId: settings.instagramBusinessId,
+      pageId: settings.facebookPageId,
+      token: settings.accessToken,
+    }).catch(() => {});
+
 
     const { data: schedule } = await supabaseAdmin
       .from("instagram_admin_schedule" as any)
