@@ -47,12 +47,19 @@ export function AppSidebar({
 }) {
   const [open, setOpen] = useState(false);
   const pathname = useRouterState({ select: (r) => r.location.pathname });
+  const health = useSystemHealth();
 
   const resolvedActive =
     activeId ??
     (pathname.startsWith("/instagram") ? "instagram" : undefined) ??
     [...MAIN, ...CONFIG].find((i) => i.href && i.href === pathname)?.id ??
     "";
+
+  const badgeFor = (id: string): number | null => {
+    if (id === "falhas" && health.failures > 0) return health.failures;
+    if (id === "canais" && health.downCount > 0) return health.downCount;
+    return null;
+  };
 
 
   return (
