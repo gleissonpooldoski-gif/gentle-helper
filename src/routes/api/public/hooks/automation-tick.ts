@@ -446,6 +446,20 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
     } catch (e) {
       ok = false;
       err = e instanceof Error ? e.message : String(e);
+      // Dead-Letter Queue: registra falha para reprocessamento manual.
+      try {
+        await admin.from("automation_failures").insert({
+          user_id: cfg.user_id,
+          config_id: cfg.id,
+          product_id: product.id,
+          group_id: g.group_jid,
+          instance_id: cfg.instance_id ?? null,
+          error_message: (err ?? "erro desconhecido").slice(0, 500),
+          error_code: "send_failed",
+          attempt_count: 1,
+          next_retry_at: new Date(Date.now() + 5 * 60_000).toISOString(),
+        });
+      } catch { /* ignora falha ao gravar DLQ */ }
     }
     await admin.from("whatsapp_campaign_history").insert({
       user_id: cfg.user_id,
