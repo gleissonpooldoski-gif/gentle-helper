@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { resolveProductDisplay } from "@/modules/products/display-resolver";
 
-describe("resolveProductDisplay — vendas", () => {
-  it("prioriza sales_historical e não adiciona 'recentemente'", () => {
+describe("resolveProductDisplay — vendas (LOTE 16: só sales_historical)", () => {
+  it("usa sales_historical e exibe 'X vendidos'", () => {
     const r = resolveProductDisplay({
       platform: "shopee",
       sales_historical: 50000,
@@ -13,25 +13,27 @@ describe("resolveProductDisplay — vendas", () => {
     expect(r.salesLabel).toBe("50 mil vendidos");
   });
 
-  it("cai para sales_recent com sufixo 'recentemente'", () => {
+  it("ignora sales_recent — não gera prova social", () => {
     const r = resolveProductDisplay({
       platform: "shopee",
       sales_recent: 5000,
       sales: 5000,
     });
-    expect(r.salesSource).toBe("recent");
-    expect(r.salesLabel).toBe("5 mil vendidos recentemente");
+    expect(r.salesSource).toBeNull();
+    expect(r.salesLabel).toBe("");
+    expect(r.salesValue).toBeNull();
   });
 
-  it("fallback legado da Shopee marca como recente", () => {
+  it("ignora sales legacy da Shopee", () => {
     const r = resolveProductDisplay({ platform: "shopee", sales: 500 });
-    expect(r.salesSource).toBe("legacy");
-    expect(r.salesLabel).toBe("500 vendidos recentemente");
+    expect(r.salesSource).toBeNull();
+    expect(r.salesLabel).toBe("");
   });
 
-  it("legado de outra plataforma não vira 'recentemente'", () => {
+  it("ignora sales legacy de outras plataformas", () => {
     const r = resolveProductDisplay({ platform: "amazon", sales: 500 });
-    expect(r.salesLabel).toBe("500 vendidos");
+    expect(r.salesLabel).toBe("");
+    expect(r.salesSource).toBeNull();
   });
 
   it("sem vendas retorna label vazio", () => {
@@ -40,9 +42,10 @@ describe("resolveProductDisplay — vendas", () => {
     expect(r.salesValue).toBeNull();
   });
 
-  it("nunca multiplica ou arredonda artificialmente", () => {
+  it("historical baixo é exibido cru, sem sufixo 'recentemente'", () => {
     const r = resolveProductDisplay({ platform: "shopee", sales_historical: 500 });
     expect(r.salesLabel).toBe("500 vendidos");
+    expect(r.salesIsRecentOnly).toBe(false);
   });
 });
 
