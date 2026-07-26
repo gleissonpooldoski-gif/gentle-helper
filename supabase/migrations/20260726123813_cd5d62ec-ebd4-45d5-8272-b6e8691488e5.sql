@@ -1,0 +1,13 @@
+DROP FUNCTION IF EXISTS public.tg_automation_configs_updated_at();
+DROP FUNCTION IF EXISTS public.tg_ig_updated_at();
+DROP FUNCTION IF EXISTS public.tg_instabot_automations_updated_at();
+DROP FUNCTION IF EXISTS public.tg_instagram_admin_updated_at();
+DROP FUNCTION IF EXISTS public.tg_manual_posts_updated_at();
+DROP FUNCTION IF EXISTS public.tg_shopee_conversions_updated_at();
+DROP FUNCTION IF EXISTS public.tg_site_configs_updated_at();
+DROP FUNCTION IF EXISTS public.tg_visual_templates_updated_at();
+DROP FUNCTION IF EXISTS public.update_affiliate_connections_updated_at();
+DROP FUNCTION IF EXISTS public.update_channels_updated_at();
+DROP FUNCTION IF EXISTS public.update_ml_integrations_updated_at();
+DROP FUNCTION IF EXISTS public.update_whatsapp_instances_updated_at();
+DROP FUNCTION IF EXISTS public.update_whatsapp_sessions_updated_at();
