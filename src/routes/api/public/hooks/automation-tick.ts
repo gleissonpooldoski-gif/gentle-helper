@@ -18,12 +18,17 @@ function log(event: string, fields: LogFields = {}) {
 }
 
 /**
- * Classifica erro da Evolution API.
- * - `permanent`: nunca retentar (401/403/404/400, grupo inexistente, instância inexistente).
- * - `transient`: retentar com backoff (5xx, timeout, connection reset, tunnel, gateway).
+ * Classificador centralizado de erros do worker de automação.
+ * - `permanent`: config inválida — nunca retentar sozinho (401/403/404/400,
+ *   grupo/instância inexistente, token inválido).
+ * - `transient`: indisponibilidade temporária — auto-recupera (5xx, 429, 408,
+ *   timeout, ECONNRESET/ETIMEDOUT/ENOTFOUND, "fetch failed", tunnel, gateway,
+ *   circuit breaker aberto).
+ *
+ * Único ponto de verdade — não replicar regex em outros lugares do worker.
  */
 type ErrorClass = "permanent" | "transient";
-function classifyError(err: unknown): ErrorClass {
+function classifyAutomationError(err: unknown): ErrorClass {
   const msg = err instanceof Error ? err.message : String(err ?? "");
   const lower = msg.toLowerCase();
   if (
@@ -42,16 +47,27 @@ function classifyError(err: unknown): ErrorClass {
     /\b(408|429|5\d\d)\b/.test(msg) ||
     lower.includes("timeout") ||
     lower.includes("timed out") ||
+    lower.includes("etimedout") ||
     lower.includes("econnreset") ||
     lower.includes("connection reset") ||
+    lower.includes("enotfound") ||
+    lower.includes("fetch failed") ||
+    lower.includes("network error") ||
     lower.includes("tunnel") ||
     lower.includes("gateway") ||
-    lower.includes("temporariamente indisponível")
+    lower.includes("circuit breaker") ||
+    lower.includes("temporariamente indisponível") ||
+    lower.includes("temporariamente indisponivel")
   ) {
     return "transient";
   }
+  // Default seguro: tratar desconhecido como transitório para não travar
+  // config em `error` por erro de rede não-catalogado.
   return "transient";
 }
+// Alias retrocompatível — todo o worker deve preferir classifyAutomationError.
+const classifyError = classifyAutomationError;
+
 
 
 /**
@@ -286,8 +302,9 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
     await admin.from("automation_group_sends").delete().eq("config_id", cfg.id);
     product = await pickNext();
     if (!product) {
+      // Estoque momentaneamente vazio: transitório — aguarda novos produtos.
       await admin.from("automation_configs").update({
-        status: "error",
+        status: "waiting",
         last_error: cfg.group_id
           ? "Nenhum produto capturado deste grupo disponível para envio"
           : "Nenhum produto ativo/válido nas lojas selecionadas",
@@ -295,6 +312,7 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
       }).eq("id", cfg.id);
       return;
     }
+
   }
 
   // Localiza a instância WhatsApp que enviará os posts.
@@ -382,17 +400,18 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
     state = await connectionState(instanceName);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    const transient = /temporariamente indisponível|Tunnel|indisponível|502|503|504|timeout/i.test(message);
-    // Erros transitórios da Evolution (upstream 5xx / túnel) apenas adiam a
-    // próxima execução — não marcam o config como "error" na UI para não
-    // parecer que o WhatsApp caiu.
+    const cls = classifyAutomationError(err);
+    // Transitórios (Evolution 5xx, timeout, ECONNRESET, tunnel, etc.) marcam
+    // a config como `waiting` e adiam a próxima execução — auto-recupera.
+    // Permanentes (401/403/404, instância/grupo inexistente) marcam `error`.
     await admin.from("automation_configs").update({
-      status: transient ? cfg.status : "error",
-      last_error: transient ? null : message,
+      status: cls === "transient" ? "waiting" : "error",
+      last_error: message,
       next_run_at: new Date(Date.now() + Math.max(1, Math.min(cfg.intervalo_min, 2)) * 60_000).toISOString(),
     }).eq("id", cfg.id);
     return;
   }
+
   if (state !== "open") {
     await admin.from("whatsapp_campaign_history").insert({
       user_id: cfg.user_id,
@@ -405,13 +424,15 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
       status: "failed",
       error_message: `WhatsApp desconectado (state=${state || "unknown"})`,
     });
+    // WhatsApp offline é transitório: aguarda reconexão.
     await admin.from("automation_configs").update({
-      status: "error",
+      status: "waiting",
       last_error: "WhatsApp desconectado",
       next_run_at: new Date(Date.now() + cfg.intervalo_min * 60_000).toISOString(),
     }).eq("id", cfg.id);
     return;
   }
+
 
   // Renderiza legenda
   const { loadLayoutFor, resolveHeader, productHasDiscount } = await import("@/modules/posts/layout.functions");
@@ -708,14 +729,17 @@ export const Route = createFileRoute("/api/public/hooks/automation-tick")({
           } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
             const duration = Date.now() - cfgStart;
-            log("TICK_CONFIG_ERROR", { ...ctx, error: msg, duration_ms: duration });
+            const cls = classifyAutomationError(err);
+            log("TICK_CONFIG_ERROR", { ...ctx, error: msg, error_class: cls, duration_ms: duration });
             results.push({ id: cfg.id, ok: false, error: msg, duration_ms: duration });
+            // Transitório → waiting (auto-recupera). Permanente → error (exige intervenção).
             await supabaseAdmin.from("automation_configs").update({
-              status: "error",
+              status: cls === "transient" ? "waiting" : "error",
               last_error: msg,
               next_run_at: new Date(Date.now() + (cfg.intervalo_min ?? 15) * 60_000).toISOString(),
             }).eq("id", cfg.id);
           }
+
         }
 
         const workers = Array.from({ length: Math.min(CONCURRENCY, queue.length) }, async () => {
