@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as fabric from "fabric";
 import { toast } from "sonner";
+import { useMutation } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { previewVisualTemplateForProduct } from "@/modules/visual-renderer/preview.functions";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Eye, Loader2 } from "lucide-react";
 import {
   loadElements,
   serializeCanvas,
@@ -77,6 +82,32 @@ export function EditorClient({
   const [productId, setProductId] = useState<string>("");
   const [selected, setSelected] = useState<fabric.Object | null>(null);
   const [dirty, setDirty] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const previewFn = useServerFn(previewVisualTemplateForProduct);
+  const previewMut = useMutation({
+    mutationFn: (vars: { templateId: string; productId: string }) =>
+      previewFn({ data: vars }),
+  });
+
+  async function handlePreview() {
+    if (!productId) {
+      toast.error("Selecione um produto para pré-visualizar");
+      return;
+    }
+    // Salva pendências antes de renderizar
+    if (dirty && fabricRef.current) {
+      const elements = serializeCanvas(fabricRef.current, format);
+      onSave({ name, elements });
+      setDirty(false);
+    }
+    setPreviewOpen(true);
+    try {
+      const res = await previewMut.mutateAsync({ templateId: template.id, productId });
+      if (!res.success) toast.error(res.error ?? "Falha ao renderizar preview");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao gerar preview");
+    }
+  }
 
   const format = template.format as VTFormat;
   const size = FORMAT_SIZE[format];
