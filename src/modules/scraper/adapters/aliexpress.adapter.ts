@@ -15,7 +15,7 @@ export class AliExpressAdapter extends BaseAdapter {
 
   async extract(_url: string, _ctx: AdapterContext): Promise<ProductPayload> {
     throw new ScrapeError(
-      "unsupported_platform",
+      "unsupported_marketplace",
       "Importação AliExpress ainda não suportada. Use Shopee ou Mercado Livre por enquanto.",
     );
   }
