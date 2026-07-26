@@ -120,12 +120,21 @@ async function connectionState(instance: string): Promise<string> {
   return String(j?.instance?.state ?? j?.state ?? "").toLowerCase();
 }
 
-async function sendMedia(instance: string, jid: string, mediaUrl: string, caption: string) {
-  // 1 retry curto em falhas transitórias (rede/5xx).
+async function sendMedia(
+  instance: string,
+  jid: string,
+  mediaUrl: string,
+  caption: string,
+  ctx: LogFields,
+): Promise<{ attempts: number; durationMs: number }> {
+  // Backoff exponencial: 1s → 3s → 8s. Total até 3 tentativas.
+  const BACKOFF_MS = [1000, 3000, 8000];
+  const started = Date.now();
   let lastErr: unknown = null;
-  for (let attempt = 0; attempt < 2; attempt++) {
+
+  for (let attempt = 1; attempt <= BACKOFF_MS.length; attempt++) {
     try {
-      return await evolutionFetch(`/message/sendMedia/${encodeURIComponent(instance)}`, {
+      await evolutionFetch(`/message/sendMedia/${encodeURIComponent(instance)}`, {
         method: "POST",
         body: JSON.stringify({
           number: jid,
@@ -134,16 +143,27 @@ async function sendMedia(instance: string, jid: string, mediaUrl: string, captio
           caption,
         }),
       });
+      return { attempts: attempt, durationMs: Date.now() - started };
     } catch (e) {
       lastErr = e;
+      const cls = classifyError(e);
       const msg = e instanceof Error ? e.message : String(e);
-      // Não retenta em erros permanentes (4xx exceto 408/429).
-      if (/\b4\d\d\b/.test(msg) && !/408|429/.test(msg)) break;
-      await new Promise((r) => setTimeout(r, 1200));
+      if (cls === "permanent") {
+        log("RETRY_ABORTED", { ...ctx, attempt, reason: "permanent_error", error: msg });
+        throw e;
+      }
+      if (attempt >= BACKOFF_MS.length) {
+        log("RETRY_ABORTED", { ...ctx, attempt, reason: "max_attempts", error: msg });
+        break;
+      }
+      const wait = BACKOFF_MS[attempt - 1];
+      log("RETRY", { ...ctx, attempt, next_wait_ms: wait, error: msg });
+      await new Promise((r) => setTimeout(r, wait));
     }
   }
   throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
 }
+
 
 async function tickOne(admin: any, cfg: any): Promise<void> {
   const { hour, minute } = nowInTz();
