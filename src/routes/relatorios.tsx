@@ -204,15 +204,12 @@ function ReportsPage() {
 
   const sync = useMutation({
     mutationFn: () => runSync({ data: {} }),
-    onSuccess: (res) => {
-      toast.success(
-        res.imported > 0
-          ? `${res.imported} conversões sincronizadas`
-          : "Sincronização concluída",
-      );
+    onSuccess: () => {
+      toast.success("Sincronização concluída");
       query.refetch();
     },
-    onError: (e: Error) => toast.error(e.message || "Falha ao sincronizar"),
+    onError: (e: Error) =>
+      toast.error(e.message || "Sincronização automática ainda não disponível"),
   });
 
   const rows = query.data?.rows ?? [];
