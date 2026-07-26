@@ -285,18 +285,21 @@ export const backfillShopeeOriginalPrice = createServerFn({ method: "POST" })
           const pdp = await fetchShopeePdp(row.raw_link as string).catch(() => ({
             title: null, image: null, price: null, priceBefore: null, sold: null, soldLabel: null,
           }));
-          const priceUpdate = derivePriceUpdate(
+          const priceResult = derivePriceUpdate(
             pdp,
             row.promo_price != null ? Number(row.promo_price) : null,
           );
-          if (!priceUpdate || !priceUpdate.is_discount) return false;
+          const priceUpdate = priceResult.update;
           console.log("[PRODUCT_PRICE_CAPTURE]", {
             source: "backfill",
+            product_id: row.id,
             title: row.title,
-            promo_price: priceUpdate.promo_price ?? row.promo_price,
-            original_price: priceUpdate.original_price,
-            discount_exists: priceUpdate.is_discount,
+            promo_price: priceUpdate?.promo_price ?? row.promo_price,
+            original_price: priceUpdate?.original_price ?? null,
+            discount_exists: priceUpdate?.is_discount ?? false,
+            reason: priceResult.reason,
           });
+          if (!priceUpdate || !priceUpdate.is_discount) return false;
           const { error: uErr } = await context.supabase
             .from("products")
             .update(priceUpdate)
@@ -304,6 +307,7 @@ export const backfillShopeeOriginalPrice = createServerFn({ method: "POST" })
             .eq("user_id", context.userId)
             .eq("channel_id", data.channelId);
           return !uErr;
+
         }),
       );
       updated += results.filter(Boolean).length;
