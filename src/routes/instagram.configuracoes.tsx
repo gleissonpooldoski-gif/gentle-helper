@@ -6,8 +6,10 @@ import { toast } from "sonner";
 import {
   getInstagramAdminSettings,
   saveInstagramAdminSettings,
+  subscribeInstagramWebhooks,
   testInstagramAdminConnection,
 } from "@/modules/instagram-admin/admin.functions";
+import { Button } from "@/components/ui/button";
 import { InstagramLayout } from "./instagram";
 import { Loader2 } from "lucide-react";
 
@@ -16,6 +18,7 @@ function Page() {
   const load = useServerFn(getInstagramAdminSettings);
   const save = useServerFn(saveInstagramAdminSettings);
   const test = useServerFn(testInstagramAdminConnection);
+  const subscribe = useServerFn(subscribeInstagramWebhooks);
 
   const { data: settings, isLoading } = useQuery({
     queryKey: ["ig-admin", "settings"],
@@ -41,10 +44,13 @@ function Page() {
   const saveMut = useMutation({
     mutationFn: () =>
       save({ data: { instagramBusinessId: igId, facebookPageId: pageId, accessToken: token } }),
-    onSuccess: () => {
-      toast.success("Configuração salva");
+    onSuccess: (result: any) => {
+      const active = result?.subscription?.igUser?.ok || result?.subscription?.page?.ok;
+      if (active) toast.success("Configuração salva e webhook ativado");
+      else toast.warning("Configuração salva, mas a Meta recusou a ativação do webhook");
       setToken("");
       qc.invalidateQueries({ queryKey: ["ig-admin", "settings"] });
+      testMut.mutate();
     },
     onError: (e: any) => toast.error(e?.message ?? "Falha ao salvar"),
   });
@@ -65,6 +71,26 @@ function Page() {
     onError: (e: any) => {
       setStatus({ kind: "err", text: e?.message ?? "Falha na conexão" });
       toast.error(e?.message ?? "Falha na conexão");
+    },
+  });
+
+  const subscribeMut = useMutation({
+    mutationFn: () => subscribe(),
+    onSuccess: (response: any) => {
+      const result = response?.result;
+      if (result?.igUser?.ok || result?.page?.ok) {
+        toast.success("Webhook ativado na Meta");
+        testMut.mutate();
+        return;
+      }
+      const message = result?.igUser?.error || result?.page?.error || "A Meta recusou a inscrição";
+      setStatus({ kind: "err", text: message });
+      toast.error(message);
+    },
+    onError: (error: any) => {
+      const message = error?.message ?? "Falha ao ativar webhook";
+      setStatus({ kind: "err", text: message });
+      toast.error(message);
     },
   });
 
@@ -115,24 +141,31 @@ function Page() {
             {status.kind === "ok" && <StatusPanel info={status.info} igId={igId} />}
 
             <div className="flex flex-wrap gap-3 pt-2">
-              <button
-                type="button"
+              <Button
+                variant="outline"
                 onClick={() => testMut.mutate()}
                 disabled={testMut.isPending || (!token && !settings?.hasToken)}
-                className="inline-flex items-center gap-2 rounded-lg border border-border/70 bg-background px-4 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50"
               >
                 {testMut.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
                 Testar conexão
-              </button>
-              <button
-                type="button"
+              </Button>
+              {settings?.hasToken && (
+                <Button
+                  variant="outline"
+                  onClick={() => subscribeMut.mutate()}
+                  disabled={subscribeMut.isPending}
+                >
+                  {subscribeMut.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                  Ativar webhook
+                </Button>
+              )}
+              <Button
                 onClick={() => saveMut.mutate()}
                 disabled={saveMut.isPending || !igId || !pageId || !token}
-                className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
               >
                 {saveMut.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
                 Salvar Configuração
-              </button>
+              </Button>
             </div>
           </>
         )}
@@ -187,6 +220,11 @@ function StatusPanel({ info, igId }: { info: any; igId: string }) {
         <Row label="Instagram Business ID" value={igId || "—"} />
         <Row label="Facebook Page" value={info?.pageName ?? "—"} />
         <Row label="Webhook" value={`${dot(!!info?.webhookActive)} ${info?.webhookActive ? "Ativo" : "Inativo"}`} />
+        {!info?.webhookActive && (info?.webhook?.igUserError || info?.webhook?.pageError) && (
+          <div className="mt-2 rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">
+            {info?.webhook?.igUserError || info?.webhook?.pageError}
+          </div>
+        )}
         <Row label="Stories" value={`${dot(cap.stories)} ${cap.stories ? "Disponível" : "Indisponível"}`} />
         <Row label="Comentários" value={`${dot(cap.comments)} ${cap.comments ? "Disponível" : "Indisponível"}`} />
         <Row label="Mensagens" value={`${dot(cap.messages)} ${cap.messages ? "Disponível" : "Indisponível"}`} />
