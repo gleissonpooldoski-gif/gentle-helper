@@ -370,12 +370,18 @@ function PublishBox() {
           drawTitle();
           drawPrice();
         };
-        pi.src = product.image_url;
+        // Route external images through the proxy so CORS is honored
+        // and the canvas stays exportable (toDataURL won't throw).
+        const src: string = product.image_url;
+        const isSameOrigin = typeof window !== "undefined" && src.startsWith(window.location.origin);
+        const isData = src.startsWith("data:");
+        pi.src = isSameOrigin || isData ? src : `/api/public/img-proxy?url=${encodeURIComponent(src)}`;
       } else {
         drawTitle();
         drawPrice();
       }
     };
+
 
 
     if (template?.image_url) {

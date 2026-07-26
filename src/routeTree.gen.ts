@@ -30,6 +30,7 @@ import { Route as ConfiguracoesSessoesWhatsappRouteImport } from './routes/confi
 import { Route as ConfiguracoesEnviosWhatsappRouteImport } from './routes/configuracoes.envios-whatsapp'
 import { Route as TemplatesEditorIdRouteImport } from './routes/templates.editor.$id'
 import { Route as CanaisIdEditarRouteImport } from './routes/canais.$id.editar'
+import { Route as ApiPublicImgProxyRouteImport } from './routes/api/public/img-proxy'
 import { Route as ApiMlProbeRouteImport } from './routes/api/ml/probe'
 import { Route as ApiMlCallbackRouteImport } from './routes/api/ml/callback'
 import { Route as ApiPublicWhatsappWebhookRouteImport } from './routes/api/public/whatsapp/webhook'
@@ -155,6 +156,11 @@ const CanaisIdEditarRoute = CanaisIdEditarRouteImport.update({
   path: '/canais/$id/editar',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicImgProxyRoute = ApiPublicImgProxyRouteImport.update({
+  id: '/api/public/img-proxy',
+  path: '/api/public/img-proxy',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiMlProbeRoute = ApiMlProbeRouteImport.update({
   id: '/api/ml/probe',
   path: '/api/ml/probe',
@@ -277,6 +283,7 @@ export interface FileRoutesByFullPath {
   '/instagram/templates': typeof InstagramTemplatesRoute
   '/api/ml/callback': typeof ApiMlCallbackRoute
   '/api/ml/probe': typeof ApiMlProbeRoute
+  '/api/public/img-proxy': typeof ApiPublicImgProxyRoute
   '/canais/$id/editar': typeof CanaisIdEditarRoute
   '/templates/editor/$id': typeof TemplatesEditorIdRoute
   '/api/public/hooks/automation-tick': typeof ApiPublicHooksAutomationTickRoute
@@ -317,6 +324,7 @@ export interface FileRoutesByTo {
   '/instagram/templates': typeof InstagramTemplatesRoute
   '/api/ml/callback': typeof ApiMlCallbackRoute
   '/api/ml/probe': typeof ApiMlProbeRoute
+  '/api/public/img-proxy': typeof ApiPublicImgProxyRoute
   '/canais/$id/editar': typeof CanaisIdEditarRoute
   '/templates/editor/$id': typeof TemplatesEditorIdRoute
   '/api/public/hooks/automation-tick': typeof ApiPublicHooksAutomationTickRoute
@@ -358,6 +366,7 @@ export interface FileRoutesById {
   '/instagram/templates': typeof InstagramTemplatesRoute
   '/api/ml/callback': typeof ApiMlCallbackRoute
   '/api/ml/probe': typeof ApiMlProbeRoute
+  '/api/public/img-proxy': typeof ApiPublicImgProxyRoute
   '/canais/$id/editar': typeof CanaisIdEditarRoute
   '/templates/editor/$id': typeof TemplatesEditorIdRoute
   '/api/public/hooks/automation-tick': typeof ApiPublicHooksAutomationTickRoute
@@ -400,6 +409,7 @@ export interface FileRouteTypes {
     | '/instagram/templates'
     | '/api/ml/callback'
     | '/api/ml/probe'
+    | '/api/public/img-proxy'
     | '/canais/$id/editar'
     | '/templates/editor/$id'
     | '/api/public/hooks/automation-tick'
@@ -440,6 +450,7 @@ export interface FileRouteTypes {
     | '/instagram/templates'
     | '/api/ml/callback'
     | '/api/ml/probe'
+    | '/api/public/img-proxy'
     | '/canais/$id/editar'
     | '/templates/editor/$id'
     | '/api/public/hooks/automation-tick'
@@ -480,6 +491,7 @@ export interface FileRouteTypes {
     | '/instagram/templates'
     | '/api/ml/callback'
     | '/api/ml/probe'
+    | '/api/public/img-proxy'
     | '/canais/$id/editar'
     | '/templates/editor/$id'
     | '/api/public/hooks/automation-tick'
@@ -512,6 +524,7 @@ export interface RootRouteChildren {
   GSlugRoute: typeof GSlugRoute
   ApiMlCallbackRoute: typeof ApiMlCallbackRoute
   ApiMlProbeRoute: typeof ApiMlProbeRoute
+  ApiPublicImgProxyRoute: typeof ApiPublicImgProxyRoute
   CanaisIdEditarRoute: typeof CanaisIdEditarRoute
   ApiPublicHooksAutomationTickRoute: typeof ApiPublicHooksAutomationTickRoute
   ApiPublicHooksEvolutionHealthcheckRoute: typeof ApiPublicHooksEvolutionHealthcheckRoute
@@ -677,6 +690,13 @@ declare module '@tanstack/react-router' {
       path: '/canais/$id/editar'
       fullPath: '/canais/$id/editar'
       preLoaderRoute: typeof CanaisIdEditarRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/img-proxy': {
+      id: '/api/public/img-proxy'
+      path: '/api/public/img-proxy'
+      fullPath: '/api/public/img-proxy'
+      preLoaderRoute: typeof ApiPublicImgProxyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/ml/probe': {
@@ -854,6 +874,7 @@ const rootRouteChildren: RootRouteChildren = {
   GSlugRoute: GSlugRoute,
   ApiMlCallbackRoute: ApiMlCallbackRoute,
   ApiMlProbeRoute: ApiMlProbeRoute,
+  ApiPublicImgProxyRoute: ApiPublicImgProxyRoute,
   CanaisIdEditarRoute: CanaisIdEditarRoute,
   ApiPublicHooksAutomationTickRoute: ApiPublicHooksAutomationTickRoute,
   ApiPublicHooksEvolutionHealthcheckRoute:
@@ -876,13 +897,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
