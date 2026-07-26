@@ -201,21 +201,23 @@ export const enrichShopeeImagesBatch = createServerFn({ method: "POST" })
     const persisted = await Promise.all(
       scraped.map(async ({ item, image, pdp }) => {
         const prev = existingMap.get(item.id);
-        const priceUpdate = derivePriceUpdate(pdp, prev?.promo ?? null);
+        const priceResult = derivePriceUpdate(pdp, prev?.promo ?? null);
+        const priceUpdate = priceResult.update;
 
         const patch: Record<string, unknown> = {};
         if (image) patch.image_url = image;
         if (priceUpdate) Object.assign(patch, priceUpdate);
 
-        if (priceUpdate) {
-          console.log("[PRODUCT_PRICE_CAPTURE]", {
-            source: "enrich-batch",
-            title: prev?.title ?? null,
-            promo_price: priceUpdate.promo_price ?? prev?.promo ?? null,
-            original_price: priceUpdate.original_price,
-            discount_exists: priceUpdate.is_discount,
-          });
-        }
+        console.log("[PRODUCT_PRICE_CAPTURE]", {
+          source: "enrich-batch",
+          product_id: item.id,
+          title: prev?.title ?? null,
+          promo_price: priceUpdate?.promo_price ?? prev?.promo ?? null,
+          original_price: priceUpdate?.original_price ?? null,
+          discount_exists: priceUpdate?.is_discount ?? false,
+          reason: priceResult.reason,
+        });
+
 
         if (Object.keys(patch).length === 0) {
           return { id: item.id, itemId: item.itemId ?? null, found: false as const };
