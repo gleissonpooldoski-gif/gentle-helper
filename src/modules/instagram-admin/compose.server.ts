@@ -8,54 +8,43 @@
  *  - the "Publicar agora" button (`runAdminStoryScheduleNow`)
  *
  * Rendering pipeline: build an SVG string, rasterize with @resvg/resvg-wasm.
- * WASM binary + font are fetched from a CDN at first use and cached in
- * module scope — this avoids bundling .wasm inside the Worker.
+ * WASM binary is bundled from the installed @resvg/resvg-wasm package via a
+ * Vite/Nitro `.wasm` import (resolves to a WebAssembly.Module in the Worker),
+ * and the Inter 800 font is base64-inlined at build time. No runtime CDN
+ * fetches — the previous unpkg/jsdelivr dependency 404'd and broke Stories.
  */
 import { initWasm, Resvg } from "@resvg/resvg-wasm";
+// Bundled WASM: Vite/Nitro resolves `.wasm` imports to a compiled
+// WebAssembly.Module in the Cloudflare Worker bundle.
+// @ts-expect-error - no type declaration for raw .wasm import
+import resvgWasmModule from "@resvg/resvg-wasm/index_bg.wasm";
+import { INTER_800_WOFF_BASE64 } from "./assets/inter-800";
 import { publishStory } from "./graph.server";
-
-// Match the installed @resvg/resvg-wasm version in package.json.
-// Cloudflare's fetch cache 400s on older/mismatched paths, so keep this
-// pinned to what npm actually resolves and provide a mirror fallback.
-const WASM_URLS = [
-  "https://cdn.jsdelivr.net/npm/@resvg/[email protected]/index_bg.wasm",
-  "https://unpkg.com/@resvg/[email protected]/index_bg.wasm",
-];
-const FONT_URLS = [
-  "https://cdn.jsdelivr.net/npm/@fontsource/inter@4/files/inter-latin-800-normal.woff",
-  "https://unpkg.com/@fontsource/inter@4/files/inter-latin-800-normal.woff",
-];
 
 let wasmReady: Promise<void> | null = null;
 let fontBuffer: Uint8Array | null = null;
 
-async function fetchFirstOk(urls: string[]): Promise<ArrayBuffer> {
-  let lastErr = "";
-  for (const url of urls) {
-    try {
-      const res = await fetch(url);
-      if (res.ok) return await res.arrayBuffer();
-      lastErr = `${url} → ${res.status}`;
-    } catch (e: any) {
-      lastErr = `${url} → ${e?.message ?? e}`;
-    }
-  }
-  throw new Error(`asset fetch failed: ${lastErr}`);
+function decodeBase64(b64: string): Uint8Array {
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
 }
 
 async function ensureReady() {
   if (!wasmReady) {
     wasmReady = (async () => {
-      const buf = await fetchFirstOk(WASM_URLS);
-      await initWasm(new WebAssembly.Module(buf));
+      // Support both shapes: bundler may hand back a WebAssembly.Module
+      // directly, or (rarely) an ArrayBuffer/Uint8Array. initWasm accepts both.
+      await initWasm(resvgWasmModule as unknown as WebAssembly.Module);
     })();
   }
   await wasmReady;
   if (!fontBuffer) {
-    const buf = await fetchFirstOk(FONT_URLS);
-    fontBuffer = new Uint8Array(buf);
+    fontBuffer = decodeBase64(INTER_800_WOFF_BASE64);
   }
 }
+
 
 async function fetchAsDataUrl(url: string): Promise<string | null> {
   try {
