@@ -245,3 +245,60 @@ export async function sendDirectMessage(input: {
   });
   if (!res.ok) throw new Error(`[graph messages] ${res.status} ${await res.text()}`);
 }
+
+/**
+ * Subscribes the Meta app to receive webhook events for the given IG account
+ * and Facebook page. Idempotent — safe to call every publish/save.
+ * Returns which endpoints subscribed successfully.
+ */
+export async function subscribeWebhooks(input: {
+  igId: string;
+  pageId: string;
+  token: string;
+}): Promise<{
+  page: { ok: boolean; error?: string };
+  igUser: { ok: boolean; error?: string };
+}> {
+  const pageToken = await resolvePageToken({ token: input.token, pageId: input.pageId });
+  const pageFields = [
+    "feed",
+    "messages",
+    "messaging_postbacks",
+    "message_reactions",
+    "messaging_referrals",
+  ].join(",");
+  const igFields = [
+    "comments",
+    "messages",
+    "message_reactions",
+    "messaging_postbacks",
+    "live_comments",
+    "mentions",
+  ].join(",");
+  const out: Awaited<ReturnType<typeof subscribeWebhooks>> = {
+    page: { ok: false },
+    igUser: { ok: false },
+  };
+  try {
+    await gfetch(
+      `/${input.pageId}/subscribed_apps`,
+      { access_token: pageToken, subscribed_fields: pageFields },
+      { method: "POST" },
+    );
+    out.page.ok = true;
+  } catch (e: any) {
+    out.page.error = String(e?.message ?? e);
+  }
+  try {
+    await gfetch(
+      `/${input.igId}/subscribed_apps`,
+      { access_token: pageToken, subscribed_fields: igFields },
+      { method: "POST" },
+    );
+    out.igUser.ok = true;
+  } catch (e: any) {
+    out.igUser.error = String(e?.message ?? e);
+  }
+  return out;
+}
+
