@@ -1,16 +1,27 @@
 import { describe, it, expect } from "vitest";
 import { resolveProductDisplay } from "@/modules/products/display-resolver";
 
-describe("resolveProductDisplay — vendas (LOTE 16: só sales_historical)", () => {
-  it("usa sales_historical e exibe 'X vendidos'", () => {
+describe("resolveProductDisplay — vendas (LOTE 16F: só historical_confirmed)", () => {
+  it("usa sales_historical confirmado e exibe 'X vendidos'", () => {
     const r = resolveProductDisplay({
       platform: "shopee",
       sales_historical: 50000,
+      sales_source: "historical_confirmed",
       sales_recent: 5000,
       sales: 5000,
     });
     expect(r.salesSource).toBe("historical");
     expect(r.salesLabel).toBe("50 mil vendidos");
+  });
+
+  it("sales_historical sem source confirmado é ignorado", () => {
+    const r = resolveProductDisplay({
+      platform: "shopee",
+      sales_historical: 50000,
+      // sales_source ausente
+    });
+    expect(r.salesSource).toBeNull();
+    expect(r.salesLabel).toBe("");
   });
 
   it("ignora sales_recent — não gera prova social", () => {
@@ -42,8 +53,12 @@ describe("resolveProductDisplay — vendas (LOTE 16: só sales_historical)", () 
     expect(r.salesValue).toBeNull();
   });
 
-  it("historical baixo é exibido cru, sem sufixo 'recentemente'", () => {
-    const r = resolveProductDisplay({ platform: "shopee", sales_historical: 500 });
+  it("historical baixo confirmado é exibido cru, sem sufixo 'recentemente'", () => {
+    const r = resolveProductDisplay({
+      platform: "shopee",
+      sales_historical: 500,
+      sales_source: "historical_confirmed",
+    });
     expect(r.salesLabel).toBe("500 vendidos");
     expect(r.salesIsRecentOnly).toBe(false);
   });
