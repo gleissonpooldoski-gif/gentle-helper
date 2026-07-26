@@ -50,7 +50,7 @@ export const previewVisualTemplateForProduct = createServerFn({ method: "POST" }
     const { data: prod, error: prodErr } = await context.supabase
       .from("products")
       .select(
-        "id,title,image_url,original_price,promo_price,sales,sales_label,sales_historical,store_name,affiliate_link",
+        "id,title,image_url,original_price,promo_price,sales,sales_label,sales_historical,sales_source,store_name,affiliate_link",
       )
       .eq("id", data.productId)
       .eq("user_id", context.userId)
@@ -78,6 +78,7 @@ export const previewVisualTemplateForProduct = createServerFn({ method: "POST" }
         sales: prod.sales,
         sales_label: prod.sales_label,
         sales_historical: prod.sales_historical,
+        sales_source: prod.sales_source,
         store_name: prod.store_name,
         affiliate_link: prod.affiliate_link,
       },
@@ -120,7 +121,7 @@ export const previewActiveVisualTemplateForProduct = createServerFn({ method: "P
     const { data: prod, error: prodErr } = await context.supabase
       .from("products")
       .select(
-        "id,title,image_url,original_price,promo_price,sales,sales_label,sales_historical,store_name,affiliate_link,channel_id",
+        "id,title,image_url,original_price,promo_price,sales,sales_label,sales_historical,sales_source,store_name,affiliate_link,channel_id",
       )
       .eq("id", data.productId)
       .eq("user_id", context.userId)
@@ -169,6 +170,7 @@ export const previewActiveVisualTemplateForProduct = createServerFn({ method: "P
         sales: prod.sales,
         sales_label: prod.sales_label,
         sales_historical: prod.sales_historical,
+        sales_source: prod.sales_source,
         store_name: prod.store_name,
         affiliate_link: prod.affiliate_link,
       },

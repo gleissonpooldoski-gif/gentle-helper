@@ -8,10 +8,16 @@ export function formatBRL(v: number | string | null | undefined) {
 }
 
 /**
- * Fonte única (LOTE 16): só emite rótulo quando existe sales_historical.
- * sales_recent / sales legacy / sales_label são ignorados como prova social.
+ * Fonte única (LOTE 16F): só emite rótulo quando existe sales_historical
+ * E sales_source = 'historical_confirmed'. Nunca usa sales_recent, sales
+ * legacy ou sales_label como prova social.
  */
-export function humanizeSales(salesHistorical?: number | null) {
+export function humanizeSales(
+  salesHistorical?: number | null,
+  salesSource?: string | null,
+) {
+  const confirmed = String(salesSource ?? "").toLowerCase() === "historical_confirmed";
+  if (!confirmed) return "";
   const label = formatSalesLabel(salesHistorical ?? null);
   return label ? `${label} vendidos` : "";
 }
@@ -25,6 +31,7 @@ export interface ProductLite {
   sales: number | null;
   sales_label: string | null;
   sales_historical?: number | null;
+  sales_source?: string | null;
   store_name: string | null;
 }
 
@@ -54,7 +61,7 @@ export function resolveProduct(p?: ProductLite | null): ResolvedProduct {
     original,
     price,
     discount: disc > 0 ? `-${disc}%` : "",
-    sold: humanizeSales(p?.sales_historical ?? null),
+    sold: humanizeSales(p?.sales_historical ?? null, p?.sales_source ?? null),
     store: p?.store_name || "",
     hasOriginal,
   };

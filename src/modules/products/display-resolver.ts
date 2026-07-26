@@ -71,16 +71,20 @@ export function resolveProductDisplay(p: DisplayResolverInput): DisplayResolverR
   const platform = (p.platform ?? "").toLowerCase();
   const isShopee = platform === "shopee";
 
-  // ---------- VENDAS (LOTE 16: apenas sales_historical) ----------
-  // Regra comercial: só exibir "X vendidos" quando existir contador
-  // histórico real do anúncio. Nunca usar sales_recent, sales legacy
-  // ou dados da Affiliate API como prova social.
+  // ---------- VENDAS (LOTE 16F: só historical_confirmed) ----------
+  // Regra comercial estrita: só exibir "X vendidos" quando o valor
+  // vier de contador histórico REAL do anúncio (sales_source =
+  // 'historical_confirmed'). Nunca usar sales_recent, sales legacy
+  // ou qualquer inferência a partir da Affiliate API.
   const hist = toInt(p.sales_historical);
+  const source = String(p.sales_source ?? "").toLowerCase();
+  const isConfirmed = source === "historical_confirmed";
+
   let salesValue: number | null = null;
   let salesSource: DisplayResolverResult["salesSource"] = null;
   const salesIsRecentOnly = false;
 
-  if (hist != null) {
+  if (hist != null && isConfirmed) {
     salesValue = hist;
     salesSource = "historical";
   }
