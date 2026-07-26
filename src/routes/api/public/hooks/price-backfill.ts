@@ -30,6 +30,9 @@ export const Route = createFileRoute("/api/public/hooks/price-backfill")({
           parseShopeeIds,
           deriveOriginalFromOffer,
         } = await import("@/modules/shopee-affiliate/client.server");
+        const { validateShopeePriceUpdate } = await import(
+          "@/modules/shopee-affiliate/price-guard"
+        );
 
         const { data: candidates } = await supabaseAdmin
           .from("products")
