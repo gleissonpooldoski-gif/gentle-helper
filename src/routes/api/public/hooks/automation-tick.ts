@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { requireCronSecret } from "@/lib/public-auth.server";
 import { isBreakerOpen, recordFailure, recordSuccess } from "@/lib/circuit-breaker.server";
+import { formatSalesLabel } from "@/modules/products/sales-label";
 
 /**
  * Log estruturado para rastreamento do worker.
