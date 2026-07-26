@@ -166,7 +166,19 @@ export async function syncShopeeConversions(
 
     const rows: ConvRow[] = [];
     for (const n of nodes) rows.push(...flattenConversion(userId, n));
-    const clean = rows.filter((r) => r.order_id && r.product_id);
+    const dedup = new Map<string, ConvRow>();
+    for (const r of rows) {
+      if (!r.order_id || !r.product_id) continue;
+      const k = `${r.order_id}|${r.product_id}`;
+      const prev = dedup.get(k);
+      if (!prev) { dedup.set(k, r); continue; }
+      // Merge quantidades e valores para o mesmo (order, item)
+      prev.qty += r.qty;
+      prev.value += r.value;
+      prev.commission += r.commission;
+      prev.raw = { merged: true, items: [prev.raw, r.raw] };
+    }
+    const clean = [...dedup.values()];
     if (clean.length) {
       const { error: upErr, count } = await supabase
         .from("shopee_conversions")
@@ -174,6 +186,7 @@ export async function syncShopeeConversions(
       if (upErr) throw upErr;
       inserted += count ?? clean.length;
     }
+
 
     const nextScroll = report?.pageInfo?.scrollId ?? "";
     const hasNext = Boolean(report?.pageInfo?.hasNextPage);
