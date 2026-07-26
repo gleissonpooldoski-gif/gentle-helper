@@ -31,44 +31,41 @@ export async function pickStoryProduct(): Promise<StoryProduct | null> {
   );
 
   const baseCols =
-    "id,title,image_url,affiliate_link,raw_link,promo_price,original_price,channel_id,source_group_jid";
+    "id,title,image_url,affiliate_link,raw_link,promo_price,original_price,is_discount,channel_id,source_group_jid";
 
-  // Pull a wide pool then sample client-side so all groups are represented.
-  const tryFetch = async (discountOnly: boolean) => {
-    const q = supabaseAdmin
-      .from("products")
-      .select(baseCols)
-      .eq("availability", "active")
-      .not("image_url", "is", null)
-      .order("created_at", { ascending: false })
-      .limit(500);
-    if (discountOnly) q.eq("is_discount", true);
-    const { data } = await q;
-    return ((data as any[]) ?? []) as StoryProduct[];
-  };
+  // Pull a wide pool of ALL active products, then rotate across groups client-side.
+  // Fetching discounted-only first was skewing to whichever group had discounts;
+  // now every group gets equal weight and discounts are only a within-bucket preference.
+  const { data } = await supabaseAdmin
+    .from("products")
+    .select(baseCols)
+    .eq("availability", "active")
+    .not("image_url", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(2000);
+  const pool = ((data as any[]) ?? []) as (StoryProduct & { is_discount?: boolean })[];
+  if (!pool.length) return null;
 
-  const pickFromPool = (pool: StoryProduct[]): StoryProduct | null => {
-    const fresh = pool.filter((p) => !usedIds.has(p.id));
-    const candidates = fresh.length ? fresh : pool;
-    if (!candidates.length) return null;
+  // Group by (channel_id + source_group_jid) so each group weighs equally.
+  const buckets = new Map<string, (StoryProduct & { is_discount?: boolean })[]>();
+  for (const p of pool) {
+    const key = `${p.channel_id ?? "null"}::${p.source_group_jid ?? "null"}`;
+    const arr = buckets.get(key) ?? [];
+    arr.push(p);
+    buckets.set(key, arr);
+  }
 
-    // Group by (channel_id + source_group_jid) so each group weighs equally.
-    const buckets = new Map<string, StoryProduct[]>();
-    for (const p of candidates) {
-      const key = `${p.channel_id ?? "null"}::${p.source_group_jid ?? "null"}`;
-      const arr = buckets.get(key) ?? [];
-      arr.push(p);
-      buckets.set(key, arr);
-    }
-    const keys = Array.from(buckets.keys());
-    const bucket = buckets.get(keys[Math.floor(Math.random() * keys.length)])!;
-    return bucket[Math.floor(Math.random() * bucket.length)];
-  };
+  // Shuffle bucket order so no group is favored.
+  const keys = Array.from(buckets.keys()).sort(() => Math.random() - 0.5);
 
-  const discounted = await tryFetch(true);
-  const picked = pickFromPool(discounted);
-  if (picked) return picked;
-
-  const any = await tryFetch(false);
-  return pickFromPool(any);
+  for (const key of keys) {
+    const items = buckets.get(key)!;
+    const fresh = items.filter((p) => !usedIds.has(p.id));
+    const pickList = fresh.length ? fresh : items;
+    // Prefer discounted within the chosen bucket, but never skip the bucket if none.
+    const discounted = pickList.filter((p) => p.is_discount);
+    const chosen = discounted.length ? discounted : pickList;
+    if (chosen.length) return chosen[Math.floor(Math.random() * chosen.length)];
+  }
+  return null;
 }
