@@ -52,7 +52,7 @@ async function fetchBitmap(url: string): Promise<Bitmap | null> {
     const bytes = new Uint8Array(await res.arrayBuffer());
     const decoded = contentType.includes("png")
       ? PNG.sync.read(bytes)
-      : decodeJpeg(bytes, { useTArray: true, formatAsRGBA: true });
+      : decodeJpeg(Buffer.from(bytes), { useTArray: true, formatAsRGBA: true });
     const bitmap = make(decoded.width, decoded.height);
     bitmap.data.set(decoded.data);
     return bitmap;
@@ -202,7 +202,9 @@ export async function composeStoryPng(input: ComposeInput): Promise<Uint8Array> 
     }
   }
 
-  const png = PNG.sync.write({ width: W, height: H, data: Buffer.from(output.data) });
+  const pngImage = new PNG({ width: W, height: H });
+  pngImage.data = Buffer.from(output.data);
+  const png = PNG.sync.write(pngImage);
   return new Uint8Array(png.buffer, png.byteOffset, png.byteLength);
 }
 
