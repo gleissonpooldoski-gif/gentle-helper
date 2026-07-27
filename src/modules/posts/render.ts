@@ -158,20 +158,12 @@ export function renderPost(
   if (vars.description && layout.description_template) {
     blocks.push(fill(layout.description_template, vars));
   }
-  // Sempre exibe a linha "DE:" (riscada) quando o preço original foi capturado
-  // e é diferente do promocional. O fallback acima garante que price_original
-  // só está preenchido quando existe um preço original real, distinto do atual.
-  const originalNum = Number(String(product.price_original ?? "").replace(/[^\d.,-]/g, "").replace(",", "."));
-  const promoNum = Number(String(product.price ?? "").replace(/[^\d.,-]/g, "").replace(",", "."));
-  const hasRealDiscount =
-    Number.isFinite(originalNum) &&
-    Number.isFinite(promoNum) &&
-    originalNum > promoNum;
+  // LOTE 18A: NÃO recomputar desconto aqui. `price_original` só chega preenchido
+  // quando resolveProductDisplay aprovou (price_quality=HIGH). Renderer é passivo.
   const showOriginal =
     !layout.hide_original &&
     !!vars.price_original &&
-    !!vars.price &&
-    hasRealDiscount;
+    !!vars.price;
   if (showOriginal && layout.original_price_template) {
     blocks.push(fill(layout.original_price_template, vars));
   }
