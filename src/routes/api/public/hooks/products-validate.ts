@@ -38,7 +38,7 @@ export const Route = createFileRoute("/api/public/hooks/products-validate")({
         for (const p of rows ?? []) {
           const r = await validateProduct(p);
           if (!p.channel_id) continue;
-          await persistValidation(supabaseAdmin, p.id, p.channel_id, r);
+          await persistValidation(supabaseAdmin, p.id, p.channel_id, r, "cron");
           results[r.availability] += 1;
         }
         return Response.json({ ok: true, processed: rows?.length ?? 0, results });
