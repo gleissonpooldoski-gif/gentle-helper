@@ -1627,6 +1627,7 @@ export type Database = {
           updated_at: string
           user_id: string
           validation_error: string | null
+          validation_failure_count: number
         }
         Insert: {
           affiliate_link: string
@@ -1663,6 +1664,7 @@ export type Database = {
           updated_at?: string
           user_id: string
           validation_error?: string | null
+          validation_failure_count?: number
         }
         Update: {
           affiliate_link?: string
@@ -1699,6 +1701,7 @@ export type Database = {
           updated_at?: string
           user_id?: string
           validation_error?: string | null
+          validation_failure_count?: number
         }
         Relationships: [
           {
