@@ -12,7 +12,7 @@
  * Worker never depends on a separately deployed `wasm/*.wasm` module.
  */
 import { initWasm, Resvg } from "@resvg/resvg-wasm";
-import resvgWasmDataUrl from "@resvg/resvg-wasm/index_bg.wasm?inline";
+import resvgWasmDataUrl from "virtual:resvg-wasm-inline";
 import { INTER_800_WOFF_BASE64 } from "./assets/inter-800";
 import { publishStory } from "./graph.server";
 
