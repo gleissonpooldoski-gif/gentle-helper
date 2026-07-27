@@ -54,7 +54,7 @@ function ensureFont(): Font {
   return storyFont;
 }
 
-async function fetchBitmap(url: string): Promise<Bitmap | null> {
+async function fetchBitmap(url: string, label: string): Promise<Bitmap | null> {
   try {
     const res = await fetch(url, {
       headers: {
@@ -63,16 +63,37 @@ async function fetchBitmap(url: string): Promise<Bitmap | null> {
         accept: "image/*,*/*;q=0.8",
       },
     });
-    if (!res.ok) return null;
-    const contentType = res.headers.get("content-type") ?? "image/jpeg";
+    if (!res.ok) {
+      console.log("[COMPOSE_FETCH_FAIL]", { label, status: res.status });
+      return null;
+    }
+    const contentType = (res.headers.get("content-type") ?? "").toLowerCase();
     const bytes = new Uint8Array(await res.arrayBuffer());
-    const decoded = contentType.includes("png")
-      ? PNG.sync.read(Buffer.from(bytes))
-      : decodeJpeg(Buffer.from(bytes), { useTArray: true, formatAsRGBA: true });
-    const bitmap = make(decoded.width, decoded.height);
-    bitmap.data.set(decoded.data);
-    return bitmap;
-  } catch {
+    // Sniff magic bytes so odd content-types (application/octet-stream, etc.)
+    // still decode correctly instead of silently falling back to yellow.
+    const isPng = bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47;
+    const isJpg = bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+    try {
+      const decoded = isPng || (contentType.includes("png") && !isJpg)
+        ? PNG.sync.read(Buffer.from(bytes))
+        : decodeJpeg(Buffer.from(bytes), { useTArray: true, formatAsRGBA: true });
+      const bitmap = make(decoded.width, decoded.height);
+      bitmap.data.set(decoded.data);
+      console.log("[COMPOSE_FETCH_OK]", { label, w: decoded.width, h: decoded.height, isPng, isJpg });
+      return bitmap;
+    } catch (decodeErr: any) {
+      console.log("[COMPOSE_DECODE_FAIL]", {
+        label,
+        contentType,
+        isPng,
+        isJpg,
+        bytes: bytes.byteLength,
+        error: String(decodeErr?.message ?? decodeErr),
+      });
+      return null;
+    }
+  } catch (fetchErr: any) {
+    console.log("[COMPOSE_FETCH_ERROR]", { label, error: String(fetchErr?.message ?? fetchErr) });
     return null;
   }
 }
