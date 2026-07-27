@@ -11,7 +11,7 @@
  * pré-compilado no deploy, sem geração dinâmica de código em runtime.
  */
 import { initWasm, Resvg } from "@resvg/resvg-wasm";
-import resvgWasmModule from "@resvg/resvg-wasm/index_bg.wasm?module";
+import resvgWasmModule from "@resvg/resvg-wasm/index_bg.wasm";
 import type { VTElement, VTFormat } from "@/modules/visual-templates/presets";
 import { FORMAT_SIZE } from "@/modules/visual-templates/presets";
 import type { ProductLite } from "@/modules/visual-templates/bindings";
