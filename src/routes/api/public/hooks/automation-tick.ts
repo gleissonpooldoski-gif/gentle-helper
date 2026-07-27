@@ -209,14 +209,12 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
 
   // Escolhe o próximo produto disponível: pertence às lojas ativas do usuário,
   // está marcado como 'active' e ainda não está registrado em automation_group_sends.
-  // Antes de retornar, valida o produto em tempo real (link + imagem).
-  // Se a validação falhar, atualiza o status no banco e tenta o próximo.
-  const { validateProduct, persistValidation } = await import(
-    "@/modules/products/validation/validate.server"
-  );
+  // LOTE 26 — este hook NÃO altera mais `availability`. A responsabilidade
+  // por manter o status atualizado é exclusiva do cron `products-validate`.
+  // Aqui apenas lemos o snapshot mais recente e confiamos no filtro
+  // `availability='active'` da query abaixo.
 
   const ANTI_REPEAT_HOURS = 24;
-  const VALIDATION_TTL_MS = 6 * 3600_000; // reaproveita validação recente
 
   async function pickNext(): Promise<any | null> {
     // Inventário obrigatório por canal + grupo. Legados sem grupo ficam
@@ -259,30 +257,10 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
     const { data, error } = await q;
     if (error) throw new Error(error.message);
     const shuffled = [...(data ?? [])].sort(() => Math.random() - 0.5);
-    const validationCutoff = Date.now() - VALIDATION_TTL_MS;
-    for (const cand of shuffled) {
-      // Reaproveita validação recente para eliminar o gargalo de rede
-      // (fetch HTTP por candidato em cada tick). Se validado há < 6h e ainda
-      // ativo, envia direto — a rotina de validação em massa cuida do resto.
-      const lastVal = cand.last_validated_at ? new Date(cand.last_validated_at).getTime() : 0;
-      if (lastVal > validationCutoff && cand.availability === "active") {
-        return cand;
-      }
-      const result = await validateProduct(cand);
-      if (result.availability === "active") {
-        await persistValidation(admin, cand.id, cfg.channel_id, result);
-        return cand;
-      }
-      await persistValidation(admin, cand.id, cfg.channel_id, result);
-      if (result.availability !== "error") {
-        await admin.from("automation_group_sends").upsert({
-          user_id: cfg.user_id,
-          config_id: cfg.id,
-          product_id: cand.id,
-        }, { onConflict: "config_id,product_id" });
-      }
-    }
-    return null;
+    // LOTE 26 — sem validação síncrona. Todos os candidatos já são 'active'
+    // (garantido pelo filtro acima). O cron `products-validate` mantém isso
+    // atualizado. Retorna o primeiro candidato disponível.
+    return shuffled[0] ?? null;
   }
 
   let product = await pickNext();

@@ -8,6 +8,12 @@
  * - inactive      : link 404/410 ou redireciona para home/erro.
  * - out_of_stock  : página existe mas indica indisponível (Shopee "sold_out").
  * - error         : falha temporária (rede/timeout) — não remove permanentemente.
+ *
+ * LOTE 26 — Proteção contra falso negativo:
+ * A degradação (active → inactive/out_of_stock/error) só é persistida
+ * após N falhas consecutivas. Enquanto o contador não atinge o limite,
+ * o status atual é preservado — apenas `validation_error` e o contador
+ * são atualizados. Sucesso zera o contador.
  */
 
 export type ProductAvailability = "active" | "inactive" | "out_of_stock" | "error";
@@ -17,6 +23,12 @@ export interface ValidationResult {
   imageUrl?: string | null;
   reason?: string;
 }
+
+/**
+ * Nº de falhas consecutivas necessárias para degradar `availability`.
+ * Ajuste conservador: evita que um blip de CDN esconda o produto.
+ */
+export const DEGRADATION_FAILURE_THRESHOLD = 3;
 
 const UA =
   "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36";
@@ -60,7 +72,6 @@ async function validateShopeeLink(link: string): Promise<{ status: ProductAvaila
     if (r.status === 404 || r.status === 410) {
       return { status: "inactive", reason: `http ${r.status}` };
     }
-    // Redirecionamentos p/ home / not found
     if (/shopee\.com\.br\/?($|\?)/i.test(finalUrl) || /not[-_]?found|error/i.test(finalUrl)) {
       return { status: "inactive", reason: "redirecionou p/ home/erro" };
     }
@@ -90,7 +101,6 @@ async function validateGenericLink(link: string): Promise<{ status: ProductAvail
     const r = await fetchWithTimeout(link, { method: "HEAD" }, 8000);
     if (r.status === 404 || r.status === 410) return { status: "inactive", reason: `http ${r.status}` };
     if (r.ok) return { status: "active" };
-    // HEAD pode não ser suportado — tenta GET
     const r2 = await fetchWithTimeout(link, { method: "GET" }, 8000);
     if (r2.status === 404 || r2.status === 410) return { status: "inactive", reason: `http ${r2.status}` };
     if (r2.ok) return { status: "active" };
@@ -122,22 +132,118 @@ export async function validateProduct(product: {
   return { availability: "active" };
 }
 
+export type ValidationOrigin = "cron" | "automation-tick" | "manual";
+
 /**
- * Persiste o resultado de uma validação no banco.
+ * Log estruturado single-line consumido pelos hooks de observabilidade.
+ * Mantido em console.log para atravessar o worker sem dependências extras.
+ */
+function logAvailabilityChanged(payload: {
+  product_id: string;
+  channel_id: string;
+  previous: string | null;
+  next: ProductAvailability;
+  reason: string | null;
+  origin: ValidationOrigin;
+  failure_count: number;
+  degraded: boolean;
+}) {
+  try {
+    console.log(
+      `[PRODUCT_AVAILABILITY_CHANGED] ${JSON.stringify({
+        ...payload,
+        at: new Date().toISOString(),
+      })}`,
+    );
+  } catch {
+    /* no-op — logging never breaks the flow */
+  }
+}
+
+/**
+ * Persiste o resultado de uma validação no banco com proteção
+ * anti-falso-negativo:
+ *  - Sucesso ⇒ availability='active', failure_count=0.
+ *  - Falha & availability atual != 'active' ⇒ apenas registra motivo/contador.
+ *  - Falha & availability='active' ⇒ incrementa contador; só troca
+ *    availability quando o contador atinge DEGRADATION_FAILURE_THRESHOLD.
+ *
+ * Emite PRODUCT_AVAILABILITY_CHANGED em qualquer transição real de status.
  */
 export async function persistValidation(
   admin: any,
   productId: string,
   channelId: string,
   result: ValidationResult,
+  origin: ValidationOrigin = "cron",
 ): Promise<void> {
+  // Snapshot atual para decidir se degrada e para logar transição.
+  const { data: current } = await admin
+    .from("products")
+    .select("availability, validation_failure_count")
+    .eq("id", productId)
+    .eq("channel_id", channelId)
+    .maybeSingle();
+
+  const previous = (current?.availability as string | null) ?? null;
+  const prevCount = Number(current?.validation_failure_count ?? 0);
+  const nowIso = new Date().toISOString();
+
+  if (result.availability === "active") {
+    await admin
+      .from("products")
+      .update({
+        availability: "active",
+        last_validated_at: nowIso,
+        validation_error: null,
+        validation_failure_count: 0,
+      })
+      .eq("id", productId)
+      .eq("channel_id", channelId);
+
+    if (previous && previous !== "active") {
+      logAvailabilityChanged({
+        product_id: productId,
+        channel_id: channelId,
+        previous,
+        next: "active",
+        reason: result.reason ?? null,
+        origin,
+        failure_count: 0,
+        degraded: false,
+      });
+    }
+    return;
+  }
+
+  // Falha. Decide se degrada agora ou apenas contabiliza.
+  const nextCount = prevCount + 1;
+  const shouldDegrade = nextCount >= DEGRADATION_FAILURE_THRESHOLD;
+  const nextAvailability: ProductAvailability = shouldDegrade
+    ? result.availability
+    : (previous as ProductAvailability | null) ?? "active";
+
   await admin
     .from("products")
     .update({
-      availability: result.availability,
-      last_validated_at: new Date().toISOString(),
+      availability: nextAvailability,
+      last_validated_at: nowIso,
       validation_error: result.reason ?? null,
+      validation_failure_count: nextCount,
     })
     .eq("id", productId)
     .eq("channel_id", channelId);
+
+  if (previous !== nextAvailability) {
+    logAvailabilityChanged({
+      product_id: productId,
+      channel_id: channelId,
+      previous,
+      next: nextAvailability,
+      reason: result.reason ?? null,
+      origin,
+      failure_count: nextCount,
+      degraded: shouldDegrade,
+    });
+  }
 }
