@@ -1,7 +1,7 @@
 /**
  * Converte VTElement[] (formato do editor visual, ver
  * `src/modules/visual-templates/presets.ts`) em uma string SVG pronta para
- * rasterização pelo @cf-wasm/resvg.
+ * rasterização pelo @resvg/resvg-wasm.
  *
  * IMPORTANTE:
  * - Runtime seguro para Cloudflare Workers (sem DOM, sem Node-only APIs).
