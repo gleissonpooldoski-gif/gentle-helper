@@ -15,11 +15,26 @@ import {
   saveStoryTemplate,
   toggleAdminStoryAutomation,
 } from "@/modules/instagram-admin/admin.functions";
+import {
+  STORY_W as W,
+  STORY_H as H,
+  PROD_ZONE,
+  TITLE_ZONE,
+  PRICE_BAR_ZONE,
+  TITLE_LINE_HEIGHT,
+  POR_FONT_SIZE,
+  PRICE_FONT_SIZE_WITH_DE,
+  PRICE_FONT_SIZE_NO_DE,
+  DE_FONT_SIZE,
+  DE_BASELINE_OFFSET,
+  PRICE_CENTER_Y_OFFSET_WITH_DE,
+  DE_STRIKE_WIDTH,
+  DEFAULT_BG_COLOR,
+  DEFAULT_TITLE_COLOR,
+  wrapTitleLines,
+} from "@/modules/instagram-admin/story-layout";
 import { InstagramLayout } from "./instagram";
 import { Activity, CalendarClock, CheckCircle2, ExternalLink, Image as ImageIcon, Loader2, Play, Power, Save, Send, Trash2, Upload } from "lucide-react";
-
-const W = 1080;
-const H = 1920;
 
 function formatBRL(n?: number | null) {
   if (n == null) return "";
