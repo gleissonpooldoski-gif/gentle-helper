@@ -810,7 +810,7 @@ export const sendWhatsAppProduct = createServerFn({ method: "POST" })
     }
 
     // Renderiza usando o MESMO layout persistido no SaaS.
-    const { loadLayoutFor, resolveHeader, productHasDiscount } = await import("@/modules/posts/layout.functions");
+    const { loadLayoutFor, resolveHeader } = await import("@/modules/posts/layout.functions");
     const { renderPost } = await import("@/modules/posts/render");
     const layout = await loadLayoutFor(supabase, userId, (row as any).channel_id ?? null);
     const { data: recent } = await (supabase as any)
@@ -822,10 +822,8 @@ export const sendWhatsAppProduct = createServerFn({ method: "POST" })
     const recentHeaders = (recent ?? [])
       .map((r: any) => String(r.caption ?? "").split("\n")[0].trim())
       .filter(Boolean);
-    const hasDiscount = productHasDiscount({
-      promo_price: (product as any).price,
-      original_price: (product as any).price_original,
-    });
+    // LOTE 18A: hasDiscount derivado do resolver (price_original só existe se HIGH).
+    const hasDiscount = (product as any).price_original != null;
     const chosenHeader = await resolveHeader(supabase, userId, layout, recentHeaders, { hasDiscount });
     const caption = renderPost({ ...layout, header: chosenHeader }, product, "whatsapp");
 
