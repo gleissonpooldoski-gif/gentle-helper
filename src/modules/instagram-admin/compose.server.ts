@@ -12,7 +12,39 @@
  * compiled at build time — no runtime WebAssembly.Module(bytes), no CDN
  * fetches. Inter 800 font is base64-inlined at build time.
  */
-import { Resvg } from "@cf-wasm/resvg";
+// Resvg é carregado dinamicamente dentro de composeStoryPng() para evitar
+// que o binding WASM (@cf-wasm/resvg) seja avaliado no topo do módulo pelo
+// bundler do Cloudflare Worker — o import estático estava resultando em
+// "No such module wasm/resvg-*.wasm" no runtime do worker de instagram-tick.
+type ResvgCtor = new (svg: string, opts?: unknown) => {
+  render(): { asPng(): Uint8Array };
+};
+let ResvgRef: ResvgCtor | null = null;
+let resvgLoadFailedAt: number | null = null;
+const RESVG_RETRY_COOLDOWN_MS = 5 * 60 * 1000;
+
+async function loadResvg(): Promise<ResvgCtor> {
+  if (ResvgRef) return ResvgRef;
+  if (resvgLoadFailedAt && Date.now() - resvgLoadFailedAt < RESVG_RETRY_COOLDOWN_MS) {
+    throw new Error("RESVG_WASM_UNAVAILABLE: aguardando cooldown para nova tentativa");
+  }
+  try {
+    const mod = await import("@cf-wasm/resvg");
+    ResvgRef = mod.Resvg as unknown as ResvgCtor;
+    resvgLoadFailedAt = null;
+    return ResvgRef;
+  } catch (err) {
+    resvgLoadFailedAt = Date.now();
+    console.error(JSON.stringify({
+      event: "RESVG_WASM_LOAD_FAILED",
+      error: err instanceof Error ? err.message : String(err),
+      cooldown_ms: RESVG_RETRY_COOLDOWN_MS,
+    }));
+    throw new Error(
+      `RESVG_WASM_UNAVAILABLE: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+}
 import { INTER_800_WOFF_BASE64 } from "./assets/inter-800";
 import { publishStory } from "./graph.server";
 
