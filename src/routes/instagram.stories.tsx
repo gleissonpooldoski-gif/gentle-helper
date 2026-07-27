@@ -15,11 +15,26 @@ import {
   saveStoryTemplate,
   toggleAdminStoryAutomation,
 } from "@/modules/instagram-admin/admin.functions";
+import {
+  STORY_W as W,
+  STORY_H as H,
+  PROD_ZONE,
+  TITLE_ZONE,
+  PRICE_BAR_ZONE,
+  TITLE_LINE_HEIGHT,
+  POR_FONT_SIZE,
+  PRICE_FONT_SIZE_WITH_DE,
+  PRICE_FONT_SIZE_NO_DE,
+  DE_FONT_SIZE,
+  DE_BASELINE_OFFSET,
+  PRICE_CENTER_Y_OFFSET_WITH_DE,
+  DE_STRIKE_WIDTH,
+  DEFAULT_BG_COLOR,
+  DEFAULT_TITLE_COLOR,
+  wrapTitleLines,
+} from "@/modules/instagram-admin/story-layout";
 import { InstagramLayout } from "./instagram";
 import { Activity, CalendarClock, CheckCircle2, ExternalLink, Image as ImageIcon, Loader2, Play, Power, Save, Send, Trash2, Upload } from "lucide-react";
-
-const W = 1080;
-const H = 1920;
 
 function formatBRL(n?: number | null) {
   if (n == null) return "";
@@ -254,45 +269,28 @@ function PublishBox() {
     canvas.width = W;
     canvas.height = H;
 
-    // Overlay zones tuned to the reference template (1080x1920).
-    // Product photo sits inside the central white card, product title
-    // right below the photo, and price sits over the purple "POR R$ …" bar.
-    const PROD = { x: 180, y: 470, w: 720, h: 640 };
-    const TITLE = { x: 90, y: 1130, w: 900, h: 170 };
-    const PRICE_BAR = { x: 90, y: 1310, w: 900, h: 170 };
+    // Zones/sizes come from the SHARED story-layout module — same source of
+    // truth used by the server-side pureimage renderer (compose.server.ts).
+    // Do NOT edit inline; change story-layout.ts instead so both paths stay
+    // pixel-parity.
+    const PROD = PROD_ZONE;
+    const TITLE = TITLE_ZONE;
+    const PRICE_BAR = PRICE_BAR_ZONE;
 
     const drawTitle = () => {
       const title = product?.title?.trim();
       if (!title) return;
       ctx.save();
-      ctx.fillStyle = template?.title_color ?? "#111111";
+      ctx.fillStyle = template?.title_color ?? DEFAULT_TITLE_COLOR;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      // fit up to 2 lines, shrink font if needed
-      const maxW = TITLE.w - 40;
-      let size = 58;
-      const wrap = (s: number) => {
+      const measure = (text: string, s: number) => {
         ctx.font = `800 ${s}px Inter, system-ui, sans-serif`;
-        const words = title.split(/\s+/);
-        const lines: string[] = [];
-        let line = "";
-        for (const w of words) {
-          const test = line ? `${line} ${w}` : w;
-          if (ctx.measureText(test).width > maxW && line) {
-            lines.push(line);
-            line = w;
-          } else line = test;
-        }
-        if (line) lines.push(line);
-        return lines;
+        return ctx.measureText(text).width;
       };
-      let lines = wrap(size);
-      while (lines.length > 2 && size > 34) {
-        size -= 4;
-        lines = wrap(size);
-      }
-      lines = lines.slice(0, 2);
-      const lineH = size * 1.15;
+      const { lines, size } = wrapTitleLines(title, measure);
+      ctx.font = `800 ${size}px Inter, system-ui, sans-serif`;
+      const lineH = size * TITLE_LINE_HEIGHT;
       const totalH = lineH * lines.length;
       const startY = TITLE.y + (TITLE.h - totalH) / 2 + lineH / 2;
       lines.forEach((ln, i) => ctx.fillText(ln, TITLE.x + TITLE.w / 2, startY + i * lineH));
@@ -313,14 +311,13 @@ function PublishBox() {
       ctx.textAlign = "center";
 
       if (hasDiscount) {
-        // "DE R$ X" small with strikethrough, centered on top half
         const deStr = `DE ${formatBRL(original)}`;
-        ctx.font = "700 42px Inter, system-ui, sans-serif";
-        const deY = PRICE_BAR.y + 48;
+        ctx.font = `700 ${DE_FONT_SIZE}px Inter, system-ui, sans-serif`;
+        const deY = PRICE_BAR.y + DE_BASELINE_OFFSET;
         ctx.fillText(deStr, PRICE_BAR.x + PRICE_BAR.w / 2, deY);
         const dw = ctx.measureText(deStr).width;
         ctx.strokeStyle = "#ffffff";
-        ctx.lineWidth = 4;
+        ctx.lineWidth = DE_STRIKE_WIDTH;
         const sx = PRICE_BAR.x + (PRICE_BAR.w - dw) / 2;
         ctx.beginPath();
         ctx.moveTo(sx, deY);
@@ -328,9 +325,9 @@ function PublishBox() {
         ctx.stroke();
       }
 
-      // POR + big price
-      const porFont = "800 56px Inter, system-ui, sans-serif";
-      const priceFont = `900 ${hasDiscount ? 92 : 120}px Inter, system-ui, sans-serif`;
+      const priceSize = hasDiscount ? PRICE_FONT_SIZE_WITH_DE : PRICE_FONT_SIZE_NO_DE;
+      const porFont = `800 ${POR_FONT_SIZE}px Inter, system-ui, sans-serif`;
+      const priceFont = `900 ${priceSize}px Inter, system-ui, sans-serif`;
       ctx.font = porFont;
       const porW = ctx.measureText("POR ").width;
       ctx.font = priceFont;
@@ -338,7 +335,7 @@ function PublishBox() {
       const totalW = porW + priceW;
       const startX = PRICE_BAR.x + (PRICE_BAR.w - totalW) / 2;
       const centerY = hasDiscount
-        ? PRICE_BAR.y + PRICE_BAR.h - 55
+        ? PRICE_BAR.y + PRICE_BAR.h + PRICE_CENTER_Y_OFFSET_WITH_DE
         : PRICE_BAR.y + PRICE_BAR.h / 2;
 
       ctx.textAlign = "left";
@@ -394,13 +391,13 @@ function PublishBox() {
         drawContent();
       };
       bg.onerror = () => {
-        ctx.fillStyle = "#fde047";
+        ctx.fillStyle = DEFAULT_BG_COLOR;
         ctx.fillRect(0, 0, W, H);
         drawContent();
       };
       bg.src = template.image_url;
     } else {
-      ctx.fillStyle = "#fde047";
+      ctx.fillStyle = DEFAULT_BG_COLOR;
       ctx.fillRect(0, 0, W, H);
       drawContent();
     }

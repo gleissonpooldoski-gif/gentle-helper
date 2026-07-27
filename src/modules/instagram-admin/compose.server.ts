@@ -16,6 +16,26 @@ import { decode as decodeJpeg } from "jpeg-js";
 import { parse, type Font } from "opentype.js";
 import { INTER_800_WOFF_BASE64 } from "./assets/inter-800";
 import { publishStory } from "./graph.server";
+import {
+  STORY_W,
+  STORY_H,
+  PROD_ZONE,
+  TITLE_ZONE,
+  PRICE_BAR_ZONE,
+  POR_FONT_SIZE,
+  PRICE_FONT_SIZE_WITH_DE,
+  PRICE_FONT_SIZE_NO_DE,
+  DE_FONT_SIZE,
+  DE_BASELINE_OFFSET,
+  PRICE_CENTER_Y_OFFSET_WITH_DE,
+  TITLE_LINE_HEIGHT,
+  PRICE_TEXT_COLOR,
+  DEFAULT_TITLE_COLOR,
+  DEFAULT_BG_COLOR,
+  DE_STRIKE_WIDTH,
+  wrapTitleLines,
+  formatBRL,
+} from "./story-layout";
 
 let storyFont: Font | null = null;
 
@@ -33,10 +53,6 @@ function ensureFont(): Font {
   }
   return storyFont;
 }
-
-
-
-
 
 async function fetchBitmap(url: string): Promise<Bitmap | null> {
   try {
@@ -61,6 +77,21 @@ async function fetchBitmap(url: string): Promise<Bitmap | null> {
   }
 }
 
+function drawTextAt(
+  ctx: ReturnType<Bitmap["getContext"]>,
+  font: Font,
+  text: string,
+  x: number,
+  baselineY: number,
+  size: number,
+  color: string,
+): number {
+  const width = font.getAdvanceWidth(text, size);
+  ctx.fillStyle = color;
+  font.getPath(text, x, baselineY, size).draw(ctx as never);
+  return width;
+}
+
 function drawCenteredText(
   ctx: ReturnType<Bitmap["getContext"]>,
   font: Font,
@@ -69,33 +100,10 @@ function drawCenteredText(
   baselineY: number,
   size: number,
   color: string,
-) {
+): number {
   const width = font.getAdvanceWidth(text, size);
-  ctx.fillStyle = color;
-  font.getPath(text, centerX - width / 2, baselineY, size).draw(ctx as never);
+  drawTextAt(ctx, font, text, centerX - width / 2, baselineY, size, color);
   return width;
-}
-
-function formatBRL(n: number | null | undefined): string {
-  if (n == null) return "";
-  return `R$ ${Number(n).toFixed(2).replace(".", ",")}`;
-}
-
-// Wrap by character count — cheap heuristic since we don't have text metrics
-// server-side without measuring. Keeps titles readable in 2 lines.
-function wrapTitle(title: string, maxCharsPerLine: number): string[] {
-  const words = title.split(/\s+/).filter(Boolean);
-  const lines: string[] = [];
-  let line = "";
-  for (const w of words) {
-    const test = line ? `${line} ${w}` : w;
-    if (test.length > maxCharsPerLine && line) {
-      lines.push(line);
-      line = w;
-    } else line = test;
-  }
-  if (line) lines.push(line);
-  return lines.slice(0, 2);
 }
 
 export type ComposeInput = {
@@ -115,23 +123,15 @@ export type ComposeInput = {
 export async function composeStoryPng(input: ComposeInput): Promise<Uint8Array> {
   const font = ensureFont();
 
-  const W = 1080;
-  const H = 1920;
-  const PROD = { x: 180, y: 470, w: 720, h: 640 };
-  const TITLE = { x: 90, y: 1130, w: 900, h: 170 };
-  const PRICE = { x: 90, y: 1310, w: 900, h: 170 };
-
   const [templateBitmap, productBitmap] = await Promise.all([
     input.templateUrl ? fetchBitmap(input.templateUrl) : Promise.resolve(null),
     input.product.image_url ? fetchBitmap(input.product.image_url) : Promise.resolve(null),
   ]);
 
-  const titleColor = input.titleColor || "#111111";
+  const titleColor = input.titleColor || DEFAULT_TITLE_COLOR;
   const rawTitle = (input.product.title ?? "").trim();
-  const titleLines = rawTitle ? wrapTitle(rawTitle, 32) : [];
 
   // LOTE 17A: DE/POR decidido EXCLUSIVAMENTE pela camada central.
-  // Nunca comparar original_price > promo_price diretamente.
   const { resolveProductDisplay } = await import("@/modules/products/display-resolver");
   const disp = resolveProductDisplay({
     title: input.product.title ?? null,
@@ -145,64 +145,88 @@ export async function composeStoryPng(input: ComposeInput): Promise<Uint8Array> 
   const hasDiscount = original != null;
   const priceStr = formatBRL(promo ?? input.product.original_price ?? null);
 
-
-  const output = make(W, H);
+  const output = make(STORY_W, STORY_H);
   const ctx = output.getContext("2d");
 
   if (templateBitmap) {
-    const scale = Math.max(W / templateBitmap.width, H / templateBitmap.height);
+    const scale = Math.max(STORY_W / templateBitmap.width, STORY_H / templateBitmap.height);
     const drawW = templateBitmap.width * scale;
     const drawH = templateBitmap.height * scale;
-    ctx.drawImage(templateBitmap, (W - drawW) / 2, (H - drawH) / 2, drawW, drawH);
+    ctx.drawImage(templateBitmap, (STORY_W - drawW) / 2, (STORY_H - drawH) / 2, drawW, drawH);
   } else {
-    ctx.fillStyle = "#fde047";
-    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = DEFAULT_BG_COLOR;
+    ctx.fillRect(0, 0, STORY_W, STORY_H);
   }
 
   if (productBitmap) {
-    const scale = Math.min(PROD.w / productBitmap.width, PROD.h / productBitmap.height);
+    const scale = Math.min(PROD_ZONE.w / productBitmap.width, PROD_ZONE.h / productBitmap.height);
     const drawW = productBitmap.width * scale;
     const drawH = productBitmap.height * scale;
     ctx.drawImage(
       productBitmap,
-      PROD.x + (PROD.w - drawW) / 2,
-      PROD.y + (PROD.h - drawH) / 2,
+      PROD_ZONE.x + (PROD_ZONE.w - drawW) / 2,
+      PROD_ZONE.y + (PROD_ZONE.h - drawH) / 2,
       drawW,
       drawH,
     );
   }
 
-  if (titleLines.length) {
-    const size = titleLines.some((l) => l.length > 24) ? 50 : 58;
-    const lineH = size * 1.15;
-    const total = lineH * titleLines.length;
-    const startY = TITLE.y + (TITLE.h - total) / 2 + size * 0.85;
-    titleLines.forEach((ln, i) => {
-      drawCenteredText(ctx, font, ln, TITLE.x + TITLE.w / 2, startY + i * lineH, size, titleColor);
+  // Title — same wrap/shrink algorithm as the manual canvas, using opentype
+  // advance widths as the measurement fn.
+  if (rawTitle) {
+    const { lines, size } = wrapTitleLines(rawTitle, (text, s) =>
+      font.getAdvanceWidth(text, s),
+    );
+    const lineH = size * TITLE_LINE_HEIGHT;
+    const totalH = lineH * lines.length;
+    // Manual uses textBaseline="middle"; opentype draws at baseline, so we
+    // approximate middle by offsetting by size*0.35 (Inter ex-height ~0.7).
+    const startMiddleY = TITLE_ZONE.y + (TITLE_ZONE.h - totalH) / 2 + lineH / 2;
+    lines.forEach((ln, i) => {
+      const baselineY = startMiddleY + i * lineH + size * 0.35;
+      drawCenteredText(ctx, font, ln, TITLE_ZONE.x + TITLE_ZONE.w / 2, baselineY, size, titleColor);
     });
   }
 
+  // Price — mirrors stories.tsx drawPrice(): "POR" small + big price laid
+  // out left-aligned but as a group centered horizontally in PRICE_BAR_ZONE.
   if (priceStr) {
-    const centerX = PRICE.x + PRICE.w / 2;
+    const barCenterX = PRICE_BAR_ZONE.x + PRICE_BAR_ZONE.w / 2;
+
     if (hasDiscount) {
       const deStr = `DE ${formatBRL(original)}`;
-      const deY = PRICE.y + 48;
-      const deWidth = drawCenteredText(ctx, font, deStr, centerX, deY, 42, "#ffffff");
-      ctx.strokeStyle = "#ffffff";
-      ctx.lineWidth = 4;
+      const deBaselineY = PRICE_BAR_ZONE.y + DE_BASELINE_OFFSET + DE_FONT_SIZE * 0.35;
+      const deWidth = drawCenteredText(
+        ctx, font, deStr, barCenterX, deBaselineY, DE_FONT_SIZE, PRICE_TEXT_COLOR,
+      );
+      // strike-through at the middle line (matches manual: moveTo(deY))
+      const strikeY = PRICE_BAR_ZONE.y + DE_BASELINE_OFFSET;
+      ctx.strokeStyle = PRICE_TEXT_COLOR;
+      ctx.lineWidth = DE_STRIKE_WIDTH;
       ctx.beginPath();
-      ctx.moveTo(centerX - deWidth / 2, deY - 8);
-      ctx.lineTo(centerX + deWidth / 2, deY - 8);
+      ctx.moveTo(barCenterX - deWidth / 2, strikeY);
+      ctx.lineTo(barCenterX + deWidth / 2, strikeY);
       ctx.stroke();
-      const centerY = PRICE.y + PRICE.h - 30;
-      drawCenteredText(ctx, font, `POR ${priceStr}`, centerX, centerY, 92, "#ffffff");
-    } else {
-      const centerY = PRICE.y + PRICE.h / 2 + 20;
-      drawCenteredText(ctx, font, `POR ${priceStr}`, centerX, centerY, 110, "#ffffff");
     }
+
+    const priceSize = hasDiscount ? PRICE_FONT_SIZE_WITH_DE : PRICE_FONT_SIZE_NO_DE;
+    const porW = font.getAdvanceWidth("POR ", POR_FONT_SIZE);
+    const priceW = font.getAdvanceWidth(priceStr, priceSize);
+    const totalW = porW + priceW;
+    const startX = PRICE_BAR_ZONE.x + (PRICE_BAR_ZONE.w - totalW) / 2;
+
+    const middleY = hasDiscount
+      ? PRICE_BAR_ZONE.y + PRICE_BAR_ZONE.h + PRICE_CENTER_Y_OFFSET_WITH_DE
+      : PRICE_BAR_ZONE.y + PRICE_BAR_ZONE.h / 2;
+
+    // Align "POR" and priceStr on the same visual middle line.
+    const porBaselineY = middleY + POR_FONT_SIZE * 0.35;
+    const priceBaselineY = middleY + priceSize * 0.35;
+    drawTextAt(ctx, font, "POR", startX, porBaselineY, POR_FONT_SIZE, PRICE_TEXT_COLOR);
+    drawTextAt(ctx, font, priceStr, startX + porW, priceBaselineY, priceSize, PRICE_TEXT_COLOR);
   }
 
-  const pngImage = new PNG({ width: W, height: H });
+  const pngImage = new PNG({ width: STORY_W, height: STORY_H });
   pngImage.data = Buffer.from(output.data);
   const png = PNG.sync.write(pngImage);
   return new Uint8Array(png.buffer, png.byteOffset, png.byteLength);
