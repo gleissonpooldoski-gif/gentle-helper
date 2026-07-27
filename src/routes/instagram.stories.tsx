@@ -391,13 +391,13 @@ function PublishBox() {
         drawContent();
       };
       bg.onerror = () => {
-        ctx.fillStyle = "#fde047";
+        ctx.fillStyle = DEFAULT_BG_COLOR;
         ctx.fillRect(0, 0, W, H);
         drawContent();
       };
       bg.src = template.image_url;
     } else {
-      ctx.fillStyle = "#fde047";
+      ctx.fillStyle = DEFAULT_BG_COLOR;
       ctx.fillRect(0, 0, W, H);
       drawContent();
     }
