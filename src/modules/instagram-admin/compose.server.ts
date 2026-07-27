@@ -12,6 +12,7 @@
  */
 import { make, type Bitmap } from "pureimage";
 import { PNG } from "pngjs";
+import UPNG from "upng-js";
 import { decode as decodeJpeg } from "jpeg-js";
 import { parse, type Font } from "opentype.js";
 import { INTER_800_WOFF_BASE64 } from "./assets/inter-800";
