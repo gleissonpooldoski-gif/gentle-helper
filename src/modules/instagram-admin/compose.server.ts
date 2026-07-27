@@ -9,6 +9,7 @@
  *
  * Rendering pipeline: pure JavaScript bitmap composition. No WASM is loaded,
  * which keeps the scheduled path compatible with the production Worker.
+ * Build tag: LOTE_23B_REDEPLOY
  */
 import { make, type Bitmap } from "pureimage";
 import { PNG } from "pngjs";
