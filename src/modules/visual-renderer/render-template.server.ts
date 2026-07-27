@@ -11,7 +11,7 @@
  * pré-compilado no deploy, sem geração dinâmica de código em runtime.
  */
 import { initWasm, Resvg } from "@resvg/resvg-wasm";
-import resvgWasmModule from "@resvg/resvg-wasm/index_bg.wasm?module";
+import resvgWasmUrl from "@resvg/resvg-wasm/index_bg.wasm?url";
 import type { VTElement, VTFormat } from "@/modules/visual-templates/presets";
 import { FORMAT_SIZE } from "@/modules/visual-templates/presets";
 import type { ProductLite } from "@/modules/visual-templates/bindings";
@@ -30,7 +30,7 @@ function decodeBase64(base64: string): Uint8Array {
 
 async function ensureResvgInitialized(): Promise<void> {
   if (!resvgInitPromise) {
-    resvgInitPromise = initWasm(resvgWasmModule as WebAssembly.Module).catch((error) => {
+    resvgInitPromise = initWasm(resvgWasmUrl).catch((error) => {
       resvgInitPromise = null;
       console.error(JSON.stringify({
         tag: "[VISUAL_RENDER]",
