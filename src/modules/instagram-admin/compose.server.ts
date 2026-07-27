@@ -145,8 +145,8 @@ export async function composeStoryPng(input: ComposeInput): Promise<Uint8Array> 
   const font = ensureFont();
 
   const [templateBitmap, productBitmap] = await Promise.all([
-    input.templateUrl ? fetchBitmap(input.templateUrl) : Promise.resolve(null),
-    input.product.image_url ? fetchBitmap(input.product.image_url) : Promise.resolve(null),
+    input.templateUrl ? fetchBitmap(input.templateUrl, "template") : Promise.resolve(null),
+    input.product.image_url ? fetchBitmap(input.product.image_url, "product") : Promise.resolve(null),
   ]);
 
   const titleColor = input.titleColor || DEFAULT_TITLE_COLOR;
