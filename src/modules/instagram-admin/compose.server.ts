@@ -8,27 +8,20 @@
  *  - the "Publicar agora" button (`runAdminStoryScheduleNow`)
  *
  * Rendering pipeline: build an SVG string, rasterize with @resvg/resvg-wasm.
- * The WASM is forced inline as a data URL and initialized explicitly, so the
- * Worker never depends on a separately deployed `wasm/*.wasm` module.
+ * The WASM is imported as a static Worker module so it is compiled at deploy
+ * time instead of using forbidden runtime WebAssembly code generation.
  */
 import { initWasm, Resvg } from "@resvg/resvg-wasm";
-import resvgWasmDataUrl from "virtual:resvg-wasm-inline";
+import resvgWasmModule from "@resvg/resvg-wasm/index_bg.wasm";
 import { INTER_800_WOFF_BASE64 } from "./assets/inter-800";
 import { publishStory } from "./graph.server";
 
 let fontBuffer: Uint8Array | null = null;
 let resvgInitPromise: Promise<void> | null = null;
 
-function decodeDataUrl(dataUrl: string): Uint8Array {
-  const marker = ";base64,";
-  const markerIndex = dataUrl.indexOf(marker);
-  if (markerIndex < 0) throw new Error("RESVG_WASM_INLINE_INVALID");
-  return decodeBase64(dataUrl.slice(markerIndex + marker.length));
-}
-
 async function ensureResvgInitialized(): Promise<void> {
   if (!resvgInitPromise) {
-    resvgInitPromise = initWasm(decodeDataUrl(resvgWasmDataUrl)).catch((error) => {
+    resvgInitPromise = initWasm(resvgWasmModule as WebAssembly.Module).catch((error) => {
       resvgInitPromise = null;
       console.error(JSON.stringify({
         event: "RESVG_WASM_INIT_FAILED",

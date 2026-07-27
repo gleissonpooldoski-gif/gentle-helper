@@ -1,4 +1,4 @@
-declare module "virtual:resvg-wasm-inline" {
-  const wasmDataUrl: string;
-  export default wasmDataUrl;
+declare module "*.wasm" {
+  const wasmModule: WebAssembly.Module;
+  export default wasmModule;
 }
