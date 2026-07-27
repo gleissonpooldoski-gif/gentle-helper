@@ -7,11 +7,11 @@
  * Isolado do pipeline de publicação — este lote (14A) apenas expõe o
  * renderizador; integrações WhatsApp/Instagram virão em lotes seguintes.
  *
- * Compatível com Cloudflare Workers: o WASM é embutido no bundle como data URL
- * e inicializado explicitamente, sem depender de um módulo externo wasm/*.wasm.
+ * Compatível com Cloudflare Workers: o WASM é importado como módulo estático e
+ * pré-compilado no deploy, sem geração dinâmica de código em runtime.
  */
 import { initWasm, Resvg } from "@resvg/resvg-wasm";
-import resvgWasmDataUrl from "virtual:resvg-wasm-inline";
+import resvgWasmModule from "@resvg/resvg-wasm/index_bg.wasm";
 import type { VTElement, VTFormat } from "@/modules/visual-templates/presets";
 import { FORMAT_SIZE } from "@/modules/visual-templates/presets";
 import type { ProductLite } from "@/modules/visual-templates/bindings";
@@ -28,16 +28,9 @@ function decodeBase64(base64: string): Uint8Array {
   return out;
 }
 
-function decodeDataUrl(dataUrl: string): Uint8Array {
-  const marker = ";base64,";
-  const markerIndex = dataUrl.indexOf(marker);
-  if (markerIndex < 0) throw new Error("RESVG_WASM_INLINE_INVALID");
-  return decodeBase64(dataUrl.slice(markerIndex + marker.length));
-}
-
 async function ensureResvgInitialized(): Promise<void> {
   if (!resvgInitPromise) {
-    resvgInitPromise = initWasm(decodeDataUrl(resvgWasmDataUrl)).catch((error) => {
+    resvgInitPromise = initWasm(resvgWasmModule as WebAssembly.Module).catch((error) => {
       resvgInitPromise = null;
       console.error(JSON.stringify({
         tag: "[VISUAL_RENDER]",
