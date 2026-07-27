@@ -234,6 +234,7 @@ export async function composeStoryPng(input: ComposeInput): Promise<Uint8Array> 
   parts.push(`</svg>`);
   const svg = parts.join("");
 
+  const Resvg = await loadResvg();
   const resvg = new Resvg(svg, {
     fitTo: { mode: "width", value: W },
     font: {
