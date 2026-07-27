@@ -12,7 +12,7 @@
  * time instead of using forbidden runtime WebAssembly code generation.
  */
 import { initWasm, Resvg } from "@resvg/resvg-wasm";
-import resvgWasmModule from "../../../node_modules/@resvg/resvg-wasm/index_bg.wasm?module";
+import resvgWasmModule from "@resvg/resvg-wasm/index_bg.wasm?module";
 import { INTER_800_WOFF_BASE64 } from "./assets/inter-800";
 import { publishStory } from "./graph.server";
 
