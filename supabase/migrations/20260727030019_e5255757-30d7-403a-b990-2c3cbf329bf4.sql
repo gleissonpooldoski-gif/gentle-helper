@@ -1,0 +1,1 @@
+UPDATE public.instagram_admin_schedule SET last_run_at = NULL WHERE template_id='0640e663-ba8f-4ee4-9ca2-2d95fda5dab6';

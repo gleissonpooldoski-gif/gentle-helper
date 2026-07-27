@@ -12,6 +12,7 @@
  */
 import { make, type Bitmap } from "pureimage";
 import { PNG } from "pngjs";
+import UPNG from "upng-js";
 import { decode as decodeJpeg } from "jpeg-js";
 import { parse, type Font } from "opentype.js";
 import { INTER_800_WOFF_BASE64 } from "./assets/inter-800";
@@ -74,12 +75,26 @@ async function fetchBitmap(url: string, label: string): Promise<Bitmap | null> {
     const isPng = bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47;
     const isJpg = bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
     try {
-      const decoded = isPng || (contentType.includes("png") && !isJpg)
-        ? PNG.sync.read(Buffer.from(bytes))
-        : decodeJpeg(Buffer.from(bytes), { useTArray: true, formatAsRGBA: true });
-      const bitmap = make(decoded.width, decoded.height);
-      bitmap.data.set(decoded.data);
-      console.log("[COMPOSE_FETCH_OK]", { label, w: decoded.width, h: decoded.height, isPng, isJpg });
+      let width: number;
+      let height: number;
+      let rgba: Uint8Array;
+      if (isPng || (contentType.includes("png") && !isJpg)) {
+        // UPNG works on the Cloudflare Worker (pngjs breaks because workerd's
+        // zlib.Inflate is a strict ES class and pngjs calls it without `new`).
+        const img = UPNG.decode(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
+        const framesRgba = UPNG.toRGBA8(img);
+        rgba = new Uint8Array(framesRgba[0]);
+        width = img.width;
+        height = img.height;
+      } else {
+        const decoded = decodeJpeg(Buffer.from(bytes), { useTArray: true, formatAsRGBA: true });
+        rgba = decoded.data as Uint8Array;
+        width = decoded.width;
+        height = decoded.height;
+      }
+      const bitmap = make(width, height);
+      bitmap.data.set(rgba);
+      console.log("[COMPOSE_FETCH_OK]", { label, w: width, h: height, isPng, isJpg });
       return bitmap;
     } catch (decodeErr: any) {
       console.log("[COMPOSE_DECODE_FAIL]", {
