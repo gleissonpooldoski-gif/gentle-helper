@@ -16,6 +16,26 @@ import { decode as decodeJpeg } from "jpeg-js";
 import { parse, type Font } from "opentype.js";
 import { INTER_800_WOFF_BASE64 } from "./assets/inter-800";
 import { publishStory } from "./graph.server";
+import {
+  STORY_W,
+  STORY_H,
+  PROD_ZONE,
+  TITLE_ZONE,
+  PRICE_BAR_ZONE,
+  POR_FONT_SIZE,
+  PRICE_FONT_SIZE_WITH_DE,
+  PRICE_FONT_SIZE_NO_DE,
+  DE_FONT_SIZE,
+  DE_BASELINE_OFFSET,
+  PRICE_CENTER_Y_OFFSET_WITH_DE,
+  TITLE_LINE_HEIGHT,
+  PRICE_TEXT_COLOR,
+  DEFAULT_TITLE_COLOR,
+  DEFAULT_BG_COLOR,
+  DE_STRIKE_WIDTH,
+  wrapTitleLines,
+  formatBRL,
+} from "./story-layout";
 
 let storyFont: Font | null = null;
 
@@ -33,10 +53,6 @@ function ensureFont(): Font {
   }
   return storyFont;
 }
-
-
-
-
 
 async function fetchBitmap(url: string): Promise<Bitmap | null> {
   try {
@@ -61,6 +77,21 @@ async function fetchBitmap(url: string): Promise<Bitmap | null> {
   }
 }
 
+function drawTextAt(
+  ctx: ReturnType<Bitmap["getContext"]>,
+  font: Font,
+  text: string,
+  x: number,
+  baselineY: number,
+  size: number,
+  color: string,
+): number {
+  const width = font.getAdvanceWidth(text, size);
+  ctx.fillStyle = color;
+  font.getPath(text, x, baselineY, size).draw(ctx as never);
+  return width;
+}
+
 function drawCenteredText(
   ctx: ReturnType<Bitmap["getContext"]>,
   font: Font,
@@ -69,33 +100,10 @@ function drawCenteredText(
   baselineY: number,
   size: number,
   color: string,
-) {
+): number {
   const width = font.getAdvanceWidth(text, size);
-  ctx.fillStyle = color;
-  font.getPath(text, centerX - width / 2, baselineY, size).draw(ctx as never);
+  drawTextAt(ctx, font, text, centerX - width / 2, baselineY, size, color);
   return width;
-}
-
-function formatBRL(n: number | null | undefined): string {
-  if (n == null) return "";
-  return `R$ ${Number(n).toFixed(2).replace(".", ",")}`;
-}
-
-// Wrap by character count — cheap heuristic since we don't have text metrics
-// server-side without measuring. Keeps titles readable in 2 lines.
-function wrapTitle(title: string, maxCharsPerLine: number): string[] {
-  const words = title.split(/\s+/).filter(Boolean);
-  const lines: string[] = [];
-  let line = "";
-  for (const w of words) {
-    const test = line ? `${line} ${w}` : w;
-    if (test.length > maxCharsPerLine && line) {
-      lines.push(line);
-      line = w;
-    } else line = test;
-  }
-  if (line) lines.push(line);
-  return lines.slice(0, 2);
 }
 
 export type ComposeInput = {
