@@ -2,15 +2,16 @@
  * Motor oficial de renderização visual server-side.
  *
  * Entrada: template (elements + format), produto, userId (para logs).
- * Saída:   PNG (Uint8Array) rasterizado via @cf-wasm/resvg.
+ * Saída:   PNG (Uint8Array) rasterizado via @resvg/resvg-wasm.
  *
  * Isolado do pipeline de publicação — este lote (14A) apenas expõe o
  * renderizador; integrações WhatsApp/Instagram virão em lotes seguintes.
  *
- * Compatível com Cloudflare Workers (WASM bundled pelo @cf-wasm/resvg,
- * sem `new WebAssembly.Module()` em runtime, sem CDN, sem fetch de WASM).
+ * Compatível com Cloudflare Workers: o WASM é embutido no bundle como data URL
+ * e inicializado explicitamente, sem depender de um módulo externo wasm/*.wasm.
  */
-import { Resvg } from "@cf-wasm/resvg";
+import { initWasm, Resvg } from "@resvg/resvg-wasm";
+import resvgWasmDataUrl from "virtual:resvg-wasm-inline";
 import type { VTElement, VTFormat } from "@/modules/visual-templates/presets";
 import { FORMAT_SIZE } from "@/modules/visual-templates/presets";
 import type { ProductLite } from "@/modules/visual-templates/bindings";
@@ -18,12 +19,40 @@ import { INTER_800_WOFF_BASE64 } from "@/modules/instagram-admin/assets/inter-80
 import { elementsToSvg } from "./fabric-to-svg.server";
 
 let fontBuffer: Uint8Array | null = null;
+let resvgInitPromise: Promise<void> | null = null;
+
+function decodeBase64(base64: string): Uint8Array {
+  const bin = atob(base64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+function decodeDataUrl(dataUrl: string): Uint8Array {
+  const marker = ";base64,";
+  const markerIndex = dataUrl.indexOf(marker);
+  if (markerIndex < 0) throw new Error("RESVG_WASM_INLINE_INVALID");
+  return decodeBase64(dataUrl.slice(markerIndex + marker.length));
+}
+
+async function ensureResvgInitialized(): Promise<void> {
+  if (!resvgInitPromise) {
+    resvgInitPromise = initWasm(decodeDataUrl(resvgWasmDataUrl)).catch((error) => {
+      resvgInitPromise = null;
+      console.error(JSON.stringify({
+        tag: "[VISUAL_RENDER]",
+        event: "RESVG_WASM_INIT_FAILED",
+        error: error instanceof Error ? error.message : String(error),
+      }));
+      throw error;
+    });
+  }
+  await resvgInitPromise;
+}
+
 function ensureFont(): Uint8Array {
   if (!fontBuffer) {
-    const bin = atob(INTER_800_WOFF_BASE64);
-    const out = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-    fontBuffer = out;
+    fontBuffer = decodeBase64(INTER_800_WOFF_BASE64);
   }
   return fontBuffer;
 }
@@ -56,6 +85,7 @@ export async function renderVisualTemplatePng(
   const H = input.template.height ?? size.h;
 
   try {
+    await ensureResvgInitialized();
     const svg = await elementsToSvg({
       elements: input.template.elements,
       width: W,
@@ -73,7 +103,17 @@ export async function renderVisualTemplatePng(
         defaultFontFamily: "Inter",
       },
     });
-    const png = resvg.render().asPng();
+    let png: Uint8Array;
+    try {
+      const rendered = resvg.render();
+      try {
+        png = rendered.asPng();
+      } finally {
+        rendered.free();
+      }
+    } finally {
+      resvg.free();
+    }
 
     console.log(
       JSON.stringify({
