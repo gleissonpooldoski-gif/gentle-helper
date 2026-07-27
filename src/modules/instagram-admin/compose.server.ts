@@ -7,48 +7,38 @@
  *  - the recurring schedule cron (`/api/public/hooks/instagram-tick`)
  *  - the "Publicar agora" button (`runAdminStoryScheduleNow`)
  *
- * Rendering pipeline: build an SVG string, rasterize with @cf-wasm/resvg
- * (workerd build). The package ships the WASM as a bundler-imported module
- * compiled at build time — no runtime WebAssembly.Module(bytes), no CDN
- * fetches. Inter 800 font is base64-inlined at build time.
+ * Rendering pipeline: build an SVG string, rasterize with @resvg/resvg-wasm.
+ * The WASM is forced inline as a data URL and initialized explicitly, so the
+ * Worker never depends on a separately deployed `wasm/*.wasm` module.
  */
-// Resvg é carregado dinamicamente dentro de composeStoryPng() para evitar
-// que o binding WASM (@cf-wasm/resvg) seja avaliado no topo do módulo pelo
-// bundler do Cloudflare Worker — o import estático estava resultando em
-// "No such module wasm/resvg-*.wasm" no runtime do worker de instagram-tick.
-type ResvgCtor = new (svg: string, opts?: unknown) => {
-  render(): { asPng(): Uint8Array };
-};
-let ResvgRef: ResvgCtor | null = null;
-let resvgLoadFailedAt: number | null = null;
-const RESVG_RETRY_COOLDOWN_MS = 5 * 60 * 1000;
-
-async function loadResvg(): Promise<ResvgCtor> {
-  if (ResvgRef) return ResvgRef;
-  if (resvgLoadFailedAt && Date.now() - resvgLoadFailedAt < RESVG_RETRY_COOLDOWN_MS) {
-    throw new Error("RESVG_WASM_UNAVAILABLE: aguardando cooldown para nova tentativa");
-  }
-  try {
-    const mod = await import("@cf-wasm/resvg");
-    ResvgRef = mod.Resvg as unknown as ResvgCtor;
-    resvgLoadFailedAt = null;
-    return ResvgRef;
-  } catch (err) {
-    resvgLoadFailedAt = Date.now();
-    console.error(JSON.stringify({
-      event: "RESVG_WASM_LOAD_FAILED",
-      error: err instanceof Error ? err.message : String(err),
-      cooldown_ms: RESVG_RETRY_COOLDOWN_MS,
-    }));
-    throw new Error(
-      `RESVG_WASM_UNAVAILABLE: ${err instanceof Error ? err.message : String(err)}`,
-    );
-  }
-}
+import { initWasm, Resvg } from "@resvg/resvg-wasm";
+import resvgWasmDataUrl from "virtual:resvg-wasm-inline";
 import { INTER_800_WOFF_BASE64 } from "./assets/inter-800";
 import { publishStory } from "./graph.server";
 
 let fontBuffer: Uint8Array | null = null;
+let resvgInitPromise: Promise<void> | null = null;
+
+function decodeDataUrl(dataUrl: string): Uint8Array {
+  const marker = ";base64,";
+  const markerIndex = dataUrl.indexOf(marker);
+  if (markerIndex < 0) throw new Error("RESVG_WASM_INLINE_INVALID");
+  return decodeBase64(dataUrl.slice(markerIndex + marker.length));
+}
+
+async function ensureResvgInitialized(): Promise<void> {
+  if (!resvgInitPromise) {
+    resvgInitPromise = initWasm(decodeDataUrl(resvgWasmDataUrl)).catch((error) => {
+      resvgInitPromise = null;
+      console.error(JSON.stringify({
+        event: "RESVG_WASM_INIT_FAILED",
+        error: error instanceof Error ? error.message : String(error),
+      }));
+      throw error;
+    });
+  }
+  await resvgInitPromise;
+}
 
 function decodeBase64(b64: string): Uint8Array {
   const bin = atob(b64);
@@ -133,6 +123,7 @@ export type ComposeInput = {
 };
 
 export async function composeStoryPng(input: ComposeInput): Promise<Uint8Array> {
+  await ensureResvgInitialized();
   ensureFont();
 
   const W = 1080;
@@ -234,7 +225,6 @@ export async function composeStoryPng(input: ComposeInput): Promise<Uint8Array> 
   parts.push(`</svg>`);
   const svg = parts.join("");
 
-  const Resvg = await loadResvg();
   const resvg = new Resvg(svg, {
     fitTo: { mode: "width", value: W },
     font: {
@@ -243,8 +233,16 @@ export async function composeStoryPng(input: ComposeInput): Promise<Uint8Array> 
       defaultFontFamily: "Inter",
     },
   });
-  const png = resvg.render().asPng();
-  return png;
+  try {
+    const rendered = resvg.render();
+    try {
+      return rendered.asPng();
+    } finally {
+      rendered.free();
+    }
+  } finally {
+    resvg.free();
+  }
 }
 
 /**
