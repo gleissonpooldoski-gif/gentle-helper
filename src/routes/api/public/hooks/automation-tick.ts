@@ -209,14 +209,12 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
 
   // Escolhe o próximo produto disponível: pertence às lojas ativas do usuário,
   // está marcado como 'active' e ainda não está registrado em automation_group_sends.
-  // Antes de retornar, valida o produto em tempo real (link + imagem).
-  // Se a validação falhar, atualiza o status no banco e tenta o próximo.
-  const { validateProduct, persistValidation } = await import(
-    "@/modules/products/validation/validate.server"
-  );
+  // LOTE 26 — este hook NÃO altera mais `availability`. A responsabilidade
+  // por manter o status atualizado é exclusiva do cron `products-validate`.
+  // Aqui apenas lemos o snapshot mais recente e confiamos no filtro
+  // `availability='active'` da query abaixo.
 
   const ANTI_REPEAT_HOURS = 24;
-  const VALIDATION_TTL_MS = 6 * 3600_000; // reaproveita validação recente
 
   async function pickNext(): Promise<any | null> {
     // Inventário obrigatório por canal + grupo. Legados sem grupo ficam
