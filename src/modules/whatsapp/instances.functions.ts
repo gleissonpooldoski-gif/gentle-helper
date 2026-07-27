@@ -781,13 +781,25 @@ export const sendWhatsAppProduct = createServerFn({ method: "POST" })
         .maybeSingle();
       if (error) throw new Error(error.message);
       if (!prod) throw new Error("Produto não encontrado");
+      // LOTE 18A: DE/POR e vendidos decididos EXCLUSIVAMENTE pela camada central.
+      // Nunca ler prod.sales / prod.sales_label / comparar original>promo aqui.
+      const { resolveProductDisplay } = await import("@/modules/products/display-resolver");
+      const display = resolveProductDisplay({
+        title: prod.title ?? null,
+        platform: prod.platform ?? null,
+        promo_price: prod.promo_price ?? null,
+        original_price: prod.original_price ?? null,
+        sales_historical: prod.sales_historical ?? null,
+        sales_source: prod.sales_source ?? null,
+        price_quality: prod.price_quality ?? null,
+      });
       product = {
         title: prod.title,
         description: null,
-        price: prod.promo_price,
-        price_original: prod.original_price,
+        price: display.priceCurrentDisplay ?? prod.promo_price ?? prod.original_price ?? null,
+        price_original: display.priceOriginalDisplay,
         parcelamento: null,
-        vendas: (await import("@/modules/products/sales-label")).formatSalesLabel(prod.sales == null ? null : Number(prod.sales)),
+        vendas: display.salesLabel || null,
         link: prod.affiliate_link,
         image: prod.image_url,
       };
