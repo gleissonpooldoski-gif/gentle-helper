@@ -7,31 +7,17 @@
  *  - the recurring schedule cron (`/api/public/hooks/instagram-tick`)
  *  - the "Publicar agora" button (`runAdminStoryScheduleNow`)
  *
- * Rendering pipeline: build an SVG string, rasterize with @resvg/resvg-wasm.
- * The WASM is imported as a static Worker module so it is compiled at deploy
- * time instead of using forbidden runtime WebAssembly code generation.
+ * Rendering pipeline: pure JavaScript bitmap composition. No WASM is loaded,
+ * which keeps the scheduled path compatible with the production Worker.
  */
-import { initWasm, Resvg } from "@resvg/resvg-wasm";
-import resvgWasmModule from "@resvg/resvg-wasm/index_bg.wasm?module";
+import { make, type Bitmap } from "pureimage";
+import { PNG } from "pngjs";
+import { decode as decodeJpeg } from "jpeg-js";
+import { parse, type Font } from "opentype.js";
 import { INTER_800_WOFF_BASE64 } from "./assets/inter-800";
 import { publishStory } from "./graph.server";
 
-let fontBuffer: Uint8Array | null = null;
-let resvgInitPromise: Promise<void> | null = null;
-
-async function ensureResvgInitialized(): Promise<void> {
-  if (!resvgInitPromise) {
-    resvgInitPromise = initWasm(resvgWasmModule as WebAssembly.Module).catch((error) => {
-      resvgInitPromise = null;
-      console.error(JSON.stringify({
-        event: "RESVG_WASM_INIT_FAILED",
-        error: error instanceof Error ? error.message : String(error),
-      }));
-      throw error;
-    });
-  }
-  await resvgInitPromise;
-}
+let storyFont: Font | null = null;
 
 function decodeBase64(b64: string): Uint8Array {
   const bin = atob(b64);
@@ -40,17 +26,19 @@ function decodeBase64(b64: string): Uint8Array {
   return out;
 }
 
-function ensureFont() {
-  if (!fontBuffer) {
-    fontBuffer = decodeBase64(INTER_800_WOFF_BASE64);
+function ensureFont(): Font {
+  if (!storyFont) {
+    const bytes = decodeBase64(INTER_800_WOFF_BASE64);
+    storyFont = parse(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
   }
+  return storyFont;
 }
 
 
 
 
 
-async function fetchAsDataUrl(url: string): Promise<string | null> {
+async function fetchBitmap(url: string): Promise<Bitmap | null> {
   try {
     const res = await fetch(url, {
       headers: {
@@ -60,23 +48,32 @@ async function fetchAsDataUrl(url: string): Promise<string | null> {
       },
     });
     if (!res.ok) return null;
-    const ct = res.headers.get("content-type") ?? "image/jpeg";
-    const buf = new Uint8Array(await res.arrayBuffer());
-    let bin = "";
-    for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i]);
-    return `data:${ct};base64,${btoa(bin)}`;
+    const contentType = res.headers.get("content-type") ?? "image/jpeg";
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    const decoded = contentType.includes("png")
+      ? PNG.sync.read(bytes)
+      : decodeJpeg(bytes, { useTArray: true, formatAsRGBA: true });
+    const bitmap = make(decoded.width, decoded.height);
+    bitmap.data.set(decoded.data);
+    return bitmap;
   } catch {
     return null;
   }
 }
 
-function escapeXml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
+function drawCenteredText(
+  ctx: ReturnType<Bitmap["getContext"]>,
+  font: Font,
+  text: string,
+  centerX: number,
+  baselineY: number,
+  size: number,
+  color: string,
+) {
+  const width = font.getAdvanceWidth(text, size);
+  ctx.fillStyle = color;
+  font.getPath(text, centerX - width / 2, baselineY, size).draw(ctx as never);
+  return width;
 }
 
 function formatBRL(n: number | null | undefined): string {
@@ -116,8 +113,7 @@ export type ComposeInput = {
 };
 
 export async function composeStoryPng(input: ComposeInput): Promise<Uint8Array> {
-  await ensureResvgInitialized();
-  ensureFont();
+  const font = ensureFont();
 
   const W = 1080;
   const H = 1920;
@@ -125,9 +121,9 @@ export async function composeStoryPng(input: ComposeInput): Promise<Uint8Array> 
   const TITLE = { x: 90, y: 1130, w: 900, h: 170 };
   const PRICE = { x: 90, y: 1310, w: 900, h: 170 };
 
-  const [tplData, prodData] = await Promise.all([
-    input.templateUrl ? fetchAsDataUrl(input.templateUrl) : Promise.resolve(null),
-    input.product.image_url ? fetchAsDataUrl(input.product.image_url) : Promise.resolve(null),
+  const [templateBitmap, productBitmap] = await Promise.all([
+    input.templateUrl ? fetchBitmap(input.templateUrl) : Promise.resolve(null),
+    input.product.image_url ? fetchBitmap(input.product.image_url) : Promise.resolve(null),
   ]);
 
   const titleColor = input.titleColor || "#111111";
@@ -150,92 +146,64 @@ export async function composeStoryPng(input: ComposeInput): Promise<Uint8Array> 
   const priceStr = formatBRL(promo ?? input.product.original_price ?? null);
 
 
-  const parts: string[] = [];
-  parts.push(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">`,
-  );
-  // Background: template or yellow fallback
-  if (tplData) {
-    parts.push(
-      `<image href="${tplData}" x="0" y="0" width="${W}" height="${H}" preserveAspectRatio="xMidYMid slice"/>`,
-    );
+  const output = make(W, H);
+  const ctx = output.getContext("2d");
+
+  if (templateBitmap) {
+    const scale = Math.max(W / templateBitmap.width, H / templateBitmap.height);
+    const drawW = templateBitmap.width * scale;
+    const drawH = templateBitmap.height * scale;
+    ctx.drawImage(templateBitmap, (W - drawW) / 2, (H - drawH) / 2, drawW, drawH);
   } else {
-    parts.push(`<rect width="${W}" height="${H}" fill="#fde047"/>`);
+    ctx.fillStyle = "#fde047";
+    ctx.fillRect(0, 0, W, H);
   }
 
-  // Product photo — fit inside PROD box preserving aspect ratio
-  if (prodData) {
-    parts.push(
-      `<image href="${prodData}" x="${PROD.x}" y="${PROD.y}" width="${PROD.w}" height="${PROD.h}" preserveAspectRatio="xMidYMid meet"/>`,
+  if (productBitmap) {
+    const scale = Math.min(PROD.w / productBitmap.width, PROD.h / productBitmap.height);
+    const drawW = productBitmap.width * scale;
+    const drawH = productBitmap.height * scale;
+    ctx.drawImage(
+      productBitmap,
+      PROD.x + (PROD.w - drawW) / 2,
+      PROD.y + (PROD.h - drawH) / 2,
+      drawW,
+      drawH,
     );
   }
 
-  // Title (up to 2 lines, centered in TITLE box)
   if (titleLines.length) {
     const size = titleLines.some((l) => l.length > 24) ? 50 : 58;
     const lineH = size * 1.15;
     const total = lineH * titleLines.length;
     const startY = TITLE.y + (TITLE.h - total) / 2 + size * 0.85;
-    parts.push(
-      `<g font-family="Inter, sans-serif" font-weight="800" fill="${titleColor}" text-anchor="middle">`,
-    );
     titleLines.forEach((ln, i) => {
-      parts.push(
-        `<text x="${TITLE.x + TITLE.w / 2}" y="${startY + i * lineH}" font-size="${size}">${escapeXml(ln)}</text>`,
-      );
+      drawCenteredText(ctx, font, ln, TITLE.x + TITLE.w / 2, startY + i * lineH, size, titleColor);
     });
-    parts.push(`</g>`);
   }
 
-  // Price bar overlay (white text over template's purple bar)
   if (priceStr) {
-    parts.push(
-      `<g font-family="Inter, sans-serif" fill="#ffffff" text-anchor="middle">`,
-    );
+    const centerX = PRICE.x + PRICE.w / 2;
     if (hasDiscount) {
       const deStr = `DE ${formatBRL(original)}`;
       const deY = PRICE.y + 48;
-      const cx = PRICE.x + PRICE.w / 2;
-      const approxW = deStr.length * 20; // ~char width @ 42px 700
-      parts.push(
-        `<text x="${cx}" y="${deY}" font-size="42" font-weight="700">${escapeXml(deStr)}</text>`,
-        `<line x1="${cx - approxW / 2}" y1="${deY - 8}" x2="${cx + approxW / 2}" y2="${deY - 8}" stroke="#ffffff" stroke-width="4"/>`,
-      );
+      const deWidth = drawCenteredText(ctx, font, deStr, centerX, deY, 42, "#ffffff");
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(centerX - deWidth / 2, deY - 8);
+      ctx.lineTo(centerX + deWidth / 2, deY - 8);
+      ctx.stroke();
       const centerY = PRICE.y + PRICE.h - 30;
-      parts.push(
-        `<text x="${cx}" y="${centerY}" font-size="92" font-weight="900">POR ${escapeXml(priceStr)}</text>`,
-      );
+      drawCenteredText(ctx, font, `POR ${priceStr}`, centerX, centerY, 92, "#ffffff");
     } else {
       const centerY = PRICE.y + PRICE.h / 2 + 20;
-      const cx = PRICE.x + PRICE.w / 2;
-      parts.push(
-        `<text x="${cx}" y="${centerY}" font-size="110" font-weight="900">POR ${escapeXml(priceStr)}</text>`,
-      );
+      drawCenteredText(ctx, font, `POR ${priceStr}`, centerX, centerY, 110, "#ffffff");
     }
-    parts.push(`</g>`);
   }
 
-  parts.push(`</svg>`);
-  const svg = parts.join("");
-
-  const resvg = new Resvg(svg, {
-    fitTo: { mode: "width", value: W },
-    font: {
-      fontBuffers: fontBuffer ? [fontBuffer] : [],
-      loadSystemFonts: false,
-      defaultFontFamily: "Inter",
-    },
-  });
-  try {
-    const rendered = resvg.render();
-    try {
-      return rendered.asPng();
-    } finally {
-      rendered.free();
-    }
-  } finally {
-    resvg.free();
-  }
+  const png = PNG.sync.write({ width: W, height: H, data: Buffer.from(output.data) });
+  return new Uint8Array(png.buffer, png.byteOffset, png.byteLength);
 }
 
 /**
