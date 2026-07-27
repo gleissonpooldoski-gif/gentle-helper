@@ -51,7 +51,7 @@ async function fetchBitmap(url: string): Promise<Bitmap | null> {
     const contentType = res.headers.get("content-type") ?? "image/jpeg";
     const bytes = new Uint8Array(await res.arrayBuffer());
     const decoded = contentType.includes("png")
-      ? PNG.sync.read(bytes)
+      ? PNG.sync.read(Buffer.from(bytes))
       : decodeJpeg(Buffer.from(bytes), { useTArray: true, formatAsRGBA: true });
     const bitmap = make(decoded.width, decoded.height);
     bitmap.data.set(decoded.data);
