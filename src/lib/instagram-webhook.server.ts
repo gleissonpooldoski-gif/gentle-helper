@@ -56,7 +56,7 @@ export async function handleInstagramWebhook(payload: any): Promise<void> {
         try {
           await sendDirectMessage({
             igId: igId, token, recipientId: fromId,
-            text: buildProductText(product),
+            text: await buildProductText(product),
             buttonUrl: (product.affiliate_link ?? product.raw_link) || undefined,
             buttonTitle: "VER PARA COMPRAR",
           });
@@ -84,7 +84,7 @@ export async function handleInstagramWebhook(payload: any): Promise<void> {
       try {
         await sendDirectMessage({
           igId: igId, token, recipientId: senderId,
-          text: buildProductText(product),
+          text: await buildProductText(product),
           buttonUrl: (product.affiliate_link ?? product.raw_link) || undefined,
           buttonTitle: "VER PARA COMPRAR",
         });
@@ -125,12 +125,26 @@ async function pickProduct(db: any, channelId: string, mediaId: string | null | 
   return p;
 }
 
-function buildProductText(p: any): string {
+async function buildProductText(p: any): Promise<string> {
   const brl = (n: any) => n != null ? `R$ ${Number(n).toFixed(2).replace(".", ",")}` : "";
+  // LOTE 18A: DE/POR e vendas decididos EXCLUSIVAMENTE pela camada central.
+  const { resolveProductDisplay } = await import("@/modules/products/display-resolver");
+  const disp = resolveProductDisplay({
+    title: p?.title ?? null,
+    platform: p?.platform ?? null,
+    promo_price: p?.promo_price ?? null,
+    original_price: p?.original_price ?? null,
+    sales_historical: p?.sales_historical ?? null,
+    sales_source: p?.sales_source ?? null,
+    price_quality: p?.price_quality ?? null,
+  });
+  const promo = disp.priceCurrentDisplay ?? p?.promo_price ?? p?.original_price ?? null;
+  const original = disp.priceOriginalDisplay;
   const parts = [
-    `🔥 ${p.title ?? "Encontrei essa oferta para você!"}`,
-    p.original_price ? `De: ${brl(p.original_price)}` : "",
-    p.promo_price ? `Por: ${brl(p.promo_price)}` : "",
+    `🔥 ${p?.title ?? "Encontrei essa oferta para você!"}`,
+    original != null ? `De: ${brl(original)}` : "",
+    promo != null ? `Por: ${brl(promo)}` : "",
+    disp.salesLabel ? `🛒 ${disp.salesLabel}` : "",
     "",
     "Toque no botão abaixo 👇",
   ].filter(Boolean);

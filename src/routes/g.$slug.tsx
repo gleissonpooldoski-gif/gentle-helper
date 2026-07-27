@@ -84,25 +84,41 @@ const loadPublicSite = createServerFn({ method: "GET" })
 
     let query = client
       .from("products")
-      .select("id, title, image_url, promo_price, original_price, affiliate_link, raw_link, platform, sales, created_at")
+      .select("id, title, image_url, promo_price, original_price, affiliate_link, raw_link, platform, price_quality, sales_historical, sales_source, created_at")
       .eq("channel_id", channelId)
       .eq("availability", "active");
 
     if (platforms.length > 0) query = query.in("platform", platforms);
 
-    if (sortOrder === "best") query = query.order("sales", { ascending: false, nullsFirst: false });
-    else query = query.order("created_at", { ascending: false });
+    // LOTE 18A: ranking "melhores vendas" só considera sales_historical
+    // com sales_source='historical_confirmed'. Sem dado confiável, cai em recente.
+    if (sortOrder === "best") {
+      query = query
+        .eq("sales_source", "historical_confirmed")
+        .order("sales_historical", { ascending: false, nullsFirst: false });
+    } else {
+      query = query.order("created_at", { ascending: false });
+    }
 
     const { data: prods } = await query.limit(sortOrder === "random" ? 200 : limit);
 
+    // LOTE 18A: DE/POR decidido EXCLUSIVAMENTE pela camada central.
+    const { resolveProductDisplay } = await import("@/modules/products/display-resolver");
     let list = (prods ?? []).map((p) => {
       const link = ((p.affiliate_link as string) || (p.raw_link as string)) ?? "";
+      const disp = resolveProductDisplay({
+        title: (p.title as string | null) ?? null,
+        platform: (p.platform as string | null) ?? null,
+        promo_price: (p.promo_price as number | null) ?? null,
+        original_price: (p.original_price as number | null) ?? null,
+        price_quality: (p.price_quality as string | null) ?? null,
+      });
       return {
         id: p.id as string,
         title: p.title as string,
         imageUrl: (p.image_url as string | null) ?? null,
-        price: (p.promo_price as number | null) ?? null,
-        originalPrice: (p.original_price as number | null) ?? null,
+        price: disp.priceCurrentDisplay ?? (p.promo_price as number | null) ?? null,
+        originalPrice: disp.priceOriginalDisplay,
         link,
         platform: normalizePlatform((p.platform as string | null) ?? null, link),
         createdAt: (p.created_at as string | null) ?? null,
