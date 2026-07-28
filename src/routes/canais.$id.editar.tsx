@@ -3882,78 +3882,117 @@ function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {})
 
   const handleCsvFile = async (file: File | null | undefined) => {
     if (!file) return;
+    await handleCsvFiles([file]);
+  };
+
+  const processCsvFile = async (
+    file: File,
+    fileIndex: number,
+    fileCount: number,
+  ): Promise<{ ok: boolean; inserted: number; updated: number; total: number; error?: string }> => {
+    const text = await file.text();
+    const parsed = parseShopeeCsv(text);
+    if (!parsed.ok) return { ok: false, inserted: 0, updated: 0, total: 0, error: parsed.error };
+    const rows = parsed.rows;
+    if (rows.length === 0) {
+      return { ok: false, inserted: 0, updated: 0, total: 0, error: "Nenhum produto reconhecido na planilha." };
+    }
+
+    const BATCH = 200;
+    const PARALLEL = 3;
+    let inserted = 0;
+    let updated = 0;
+    let processed = 0;
+    setProgress({ done: 0, total: rows.length, fileIndex, fileCount, fileName: file.name });
+
+    const chunks: (typeof rows)[] = [];
+    for (let i = 0; i < rows.length; i += BATCH) chunks.push(rows.slice(i, i + BATCH));
+
+    let cursor = 0;
+    const runner = async () => {
+      while (cursor < chunks.length) {
+        const idx = cursor++;
+        const chunk = chunks[idx]!;
+        const outcome = await importBatchFn({
+          data: { channelId, sourceGroupJid: importGroupJid, rows: chunk },
+        });
+        inserted += outcome.inserted;
+        updated += outcome.updated;
+        processed += chunk.length;
+        setProgress({ done: processed, total: rows.length, fileIndex, fileCount, fileName: file.name });
+        const ids = outcome.productIds ?? [];
+        if (ids.length > 0) {
+          void syncPricesFn({ data: { productIds: ids } }).catch((err) => {
+            console.warn("[SHOPEE_PRICE_AUTO_SYNC] dispatch failed", err);
+          });
+        }
+      }
+    };
+    await Promise.all(
+      Array.from({ length: Math.min(PARALLEL, chunks.length) }, () => runner()),
+    );
+
+    return { ok: true, inserted, updated, total: rows.length };
+  };
+
+  const handleCsvFiles = async (files: FileList | File[] | null | undefined) => {
+    if (!files) return;
+    const list = Array.from(files).filter((f) => /\.csv$/i.test(f.name) || f.type === "text/csv");
+    if (list.length === 0) return;
+
     setImporting(true);
     setProgress(null);
+    const toastId = `csv-multi-${Date.now()}`;
+    let totalInserted = 0;
+    let totalUpdated = 0;
+    let totalRows = 0;
+    let filesOk = 0;
+    let filesFail = 0;
+
     try {
-      const text = await file.text();
-      const parsed = parseShopeeCsv(text);
-      if (!parsed.ok) {
-        toast.error(parsed.error);
-        return;
-      }
-      const rows = parsed.rows;
-      if (rows.length === 0) {
-        toast.error("Nenhum produto reconhecido na planilha.");
-        return;
-      }
-
-      const BATCH = 200;
-      const PARALLEL = 3; // até 3 chunks em voo (600 linhas por rodada)
-      let inserted = 0;
-      let updated = 0;
-      let processed = 0;
-      setProgress({ done: 0, total: rows.length });
-
-      const chunks: (typeof rows)[] = [];
-      for (let i = 0; i < rows.length; i += BATCH) chunks.push(rows.slice(i, i + BATCH));
-
-      let cursor = 0;
-      const runner = async () => {
-        while (cursor < chunks.length) {
-          const idx = cursor++;
-          const chunk = chunks[idx]!;
-          const outcome = await importBatchFn({
-            data: { channelId, sourceGroupJid: importGroupJid, rows: chunk },
-          });
-          inserted += outcome.inserted;
-          updated += outcome.updated;
-          processed += chunk.length;
-          setProgress({ done: processed, total: rows.length });
-          // Lote 12G: dispara auto-sync de preço em background (fire-and-forget).
-          // Não bloqueia a importação — API externa pode demorar/falhar.
-          const ids = outcome.productIds ?? [];
-          if (ids.length > 0) {
-            void syncPricesFn({ data: { productIds: ids } }).catch((err) => {
-              console.warn("[SHOPEE_PRICE_AUTO_SYNC] dispatch failed", err);
-            });
+      for (let i = 0; i < list.length; i++) {
+        const file = list[i]!;
+        toast.loading(`Importando arquivo ${i + 1} de ${list.length}: ${file.name}`, {
+          id: toastId,
+        });
+        try {
+          const res = await processCsvFile(file, i + 1, list.length);
+          if (res.ok) {
+            filesOk += 1;
+            totalInserted += res.inserted;
+            totalUpdated += res.updated;
+            totalRows += res.total;
+          } else {
+            filesFail += 1;
+            toast.error(`Falha em ${file.name}`, { description: res.error });
           }
+        } catch (err) {
+          filesFail += 1;
+          console.error(err);
+          toast.error(`Falha em ${file.name}`, {
+            description: err instanceof Error ? err.message : "Erro desconhecido.",
+          });
         }
-      };
-      await Promise.all(
-        Array.from({ length: Math.min(PARALLEL, chunks.length) }, () => runner()),
-      );
-
-
+      }
 
       await reloadProducts();
 
-      toast.success(`${rows.length} produtos processados`, {
-        description: `${inserted} novos · ${updated} atualizados`,
-      });
+      toast.success(
+        `${filesOk} arquivo(s) importado(s) · ${totalRows} produtos`,
+        {
+          id: toastId,
+          description: `${totalInserted} novos · ${totalUpdated} atualizados${filesFail > 0 ? ` · ${filesFail} arquivo(s) com falha` : ""}`,
+        },
+      );
 
-      // Background image enrichment (best-effort, never blocks import).
       void enrichImagesInBackground();
-    } catch (err) {
-      console.error(err);
-      toast.error("Falha ao importar CSV", {
-        description: err instanceof Error ? err.message : "Erro desconhecido.",
-      });
     } finally {
       setImporting(false);
       setProgress(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
+
 
 
   return (
