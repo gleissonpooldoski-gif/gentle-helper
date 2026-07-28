@@ -4164,7 +4164,9 @@ function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {})
               <Upload className="h-4 w-4" />
               {importing
                 ? progress
-                  ? `Importando ${progress.done} / ${progress.total}...`
+                  ? progress.fileCount && progress.fileCount > 1
+                    ? `Arquivo ${progress.fileIndex}/${progress.fileCount} · ${progress.done}/${progress.total}...`
+                    : `Importando ${progress.done} / ${progress.total}...`
                   : "Importando..."
                 : "Importar"}
             </Button>
