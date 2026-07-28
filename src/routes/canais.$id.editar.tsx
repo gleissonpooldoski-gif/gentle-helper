@@ -4117,28 +4117,30 @@ function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {})
               ref={fileInputRef}
               type="file"
               accept=".csv,text/csv"
+              multiple
               className="hidden"
-              onChange={(e) => handleCsvFile(e.target.files?.[0])}
+              onChange={(e) => handleCsvFiles(e.target.files)}
             />
             <div>
-              <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Arquivo de Produtos .CSV</label>
+              <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Arquivos de Produtos .CSV</label>
               <div
                 onClick={handlePickCsv}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => {
                   e.preventDefault();
-                  handleCsvFile(e.dataTransfer.files?.[0]);
+                  handleCsvFiles(e.dataTransfer.files);
                 }}
                 className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border/70 bg-muted/20 px-4 py-6 text-center transition hover:border-primary/60 hover:bg-muted/40"
               >
                 <Upload className="h-6 w-6 text-muted-foreground" />
-                <p className="text-[12.5px] font-medium text-foreground">Arraste seu arquivo aqui</p>
-                <p className="text-[11px] text-muted-foreground">ou clique para selecionar</p>
+                <p className="text-[12.5px] font-medium text-foreground">Arraste um ou vários arquivos aqui</p>
+                <p className="text-[11px] text-muted-foreground">ou clique para selecionar (pode escolher vários de uma vez)</p>
                 <Button type="button" variant="outline" size="sm" className="mt-1 h-8 rounded-full text-[12px]" onClick={(e) => { e.stopPropagation(); handlePickCsv(); }}>
                   Escolher .CSV
                 </Button>
               </div>
             </div>
+
             <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Colunas obrigatórias</p>
               <p className="mt-1.5 text-[11.5px] leading-relaxed text-foreground">
