@@ -3642,7 +3642,13 @@ function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {})
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [importedProducts, setImportedProducts] = useState<ShopeeProduct[]>([]);
   const [importing, setImporting] = useState(false);
-  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [progress, setProgress] = useState<{
+    done: number;
+    total: number;
+    fileIndex?: number;
+    fileCount?: number;
+    fileName?: string;
+  } | null>(null);
   const [bulkAction, setBulkAction] = useState<string>("");
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
