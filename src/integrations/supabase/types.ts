@@ -220,6 +220,7 @@ export type Database = {
       automation_group_sends: {
         Row: {
           config_id: string
+          group_id: string | null
           id: string
           product_id: string
           sent_at: string
@@ -227,6 +228,7 @@ export type Database = {
         }
         Insert: {
           config_id: string
+          group_id?: string | null
           id?: string
           product_id: string
           sent_at?: string
@@ -234,6 +236,7 @@ export type Database = {
         }
         Update: {
           config_id?: string
+          group_id?: string | null
           id?: string
           product_id?: string
           sent_at?: string

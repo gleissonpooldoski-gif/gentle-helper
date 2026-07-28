@@ -137,49 +137,48 @@ async function connectionState(instance: string): Promise<string> {
   return String(j?.instance?.state ?? j?.state ?? "").toLowerCase();
 }
 
-async function sendMedia(
+/**
+ * Envio single-shot para a Evolution API.
+ *
+ * LOTE 8 — RETRY REMOVIDO INTENCIONALMENTE.
+ *
+ * O endpoint /message/sendMedia NÃO é idempotente do lado da Evolution/WhatsApp:
+ * se a mensagem foi entregue mas a resposta HTTP falhou (timeout, 5xx, corte
+ * de conexão, tunnel Cloudflare), uma nova tentativa gera envio duplicado
+ * para o usuário final. Como não há como distinguir "não chegou" de
+ * "chegou mas ack falhou", a única política fail-safe é NÃO retentar.
+ *
+ * O produto permanece reservado em `automation_group_sends` (feito antes
+ * desta chamada) — portanto nunca será re-enviado nem neste tick nem em
+ * ticks futuros. Falhas transitórias são tratadas como "envio possivelmente
+ * concluído" e a próxima execução simplesmente escolhe outro produto.
+ */
+async function sendMediaOnce(
   instance: string,
   jid: string,
   mediaUrl: string,
   caption: string,
   ctx: LogFields,
-): Promise<{ attempts: number; durationMs: number }> {
-  // Backoff exponencial: 1s → 3s → 8s. Total até 3 tentativas.
-  const BACKOFF_MS = [1000, 3000, 8000];
+): Promise<{ attempts: 1; durationMs: number }> {
   const started = Date.now();
-  let lastErr: unknown = null;
-
-  for (let attempt = 1; attempt <= BACKOFF_MS.length; attempt++) {
-    try {
-      await evolutionFetch(`/message/sendMedia/${encodeURIComponent(instance)}`, {
-        method: "POST",
-        body: JSON.stringify({
-          number: jid,
-          mediatype: "image",
-          media: mediaUrl,
-          caption,
-        }),
-      });
-      return { attempts: attempt, durationMs: Date.now() - started };
-    } catch (e) {
-      lastErr = e;
-      const cls = classifyError(e);
-      const msg = e instanceof Error ? e.message : String(e);
-      if (cls === "permanent") {
-        log("RETRY_ABORTED", { ...ctx, attempt, reason: "permanent_error", error: msg });
-        throw e;
-      }
-      if (attempt >= BACKOFF_MS.length) {
-        log("RETRY_ABORTED", { ...ctx, attempt, reason: "max_attempts", error: msg });
-        break;
-      }
-      const wait = BACKOFF_MS[attempt - 1];
-      log("RETRY", { ...ctx, attempt, next_wait_ms: wait, error: msg });
-      await new Promise((r) => setTimeout(r, wait));
-    }
+  try {
+    await evolutionFetch(`/message/sendMedia/${encodeURIComponent(instance)}`, {
+      method: "POST",
+      body: JSON.stringify({
+        number: jid,
+        mediatype: "image",
+        media: mediaUrl,
+        caption,
+      }),
+    });
+    return { attempts: 1, durationMs: Date.now() - started };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    log("SEND_NO_RETRY", { ...ctx, reason: "idempotency_guard", error: msg });
+    throw e;
   }
-  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
 }
+
 
 
 async function tickOne(admin: any, cfg: any): Promise<void> {
@@ -529,6 +528,57 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
       product_id: product.id,
       worker_id: (globalThis as { __automation_worker_id?: string }).__automation_worker_id ?? null,
     };
+
+    // ============================================================
+    // LOTE 8 — RESERVA IDEMPOTENTE ANTES DO ENVIO (fail-safe total)
+    // ============================================================
+    // Tenta inserir a marca de envio ANTES de chamar a Evolution.
+    // A chave única (config_id, product_id, group_id) garante que:
+    //   - dois workers concorrentes NUNCA enviam o mesmo produto;
+    //   - retries entre ticks NUNCA reenviam;
+    //   - restart do worker NUNCA reenvia;
+    //   - se o INSERT falhar por conflito → outra execução já cuidou.
+    // Se o send falhar depois, a reserva é MANTIDA (fail-safe: preferir
+    // não enviar de novo a arriscar duplicar uma mensagem já entregue).
+    const { error: reserveErr } = await admin
+      .from("automation_group_sends")
+      .insert({
+        user_id: cfg.user_id,
+        config_id: cfg.id,
+        product_id: product.id,
+        group_id: g.group_jid,
+      });
+    if (reserveErr) {
+      const msg = String(reserveErr.message || reserveErr.code || "");
+      const isConflict = /duplicate key|unique|23505/i.test(msg);
+      if (isConflict) {
+        log("DUPLICATE_PREVENTED", {
+          ...sendCtx,
+          reason: "reservation_exists",
+          detail: "produto já reservado para este grupo — envio abortado",
+        });
+        continue;
+      }
+      // Falha inesperada ao reservar (não é conflito) → NÃO envia (fail-safe).
+      log("RESERVATION_FAILED", { ...sendCtx, error: msg });
+      await admin.from("whatsapp_campaign_history").insert({
+        user_id: cfg.user_id,
+        config_id: cfg.id,
+        product_id: product.id,
+        product_name: product.title,
+        store: product.platform,
+        group_id: g.group_jid,
+        group_name: g.group_name,
+        instance_name: instanceName,
+        media_url: productDetail.image,
+        caption,
+        status: "failed",
+        error_message: `Reserva idempotente falhou: ${msg}`.slice(0, 500),
+      });
+      continue;
+    }
+    log("RESERVATION_ACQUIRED", sendCtx);
+
     let ok = true;
     let err: string | null = null;
     let errorClass: ErrorClass | null = null;
@@ -546,7 +596,7 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
         if (!productDetail.image) throw new Error("Produto sem imagem");
         log("SEND_STARTED", sendCtx);
         console.log("[WHATSAPP_FINAL_CAPTION]", { source: "automation", instance: instanceName, jid: g.group_jid, caption });
-        sendMetrics = await sendMedia(instanceName, g.group_jid, productDetail.image, caption, sendCtx);
+        sendMetrics = await sendMediaOnce(instanceName, g.group_jid, productDetail.image, caption, sendCtx);
         log("SEND_SUCCESS", { ...sendCtx, attempts: sendMetrics.attempts, duration_ms: sendMetrics.durationMs });
 
         if (breakerInstanceId) await recordSuccess(breakerInstanceId).catch(() => undefined);
@@ -556,13 +606,20 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
         ok = false;
         err = e instanceof Error ? e.message : String(e);
         errorClass = classifyError(e);
-        log("SEND_FAILED", { ...sendCtx, error_class: errorClass, error: err });
+        log("SEND_FAILED_RESERVATION_KEPT", {
+          ...sendCtx,
+          error_class: errorClass,
+          error: err,
+          policy: "fail_safe_no_resend",
+        });
 
         if (breakerInstanceId && errorClass === "transient") {
           await recordFailure(breakerInstanceId, cfg.user_id, e).catch(() => undefined);
         }
 
-        // Dead-Letter Queue: registra falha para reprocessamento manual.
+        // Dead-Letter Queue: registra falha para inspeção manual.
+        // IMPORTANTE: a reserva NÃO é removida — reenvio manual precisa ser
+        // consciente para não gerar duplicidade no cliente final.
         try {
           await admin.from("automation_failures").insert({
             user_id: cfg.user_id,
@@ -573,9 +630,7 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
             error_message: (err ?? "erro desconhecido").slice(0, 500),
             error_code: errorClass === "permanent" ? "permanent_error" : "send_failed",
             attempt_count: sendMetrics?.attempts ?? 1,
-            next_retry_at: errorClass === "permanent"
-              ? null
-              : new Date(Date.now() + 5 * 60_000).toISOString(),
+            next_retry_at: null, // fail-safe: sem retry automático
           });
         } catch { /* ignora falha ao gravar DLQ */ }
       }
@@ -597,15 +652,12 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
     });
   }
 
-  // Marca produto como enviado neste ciclo (impede repetição).
-  // Só registra se pelo menos um grupo recebeu com sucesso.
-  if (anySent) {
-    await admin.from("automation_group_sends").upsert({
-      user_id: cfg.user_id,
-      config_id: cfg.id,
-      product_id: product.id,
-    }, { onConflict: "config_id,product_id" });
-  }
+  // LOTE 8 — a reserva já foi feita ANTES de cada envio (idempotência
+  // garantida pelo banco). O upsert pós-envio que existia aqui era
+  // redundante e mascarava a real ordem dos eventos. Removido.
+  void anySent;
+
+
 
   await admin.from("automation_configs").update({
     status: "running",
