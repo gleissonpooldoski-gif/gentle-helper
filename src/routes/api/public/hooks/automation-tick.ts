@@ -137,49 +137,48 @@ async function connectionState(instance: string): Promise<string> {
   return String(j?.instance?.state ?? j?.state ?? "").toLowerCase();
 }
 
-async function sendMedia(
+/**
+ * Envio single-shot para a Evolution API.
+ *
+ * LOTE 8 — RETRY REMOVIDO INTENCIONALMENTE.
+ *
+ * O endpoint /message/sendMedia NÃO é idempotente do lado da Evolution/WhatsApp:
+ * se a mensagem foi entregue mas a resposta HTTP falhou (timeout, 5xx, corte
+ * de conexão, tunnel Cloudflare), uma nova tentativa gera envio duplicado
+ * para o usuário final. Como não há como distinguir "não chegou" de
+ * "chegou mas ack falhou", a única política fail-safe é NÃO retentar.
+ *
+ * O produto permanece reservado em `automation_group_sends` (feito antes
+ * desta chamada) — portanto nunca será re-enviado nem neste tick nem em
+ * ticks futuros. Falhas transitórias são tratadas como "envio possivelmente
+ * concluído" e a próxima execução simplesmente escolhe outro produto.
+ */
+async function sendMediaOnce(
   instance: string,
   jid: string,
   mediaUrl: string,
   caption: string,
   ctx: LogFields,
-): Promise<{ attempts: number; durationMs: number }> {
-  // Backoff exponencial: 1s → 3s → 8s. Total até 3 tentativas.
-  const BACKOFF_MS = [1000, 3000, 8000];
+): Promise<{ attempts: 1; durationMs: number }> {
   const started = Date.now();
-  let lastErr: unknown = null;
-
-  for (let attempt = 1; attempt <= BACKOFF_MS.length; attempt++) {
-    try {
-      await evolutionFetch(`/message/sendMedia/${encodeURIComponent(instance)}`, {
-        method: "POST",
-        body: JSON.stringify({
-          number: jid,
-          mediatype: "image",
-          media: mediaUrl,
-          caption,
-        }),
-      });
-      return { attempts: attempt, durationMs: Date.now() - started };
-    } catch (e) {
-      lastErr = e;
-      const cls = classifyError(e);
-      const msg = e instanceof Error ? e.message : String(e);
-      if (cls === "permanent") {
-        log("RETRY_ABORTED", { ...ctx, attempt, reason: "permanent_error", error: msg });
-        throw e;
-      }
-      if (attempt >= BACKOFF_MS.length) {
-        log("RETRY_ABORTED", { ...ctx, attempt, reason: "max_attempts", error: msg });
-        break;
-      }
-      const wait = BACKOFF_MS[attempt - 1];
-      log("RETRY", { ...ctx, attempt, next_wait_ms: wait, error: msg });
-      await new Promise((r) => setTimeout(r, wait));
-    }
+  try {
+    await evolutionFetch(`/message/sendMedia/${encodeURIComponent(instance)}`, {
+      method: "POST",
+      body: JSON.stringify({
+        number: jid,
+        mediatype: "image",
+        media: mediaUrl,
+        caption,
+      }),
+    });
+    return { attempts: 1, durationMs: Date.now() - started };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    log("SEND_NO_RETRY", { ...ctx, reason: "idempotency_guard", error: msg });
+    throw e;
   }
-  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
 }
+
 
 
 async function tickOne(admin: any, cfg: any): Promise<void> {
