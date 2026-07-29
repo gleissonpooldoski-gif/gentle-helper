@@ -107,34 +107,5 @@ export const resendWhatsAppSend = createServerFn({ method: "POST" })
     }
 
 
-    let messageId: string | null = null;
-    let status: "sent" | "failed" = "sent";
-    let errMsg: string | null = null;
-    try {
-      const res = row.media_url
-        ? await provider.sendMedia(inst.instance_name, row.jid, {
-            mediaUrl: row.media_url,
-            caption: row.caption ?? "",
-          })
-        : await provider.sendText(inst.instance_name, row.jid, row.caption ?? "");
-      messageId = res.id ?? null;
-    } catch (e) {
-      status = "failed";
-      errMsg = e instanceof Error ? e.message : String(e);
-    }
-
-    await (supabase as any).from("whatsapp_send_history").insert({
-      user_id: userId,
-      instance_id: row.instance_id,
-      product_id: row.product_id,
-      jid: row.jid,
-      caption: row.caption,
-      media_url: row.media_url,
-      status,
-      error: errMsg,
-      message_id: messageId,
-    });
-
-    if (status === "failed") throw new Error(errMsg ?? "Falha ao reenviar");
-    return { ok: true, messageId };
+    throw new Error("Reenvio direto bloqueado: WhatsApp deve passar pelo CLAIM atômico da automação.");
   });
