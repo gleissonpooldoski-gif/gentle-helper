@@ -275,6 +275,9 @@ export const evolutionProvider: WhatsAppProvider = {
   },
 
   async sendText(instanceName, jid, text): Promise<{ id?: string }> {
+    throw new Error(
+      "Envio direto bloqueado: mensagens WhatsApp devem passar pelo CLAIM atômico da automação.",
+    );
     const number = jid.includes("@") ? jid.split("@")[0] : jid;
     const res = await evolutionJson<any>(
       `/message/sendText/${encodeURIComponent(instanceName)}`,
@@ -288,6 +291,9 @@ export const evolutionProvider: WhatsAppProvider = {
   },
 
   async sendMedia(instanceName, jid, { mediaUrl, caption, fileName }): Promise<{ id?: string }> {
+    throw new Error(
+      "Envio direto bloqueado: mídia WhatsApp deve passar pelo CLAIM atômico da automação.",
+    );
     const number = jid.includes("@") ? jid.split("@")[0] : jid;
     const body = {
       number,
