@@ -785,15 +785,13 @@ export const Route = createFileRoute("/api/public/hooks/automation-tick")({
             group_id: cfg.group_id,
           };
           try {
-            const r = await withDestinationLock(supabaseAdmin, cfg, ctx, () =>
-              tickOne(supabaseAdmin, cfg),
-            );
+            // LOTE FINAL — advisory lock removido. A autoridade anti-duplicidade
+            // é 100% o CLAIM ATÔMICO no banco (INSERT com UNIQUE em
+            // automation_group_sends). Advisory locks via RPC não sobreviviam
+            // à conexão HTTP entre as chamadas, ficando ineficazes.
+            await tickOne(supabaseAdmin, cfg);
             const duration = Date.now() - cfgStart;
-            if (r && typeof r === "object" && "skipped" in r) {
-              results.push({ id: cfg.id, ok: true, skipped: true, duration_ms: duration });
-            } else {
-              results.push({ id: cfg.id, ok: true, duration_ms: duration });
-            }
+            results.push({ id: cfg.id, ok: true, duration_ms: duration });
           } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
             const duration = Date.now() - cfgStart;
