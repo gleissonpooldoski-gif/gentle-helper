@@ -533,37 +533,42 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
     };
 
     // ============================================================
-    // LOTE 8 — RESERVA IDEMPOTENTE ANTES DO ENVIO (fail-safe total)
+    // CLAIM ATÔMICO NO BANCO (autoridade final anti-duplicidade)
     // ============================================================
-    // Tenta inserir a marca de envio ANTES de chamar a Evolution.
-    // A chave única (config_id, product_id, group_id) garante que:
-    //   - dois workers concorrentes NUNCA enviam o mesmo produto;
-    //   - retries entre ticks NUNCA reenviam;
-    //   - restart do worker NUNCA reenvia;
-    //   - se o INSERT falhar por conflito → outra execução já cuidou.
-    // Se o send falhar depois, a reserva é MANTIDA (fail-safe: preferir
-    // não enviar de novo a arriscar duplicar uma mensagem já entregue).
-    const { error: reserveErr } = await admin
+    // O INSERT abaixo é o ÚNICO ponto de decisão sobre "quem envia".
+    // A UNIQUE (config_id, product_id, COALESCE(group_id,'')) do banco
+    // garante que apenas 1 worker por (config, produto, destino) passa.
+    // Advisory locks foram removidos: dependiam da mesma conexão HTTP
+    // permanecer viva durante todo o envio, o que não é garantido.
+    // - Sucesso do INSERT → este worker ganhou o direito de enviar.
+    // - Conflito (23505)  → outro worker já reivindicou → aborta.
+    // - Envio bem-sucedido → UPDATE status='sent' + message_id.
+    // - Envio falhou      → UPDATE status='failed'. Claim é MANTIDO
+    //   (fail-safe: preferir não enviar de novo a arriscar duplicar).
+    const workerId = (globalThis as { __automation_worker_id?: string }).__automation_worker_id ?? null;
+    const { data: claimRow, error: reserveErr } = await admin
       .from("automation_group_sends")
       .insert({
         user_id: cfg.user_id,
         config_id: cfg.id,
         product_id: product.id,
         group_id: g.group_jid,
-      });
+        status: "processing",
+        worker_id: workerId,
+      })
+      .select("id")
+      .single();
     if (reserveErr) {
       const msg = String(reserveErr.message || reserveErr.code || "");
       const isConflict = /duplicate key|unique|23505/i.test(msg);
       if (isConflict) {
-        log("DUPLICATE_PREVENTED", {
+        log("CLAIM_DUPLICATE", {
           ...sendCtx,
-          reason: "reservation_exists",
-          detail: "produto já reservado para este grupo — envio abortado",
+          reason: "another_worker_owns_this_destination",
         });
         continue;
       }
-      // Falha inesperada ao reservar (não é conflito) → NÃO envia (fail-safe).
-      log("RESERVATION_FAILED", { ...sendCtx, error: msg });
+      log("CLAIM_FAILED", { ...sendCtx, error: msg });
       await admin.from("whatsapp_campaign_history").insert({
         user_id: cfg.user_id,
         config_id: cfg.id,
@@ -576,11 +581,12 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
         media_url: productDetail.image,
         caption,
         status: "failed",
-        error_message: `Reserva idempotente falhou: ${msg}`.slice(0, 500),
+        error_message: `Claim atômico falhou: ${msg}`.slice(0, 500),
       });
       continue;
     }
-    log("RESERVATION_ACQUIRED", sendCtx);
+    const claimId: string = (claimRow as { id: string }).id;
+    log("CLAIM_CREATED", { ...sendCtx, claim_id: claimId });
 
     let ok = true;
     let err: string | null = null;
