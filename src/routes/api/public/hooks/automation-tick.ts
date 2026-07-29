@@ -606,7 +606,13 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
         log("SEND_STARTED", sendCtx);
         console.log("[WHATSAPP_FINAL_CAPTION]", { source: "automation", instance: instanceName, jid: g.group_jid, caption });
         sendMetrics = await sendMediaOnce(instanceName, g.group_jid, productDetail.image, caption, sendCtx);
-        log("SEND_SUCCESS", { ...sendCtx, attempts: sendMetrics.attempts, duration_ms: sendMetrics.durationMs });
+        log("SEND_SUCCESS", { ...sendCtx, attempts: sendMetrics.attempts, duration_ms: sendMetrics.durationMs, claim_id: claimId });
+
+        // Transiciona o CLAIM: processing → sent.
+        await admin
+          .from("automation_group_sends")
+          .update({ status: "sent", sent_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+          .eq("id", claimId);
 
         if (breakerInstanceId) await recordSuccess(breakerInstanceId).catch(() => undefined);
         await new Promise((r) => setTimeout(r, 800));
@@ -615,19 +621,27 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
         ok = false;
         err = e instanceof Error ? e.message : String(e);
         errorClass = classifyError(e);
-        log("SEND_FAILED_RESERVATION_KEPT", {
+        log("SEND_FAILED", {
           ...sendCtx,
+          claim_id: claimId,
           error_class: errorClass,
           error: err,
           policy: "fail_safe_no_resend",
         });
+
+        // Transiciona o CLAIM: processing → failed. Claim MANTIDO (nunca
+        // será reutilizado no ciclo, garantindo fail-safe).
+        await admin
+          .from("automation_group_sends")
+          .update({ status: "failed", updated_at: new Date().toISOString() })
+          .eq("id", claimId);
 
         if (breakerInstanceId && errorClass === "transient") {
           await recordFailure(breakerInstanceId, cfg.user_id, e).catch(() => undefined);
         }
 
         // Dead-Letter Queue: registra falha para inspeção manual.
-        // IMPORTANTE: a reserva NÃO é removida — reenvio manual precisa ser
+        // IMPORTANTE: o claim NÃO é removido — reenvio manual precisa ser
         // consciente para não gerar duplicidade no cliente final.
         try {
           await admin.from("automation_failures").insert({
