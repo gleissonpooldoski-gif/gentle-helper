@@ -88,6 +88,49 @@ const classifyError = classifyAutomationError;
 // instância, eliminando rota paralela de envio.
 const TZ = "America/Sao_Paulo";
 
+/**
+ * LOTE 11 — INTERVALO ENTRE ENVIOS POR DESTINO.
+ *
+ * O intervalo era aplicado apenas por config (`next_run_at`). Quando existiam
+ * várias configs apontando para o MESMO destino (instância + grupo) — ou
+ * quando dois ticks/workers rodavam próximos — cada uma respeitava o próprio
+ * relógio e os envios saíam praticamente juntos.
+ *
+ * Agora o intervalo é validado pelo DESTINO real (instance_id + group_id):
+ *  - travas em memória para o mesmo tick (duas configs no mesmo request);
+ *  - último envio confirmado no banco (whatsapp_campaign_history) para
+ *    workers concorrentes / ticks distintos.
+ *
+ * Nada aqui altera claim, UNIQUE, reserva ou pickNext.
+ */
+const destinationInFlight = new Set<string>();
+
+function destinationKey(cfg: any): string {
+  return `${cfg.instance_id ?? "no-instance"}|${cfg.group_id ?? "no-group"}`;
+}
+
+function intervalMs(cfg: any): number {
+  const min = Number(cfg?.intervalo_min);
+  return (Number.isFinite(min) && min > 0 ? min : 15) * 60_000;
+}
+
+/** Último envio confirmado para o destino, independente da config. */
+async function lastSentAtForDestination(admin: any, cfg: any): Promise<number | null> {
+  if (!cfg.group_id) return null;
+  const { data } = await admin
+    .from("whatsapp_campaign_history")
+    .select("sent_at")
+    .eq("user_id", cfg.user_id)
+    .eq("group_id", cfg.group_id)
+    .eq("status", "sent")
+    .order("sent_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const ts = data?.sent_at ? new Date(data.sent_at).getTime() : null;
+  return Number.isFinite(ts as number) ? (ts as number) : null;
+}
+
+
 function nowInTz(): { hour: number; minute: number; date: Date } {
   const now = new Date();
   const fmt = new Intl.DateTimeFormat("en-GB", {
@@ -335,7 +378,48 @@ export async function claimAndSendMediaOnceForAutomation(input: {
 
 
 
+/**
+ * Wrapper de intervalo por destino. Garante que só exista UM envio em curso
+ * por destino e que o intervalo configurado seja respeitado ENTRE envios.
+ */
 async function tickOne(admin: any, cfg: any): Promise<void> {
+  const key = destinationKey(cfg);
+  const workerId = (globalThis as { __automation_worker_id?: string }).__automation_worker_id ?? null;
+
+  if (destinationInFlight.has(key)) {
+    log("INTERVAL_SKIPPED", { worker_id: workerId, config_id: cfg.id, group_id: cfg.group_id, reason: "destination_busy" });
+    return;
+  }
+  destinationInFlight.add(key);
+  try {
+    const gap = intervalMs(cfg);
+    const last = await lastSentAtForDestination(admin, cfg);
+    if (last != null) {
+      const elapsed = Date.now() - last;
+      if (elapsed < gap) {
+        const nextAt = new Date(last + gap).toISOString();
+        log("INTERVAL_SKIPPED", {
+          worker_id: workerId,
+          config_id: cfg.id,
+          group_id: cfg.group_id,
+          reason: "interval_not_elapsed",
+          elapsed_ms: elapsed,
+          interval_ms: gap,
+          next_run_at: nextAt,
+        });
+        // Realinha o relógio da config com o destino real (não altera status).
+        await admin.from("automation_configs").update({ next_run_at: nextAt }).eq("id", cfg.id);
+        return;
+      }
+    }
+    await tickOneForConfig(admin, cfg);
+  } finally {
+    destinationInFlight.delete(key);
+  }
+}
+
+async function tickOneForConfig(admin: any, cfg: any): Promise<void> {
+
   const { hour, minute } = nowInTz();
   const inWindow = isWithinWindow(hour, minute, String(cfg.hora_inicio).slice(0, 5), String(cfg.hora_fim).slice(0, 5));
 
