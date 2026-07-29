@@ -686,43 +686,27 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
       worker_id: (globalThis as { __automation_worker_id?: string }).__automation_worker_id ?? null,
     };
 
-    // ============================================================
-    // CLAIM ATÔMICO NO BANCO (autoridade final anti-duplicidade)
-    // ============================================================
-    // O INSERT abaixo é o ÚNICO ponto de decisão sobre "quem envia".
-    // A UNIQUE (config_id, product_id, COALESCE(group_id,'')) do banco
-    // garante que apenas 1 worker por (config, produto, destino) passa.
-    // Advisory locks foram removidos: dependiam da mesma conexão HTTP
-    // permanecer viva durante todo o envio, o que não é garantido.
-    // - Sucesso do INSERT → este worker ganhou o direito de enviar.
-    // - Conflito (23505)  → outro worker já reivindicou → aborta.
-    // - Envio bem-sucedido → UPDATE status='sent' + message_id.
-    // - Envio falhou      → UPDATE status='failed'. Claim é MANTIDO
-    //   (fail-safe: preferir não enviar de novo a arriscar duplicar).
     const workerId = (globalThis as { __automation_worker_id?: string }).__automation_worker_id ?? null;
-    const { data: claimRow, error: reserveErr } = await admin
-      .from("automation_group_sends")
-      .insert({
-        user_id: cfg.user_id,
-        config_id: cfg.id,
-        product_id: product.id,
-        group_id: g.group_jid,
-        status: "processing",
-        worker_id: workerId,
-      })
-      .select("id")
-      .single();
-    if (reserveErr) {
-      const msg = String(reserveErr.message || reserveErr.code || "");
-      const isConflict = /duplicate key|unique|23505/i.test(msg);
-      if (isConflict) {
-        log("CLAIM_DUPLICATE", {
-          ...sendCtx,
-          reason: "another_worker_owns_this_destination",
-        });
-        continue;
-      }
-      log("CLAIM_FAILED", { ...sendCtx, error: msg });
+    const claimResult = await claimAndSendMediaOnceForAutomation({
+      admin,
+      cfg,
+      product,
+      group: g,
+      instanceName,
+      mediaUrl: productDetail.image,
+      caption,
+      workerId: workerId ?? "unknown-worker",
+      ctx: sendCtx,
+      beforeSend: async () => {
+        if (breakerInstanceId && (await isBreakerOpen(breakerInstanceId))) {
+          throw new Error("Circuit breaker aberto (instância com falhas consecutivas)");
+        }
+      },
+    });
+
+    if (claimResult.outcome === "duplicate") continue;
+
+    if (claimResult.outcome === "failed" && !claimResult.claimId) {
       await admin.from("whatsapp_campaign_history").insert({
         user_id: cfg.user_id,
         config_id: cfg.id,
@@ -735,82 +719,35 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
         media_url: productDetail.image,
         caption,
         status: "failed",
-        error_message: `Claim atômico falhou: ${msg}`.slice(0, 500),
+        error_message: claimResult.error.slice(0, 500),
       });
       continue;
     }
-    const claimId: string = (claimRow as { id: string }).id;
-    log("CLAIM_CREATED", { ...sendCtx, claim_id: claimId });
 
-    let ok = true;
-    let err: string | null = null;
-    let errorClass: ErrorClass | null = null;
-    let sendMetrics: { attempts: number; durationMs: number } | null = null;
+    const ok = claimResult.outcome === "sent";
+    const err = claimResult.outcome === "failed" ? claimResult.error : null;
+    const errorClass = claimResult.outcome === "failed" ? claimResult.errorClass : null;
+    const sendMetrics = claimResult.outcome === "failed" ? claimResult.sendMetrics : claimResult.sendMetrics;
 
-    // Circuit breaker: consulta antes do envio.
-    const breakerInstanceId = inst?.id ?? cfg.instance_id ?? null;
-    if (breakerInstanceId && (await isBreakerOpen(breakerInstanceId))) {
-      log("CIRCUIT_OPEN", { ...sendCtx });
-      ok = false;
-      err = "Circuit breaker aberto (instância com falhas consecutivas)";
-      errorClass = "transient";
-    } else {
+    if (ok) {
+      if (breakerInstanceId) await recordSuccess(breakerInstanceId).catch(() => undefined);
+      await new Promise((r) => setTimeout(r, 800));
+      anySent = true;
+    } else if (breakerInstanceId && errorClass === "transient") {
+      await recordFailure(breakerInstanceId, cfg.user_id, new Error(err ?? "erro desconhecido")).catch(() => undefined);
       try {
-        if (!productDetail.image) throw new Error("Produto sem imagem");
-        log("SEND_STARTED", sendCtx);
-        console.log("[WHATSAPP_FINAL_CAPTION]", { source: "automation", instance: instanceName, jid: g.group_jid, caption });
-        sendMetrics = await sendMediaOnce(instanceName, g.group_jid, productDetail.image, caption, sendCtx);
-        log("SEND_SUCCESS", { ...sendCtx, attempts: sendMetrics.attempts, duration_ms: sendMetrics.durationMs, claim_id: claimId });
-
-        // Transiciona o CLAIM: processing → sent.
-        await admin
-          .from("automation_group_sends")
-          .update({ status: "sent", sent_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-          .eq("id", claimId);
-
-        if (breakerInstanceId) await recordSuccess(breakerInstanceId).catch(() => undefined);
-        await new Promise((r) => setTimeout(r, 800));
-        anySent = true;
-      } catch (e) {
-        ok = false;
-        err = e instanceof Error ? e.message : String(e);
-        errorClass = classifyError(e);
-        log("SEND_FAILED", {
-          ...sendCtx,
-          claim_id: claimId,
-          error_class: errorClass,
-          error: err,
-          policy: "fail_safe_no_resend",
+        await admin.from("automation_failures").insert({
+          user_id: cfg.user_id,
+          config_id: cfg.id,
+          product_id: product.id,
+          group_id: g.group_jid,
+          instance_id: cfg.instance_id ?? null,
+          error_message: (err ?? "erro desconhecido").slice(0, 500),
+          error_code: errorClass === "permanent" ? "permanent_error" : "send_failed",
+          attempt_count: sendMetrics?.attempts ?? 1,
+          next_retry_at: null,
         });
-
-        // Transiciona o CLAIM: processing → failed. Claim MANTIDO (nunca
-        // será reutilizado no ciclo, garantindo fail-safe).
-        await admin
-          .from("automation_group_sends")
-          .update({ status: "failed", updated_at: new Date().toISOString() })
-          .eq("id", claimId);
-
-        if (breakerInstanceId && errorClass === "transient") {
-          await recordFailure(breakerInstanceId, cfg.user_id, e).catch(() => undefined);
-        }
-
-        // Dead-Letter Queue: registra falha para inspeção manual.
-        // IMPORTANTE: o claim NÃO é removido — reenvio manual precisa ser
-        // consciente para não gerar duplicidade no cliente final.
-        try {
-          await admin.from("automation_failures").insert({
-            user_id: cfg.user_id,
-            config_id: cfg.id,
-            product_id: product.id,
-            group_id: g.group_jid,
-            instance_id: cfg.instance_id ?? null,
-            error_message: (err ?? "erro desconhecido").slice(0, 500),
-            error_code: errorClass === "permanent" ? "permanent_error" : "send_failed",
-            attempt_count: sendMetrics?.attempts ?? 1,
-            next_retry_at: null, // fail-safe: sem retry automático
-          });
-        } catch { /* ignora falha ao gravar DLQ */ }
-      }
+      } catch { /* ignora falha ao gravar DLQ */ }
     }
 
     await admin.from("whatsapp_campaign_history").insert({
