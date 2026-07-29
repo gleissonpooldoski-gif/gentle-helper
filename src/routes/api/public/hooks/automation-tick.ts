@@ -694,59 +694,11 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
 
 
 
-/**
- * Advisory lock por destino (instance_id, group_id). Se dois workers
- * tentarem processar o mesmo destino simultaneamente, apenas um continua
- * e o outro é dispensado imediatamente (LOCK_SKIPPED). Fallback para
- * lock por config_id quando instance_id/group_id são nulos (legado).
- *
- * Liberação garantida no bloco finally, mesmo em caso de throw, timeout,
- * Evolution offline ou cancelamento. Advisory locks também são liberados
- * automaticamente ao fim da sessão do Postgres.
- */
-async function withDestinationLock<T>(
-  admin: any,
-  cfg: { id: string; instance_id: string | null; group_id: string | null },
-  ctx: LogFields,
-  fn: () => Promise<T>,
-): Promise<T | { skipped: true }> {
-  const useDestination = cfg.instance_id && cfg.group_id;
-  const rpcName = useDestination ? "try_lock_automation_destination" : "try_lock_automation_config";
-  const unlockRpc = useDestination ? "unlock_automation_destination" : "unlock_automation_config";
-  const args = useDestination
-    ? { _instance_id: cfg.instance_id, _group_id: cfg.group_id }
-    : { _config_id: cfg.id };
-
-  const { data: acquired, error: lockErr } = await admin.rpc(rpcName, args);
-  if (lockErr) {
-    // Fallback fail-open apenas se a função não existir (evita travar operação
-    // em ambiente parcialmente migrado). Qualquer outro erro é propagado.
-    if (String(lockErr.message || "").includes("does not exist")) {
-      log("LOCK_MISSING_RPC", { ...ctx, rpc: rpcName });
-      return fn();
-    }
-    throw new Error(`lock: ${lockErr.message}`);
-  }
-  if (!acquired) {
-    log("LOCK_SKIPPED", { ...ctx, reason: "concurrent_worker" });
-    return { skipped: true };
-  }
-  log("LOCK_ACQUIRED", ctx);
-  try {
-    return await fn();
-  } finally {
-    try {
-      await admin.rpc(unlockRpc, args);
-      log("LOCK_RELEASED", ctx);
-    } catch (unlockErr) {
-      // Liberação best-effort; advisory lock é liberado ao fim da sessão.
-      log("LOCK_RELEASE_FAILED", {
-        ...ctx,
-        error: unlockErr instanceof Error ? unlockErr.message : String(unlockErr),
-      });
-    }
-  }
-}
+// LOTE FINAL — `withDestinationLock` removido.
+// Advisory locks via RPC HTTP não permanecem retidos entre chamadas
+// (cada request abre/fecha conexão), então não bloqueavam concorrência real.
+// A autoridade anti-duplicidade agora é EXCLUSIVAMENTE o CLAIM ATÔMICO
+// (INSERT em automation_group_sends com UNIQUE por destino).
 
 export const Route = createFileRoute("/api/public/hooks/automation-tick")({
   server: {
