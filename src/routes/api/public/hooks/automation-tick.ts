@@ -687,6 +687,7 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
     };
 
     const workerId = (globalThis as { __automation_worker_id?: string }).__automation_worker_id ?? null;
+    const breakerInstanceId = inst?.id ?? cfg.instance_id ?? null;
     const claimResult = await claimAndSendMediaOnceForAutomation({
       admin,
       cfg,
@@ -733,8 +734,10 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
       if (breakerInstanceId) await recordSuccess(breakerInstanceId).catch(() => undefined);
       await new Promise((r) => setTimeout(r, 800));
       anySent = true;
-    } else if (breakerInstanceId && errorClass === "transient") {
-      await recordFailure(breakerInstanceId, cfg.user_id, new Error(err ?? "erro desconhecido")).catch(() => undefined);
+    } else {
+      if (breakerInstanceId && errorClass === "transient") {
+        await recordFailure(breakerInstanceId, cfg.user_id, new Error(err ?? "erro desconhecido")).catch(() => undefined);
+      }
       try {
         await admin.from("automation_failures").insert({
           user_id: cfg.user_id,
