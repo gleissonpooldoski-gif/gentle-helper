@@ -361,30 +361,7 @@ export const sendLayoutTestMessage = createServerFn({ method: "POST" })
     } catch { /* noop */ }
 
     const jid = `${data.phone}@s.whatsapp.net`;
-    const { getWhatsAppProvider } = await import("@/modules/whatsapp/index.server");
-    const provider = getWhatsAppProvider(instance.provider);
-    const live = await provider.getStatus(instance.instance_name);
-    if (live.status !== "connected") {
-      throw new Error("Instância não conectada. Reconecte antes de testar.");
-    }
-    console.log("[WHATSAPP_FINAL_CAPTION]", { source: "preview", instance: instance.instance_name, jid, caption });
-    await provider.sendMedia(instance.instance_name, jid, {
-      mediaUrl: prod.image_url,
-      caption,
-    });
-
-
-    try {
-      await (supabase as any).from("whatsapp_send_history").insert({
-        user_id: userId,
-        instance_id: instance.id,
-        product_id: prod.id,
-        jid,
-        caption,
-        media_url: prod.image_url,
-        status: "sent",
-      });
-    } catch { /* histórico é best-effort */ }
-
-    return { ok: true, jid, productTitle: prod.title, caption };
+    void instance;
+    void caption;
+    throw new Error("Envio direto bloqueado: preview WhatsApp deve passar pelo CLAIM atômico da automação.");
   });
