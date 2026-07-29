@@ -83,7 +83,9 @@ const classifyError = classifyAutomationError;
  * - se chegou ao fim: loop → volta ao 0; senão marca 'done'.
  */
 
-const DEFAULT_INSTANCE = "DIVULGA LINKS";
+// LOTE FINAL — DEFAULT_INSTANCE removido. Não há mais fallback para
+// nenhuma instância "mágica"; cada config precisa apontar sua própria
+// instância, eliminando rota paralela de envio.
 const TZ = "America/Sao_Paulo";
 
 function nowInTz(): { hour: number; minute: number; date: Date } {
@@ -293,9 +295,11 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
 
   }
 
-  // Localiza a instância WhatsApp que enviará os posts.
-  // Se `cfg.instance_id` estiver definido, usa aquela instância específica;
-  // caso contrário cai para a instância padrão DIVULGA LINKS.
+  // Localiza a instância WhatsApp da config.
+  // LOTE FINAL — FALLBACK REMOVIDO. Toda config precisa ter `instance_id`
+  // válido; se a instância não existir, aborta com erro permanente. Isso
+  // elimina a rota paralela onde dois workers podiam enviar via instâncias
+  // diferentes para o mesmo grupo/produto.
   let inst: { id: string; instance_name: string } | null = null;
   if (cfg.instance_id) {
     const { data: row } = await admin
@@ -307,16 +311,17 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
     if (row) inst = row as any;
   }
   if (!inst) {
-    const { data: row } = await admin
-      .from("whatsapp_instances")
-      .select("id, instance_name")
-      .eq("user_id", cfg.user_id)
-      .eq("instance_name", DEFAULT_INSTANCE)
-      .maybeSingle();
-    if (row) inst = row as any;
+    await admin.from("automation_configs").update({
+      status: "error",
+      last_error: cfg.instance_id
+        ? `Instância ${cfg.instance_id} não encontrada`
+        : "Config sem instance_id — configure a instância antes de iniciar",
+      next_run_at: new Date(Date.now() + cfg.intervalo_min * 60_000).toISOString(),
+    }).eq("id", cfg.id);
+    return;
   }
 
-  const instanceName = inst?.instance_name ?? DEFAULT_INSTANCE;
+  const instanceName = inst.instance_name;
 
   let groups: Array<{ group_jid: string; group_name: string | null }> = [];
   if (cfg.group_id) {
@@ -530,37 +535,42 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
     };
 
     // ============================================================
-    // LOTE 8 — RESERVA IDEMPOTENTE ANTES DO ENVIO (fail-safe total)
+    // CLAIM ATÔMICO NO BANCO (autoridade final anti-duplicidade)
     // ============================================================
-    // Tenta inserir a marca de envio ANTES de chamar a Evolution.
-    // A chave única (config_id, product_id, group_id) garante que:
-    //   - dois workers concorrentes NUNCA enviam o mesmo produto;
-    //   - retries entre ticks NUNCA reenviam;
-    //   - restart do worker NUNCA reenvia;
-    //   - se o INSERT falhar por conflito → outra execução já cuidou.
-    // Se o send falhar depois, a reserva é MANTIDA (fail-safe: preferir
-    // não enviar de novo a arriscar duplicar uma mensagem já entregue).
-    const { error: reserveErr } = await admin
+    // O INSERT abaixo é o ÚNICO ponto de decisão sobre "quem envia".
+    // A UNIQUE (config_id, product_id, COALESCE(group_id,'')) do banco
+    // garante que apenas 1 worker por (config, produto, destino) passa.
+    // Advisory locks foram removidos: dependiam da mesma conexão HTTP
+    // permanecer viva durante todo o envio, o que não é garantido.
+    // - Sucesso do INSERT → este worker ganhou o direito de enviar.
+    // - Conflito (23505)  → outro worker já reivindicou → aborta.
+    // - Envio bem-sucedido → UPDATE status='sent' + message_id.
+    // - Envio falhou      → UPDATE status='failed'. Claim é MANTIDO
+    //   (fail-safe: preferir não enviar de novo a arriscar duplicar).
+    const workerId = (globalThis as { __automation_worker_id?: string }).__automation_worker_id ?? null;
+    const { data: claimRow, error: reserveErr } = await admin
       .from("automation_group_sends")
       .insert({
         user_id: cfg.user_id,
         config_id: cfg.id,
         product_id: product.id,
         group_id: g.group_jid,
-      });
+        status: "processing",
+        worker_id: workerId,
+      })
+      .select("id")
+      .single();
     if (reserveErr) {
       const msg = String(reserveErr.message || reserveErr.code || "");
       const isConflict = /duplicate key|unique|23505/i.test(msg);
       if (isConflict) {
-        log("DUPLICATE_PREVENTED", {
+        log("CLAIM_DUPLICATE", {
           ...sendCtx,
-          reason: "reservation_exists",
-          detail: "produto já reservado para este grupo — envio abortado",
+          reason: "another_worker_owns_this_destination",
         });
         continue;
       }
-      // Falha inesperada ao reservar (não é conflito) → NÃO envia (fail-safe).
-      log("RESERVATION_FAILED", { ...sendCtx, error: msg });
+      log("CLAIM_FAILED", { ...sendCtx, error: msg });
       await admin.from("whatsapp_campaign_history").insert({
         user_id: cfg.user_id,
         config_id: cfg.id,
@@ -573,11 +583,12 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
         media_url: productDetail.image,
         caption,
         status: "failed",
-        error_message: `Reserva idempotente falhou: ${msg}`.slice(0, 500),
+        error_message: `Claim atômico falhou: ${msg}`.slice(0, 500),
       });
       continue;
     }
-    log("RESERVATION_ACQUIRED", sendCtx);
+    const claimId: string = (claimRow as { id: string }).id;
+    log("CLAIM_CREATED", { ...sendCtx, claim_id: claimId });
 
     let ok = true;
     let err: string | null = null;
@@ -597,7 +608,13 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
         log("SEND_STARTED", sendCtx);
         console.log("[WHATSAPP_FINAL_CAPTION]", { source: "automation", instance: instanceName, jid: g.group_jid, caption });
         sendMetrics = await sendMediaOnce(instanceName, g.group_jid, productDetail.image, caption, sendCtx);
-        log("SEND_SUCCESS", { ...sendCtx, attempts: sendMetrics.attempts, duration_ms: sendMetrics.durationMs });
+        log("SEND_SUCCESS", { ...sendCtx, attempts: sendMetrics.attempts, duration_ms: sendMetrics.durationMs, claim_id: claimId });
+
+        // Transiciona o CLAIM: processing → sent.
+        await admin
+          .from("automation_group_sends")
+          .update({ status: "sent", sent_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+          .eq("id", claimId);
 
         if (breakerInstanceId) await recordSuccess(breakerInstanceId).catch(() => undefined);
         await new Promise((r) => setTimeout(r, 800));
@@ -606,19 +623,27 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
         ok = false;
         err = e instanceof Error ? e.message : String(e);
         errorClass = classifyError(e);
-        log("SEND_FAILED_RESERVATION_KEPT", {
+        log("SEND_FAILED", {
           ...sendCtx,
+          claim_id: claimId,
           error_class: errorClass,
           error: err,
           policy: "fail_safe_no_resend",
         });
+
+        // Transiciona o CLAIM: processing → failed. Claim MANTIDO (nunca
+        // será reutilizado no ciclo, garantindo fail-safe).
+        await admin
+          .from("automation_group_sends")
+          .update({ status: "failed", updated_at: new Date().toISOString() })
+          .eq("id", claimId);
 
         if (breakerInstanceId && errorClass === "transient") {
           await recordFailure(breakerInstanceId, cfg.user_id, e).catch(() => undefined);
         }
 
         // Dead-Letter Queue: registra falha para inspeção manual.
-        // IMPORTANTE: a reserva NÃO é removida — reenvio manual precisa ser
+        // IMPORTANTE: o claim NÃO é removido — reenvio manual precisa ser
         // consciente para não gerar duplicidade no cliente final.
         try {
           await admin.from("automation_failures").insert({
@@ -671,59 +696,11 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
 
 
 
-/**
- * Advisory lock por destino (instance_id, group_id). Se dois workers
- * tentarem processar o mesmo destino simultaneamente, apenas um continua
- * e o outro é dispensado imediatamente (LOCK_SKIPPED). Fallback para
- * lock por config_id quando instance_id/group_id são nulos (legado).
- *
- * Liberação garantida no bloco finally, mesmo em caso de throw, timeout,
- * Evolution offline ou cancelamento. Advisory locks também são liberados
- * automaticamente ao fim da sessão do Postgres.
- */
-async function withDestinationLock<T>(
-  admin: any,
-  cfg: { id: string; instance_id: string | null; group_id: string | null },
-  ctx: LogFields,
-  fn: () => Promise<T>,
-): Promise<T | { skipped: true }> {
-  const useDestination = cfg.instance_id && cfg.group_id;
-  const rpcName = useDestination ? "try_lock_automation_destination" : "try_lock_automation_config";
-  const unlockRpc = useDestination ? "unlock_automation_destination" : "unlock_automation_config";
-  const args = useDestination
-    ? { _instance_id: cfg.instance_id, _group_id: cfg.group_id }
-    : { _config_id: cfg.id };
-
-  const { data: acquired, error: lockErr } = await admin.rpc(rpcName, args);
-  if (lockErr) {
-    // Fallback fail-open apenas se a função não existir (evita travar operação
-    // em ambiente parcialmente migrado). Qualquer outro erro é propagado.
-    if (String(lockErr.message || "").includes("does not exist")) {
-      log("LOCK_MISSING_RPC", { ...ctx, rpc: rpcName });
-      return fn();
-    }
-    throw new Error(`lock: ${lockErr.message}`);
-  }
-  if (!acquired) {
-    log("LOCK_SKIPPED", { ...ctx, reason: "concurrent_worker" });
-    return { skipped: true };
-  }
-  log("LOCK_ACQUIRED", ctx);
-  try {
-    return await fn();
-  } finally {
-    try {
-      await admin.rpc(unlockRpc, args);
-      log("LOCK_RELEASED", ctx);
-    } catch (unlockErr) {
-      // Liberação best-effort; advisory lock é liberado ao fim da sessão.
-      log("LOCK_RELEASE_FAILED", {
-        ...ctx,
-        error: unlockErr instanceof Error ? unlockErr.message : String(unlockErr),
-      });
-    }
-  }
-}
+// LOTE FINAL — `withDestinationLock` removido.
+// Advisory locks via RPC HTTP não permanecem retidos entre chamadas
+// (cada request abre/fecha conexão), então não bloqueavam concorrência real.
+// A autoridade anti-duplicidade agora é EXCLUSIVAMENTE o CLAIM ATÔMICO
+// (INSERT em automation_group_sends com UNIQUE por destino).
 
 export const Route = createFileRoute("/api/public/hooks/automation-tick")({
   server: {
@@ -762,15 +739,13 @@ export const Route = createFileRoute("/api/public/hooks/automation-tick")({
             group_id: cfg.group_id,
           };
           try {
-            const r = await withDestinationLock(supabaseAdmin, cfg, ctx, () =>
-              tickOne(supabaseAdmin, cfg),
-            );
+            // LOTE FINAL — advisory lock removido. A autoridade anti-duplicidade
+            // é 100% o CLAIM ATÔMICO no banco (INSERT com UNIQUE em
+            // automation_group_sends). Advisory locks via RPC não sobreviviam
+            // à conexão HTTP entre as chamadas, ficando ineficazes.
+            await tickOne(supabaseAdmin, cfg);
             const duration = Date.now() - cfgStart;
-            if (r && typeof r === "object" && "skipped" in r) {
-              results.push({ id: cfg.id, ok: true, skipped: true, duration_ms: duration });
-            } else {
-              results.push({ id: cfg.id, ok: true, duration_ms: duration });
-            }
+            results.push({ id: cfg.id, ok: true, duration_ms: duration });
           } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
             const duration = Date.now() - cfgStart;

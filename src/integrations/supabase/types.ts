@@ -222,25 +222,37 @@ export type Database = {
           config_id: string
           group_id: string | null
           id: string
+          message_id: string | null
           product_id: string
           sent_at: string
+          status: string
+          updated_at: string
           user_id: string
+          worker_id: string | null
         }
         Insert: {
           config_id: string
           group_id?: string | null
           id?: string
+          message_id?: string | null
           product_id: string
           sent_at?: string
+          status?: string
+          updated_at?: string
           user_id: string
+          worker_id?: string | null
         }
         Update: {
           config_id?: string
           group_id?: string | null
           id?: string
+          message_id?: string | null
           product_id?: string
           sent_at?: string
+          status?: string
+          updated_at?: string
           user_id?: string
+          worker_id?: string | null
         }
         Relationships: [
           {
