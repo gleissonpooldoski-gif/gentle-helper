@@ -293,9 +293,11 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
 
   }
 
-  // Localiza a instância WhatsApp que enviará os posts.
-  // Se `cfg.instance_id` estiver definido, usa aquela instância específica;
-  // caso contrário cai para a instância padrão DIVULGA LINKS.
+  // Localiza a instância WhatsApp da config.
+  // LOTE FINAL — FALLBACK REMOVIDO. Toda config precisa ter `instance_id`
+  // válido; se a instância não existir, aborta com erro permanente. Isso
+  // elimina a rota paralela onde dois workers podiam enviar via instâncias
+  // diferentes para o mesmo grupo/produto.
   let inst: { id: string; instance_name: string } | null = null;
   if (cfg.instance_id) {
     const { data: row } = await admin
@@ -307,16 +309,17 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
     if (row) inst = row as any;
   }
   if (!inst) {
-    const { data: row } = await admin
-      .from("whatsapp_instances")
-      .select("id, instance_name")
-      .eq("user_id", cfg.user_id)
-      .eq("instance_name", DEFAULT_INSTANCE)
-      .maybeSingle();
-    if (row) inst = row as any;
+    await admin.from("automation_configs").update({
+      status: "error",
+      last_error: cfg.instance_id
+        ? `Instância ${cfg.instance_id} não encontrada`
+        : "Config sem instance_id — configure a instância antes de iniciar",
+      next_run_at: new Date(Date.now() + cfg.intervalo_min * 60_000).toISOString(),
+    }).eq("id", cfg.id);
+    return;
   }
 
-  const instanceName = inst?.instance_name ?? DEFAULT_INSTANCE;
+  const instanceName = inst.instance_name;
 
   let groups: Array<{ group_jid: string; group_name: string | null }> = [];
   if (cfg.group_id) {
