@@ -689,13 +689,7 @@ export const sendWhatsAppText = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const row = await loadInstance(supabase, userId, data.id);
     if (row.status !== "connected") throw new Error("Instância não conectada");
-    const { getWhatsAppProvider } = await import("./index.server");
-    const res = await getWhatsAppProvider(row.provider).sendText(
-      row.instance_name,
-      data.jid,
-      data.text,
-    );
-    return { ok: true, messageId: res.id };
+    throw new Error("Envio direto bloqueado: mensagens WhatsApp devem passar pelo CLAIM atômico da automação.");
   });
 
 /**
@@ -809,6 +803,8 @@ export const sendWhatsAppProduct = createServerFn({ method: "POST" })
       throw new Error("Produto sem imagem. Rode o enriquecimento de imagens antes de enviar.");
     }
 
+    throw new Error("Envio direto bloqueado: produtos WhatsApp devem passar pelo CLAIM atômico da automação.");
+
     // Renderiza usando o MESMO layout persistido no SaaS.
     const { loadLayoutFor, resolveHeader } = await import("@/modules/posts/layout.functions");
     const { renderPost } = await import("@/modules/posts/render");
@@ -844,42 +840,12 @@ export const sendWhatsAppProduct = createServerFn({ method: "POST" })
     let failed = 0;
     const errors: Array<{ jid: string; error: string }> = [];
 
-    for (const jid of targets) {
-      let messageId: string | undefined;
-      let status: "sent" | "failed" = "sent";
-      let errorMsg: string | null = null;
-      try {
-        const res = await provider.sendMedia(row.instance_name, jid, {
-          mediaUrl: product.image,
-          caption,
-        });
-        messageId = res.id;
-        sent++;
-        await new Promise((r) => setTimeout(r, 800));
-      } catch (err) {
-        status = "failed";
-        failed++;
-        errorMsg = err instanceof Error ? err.message : String(err);
-        errors.push({ jid, error: errorMsg });
-      }
-
-      // Histórico do envio
-      try {
-        await (supabase as any).from("whatsapp_send_history").insert({
-          user_id: userId,
-          instance_id: row.id,
-          product_id: productId,
-          jid,
-          caption,
-          media_url: product.image,
-          status,
-          error: errorMsg,
-          message_id: messageId ?? null,
-        });
-      } catch (histErr) {
-        console.warn("[WA] history insert failed:", histErr);
-      }
-    }
+    void caption;
+    void targets;
+    void productId;
+    void sent;
+    void failed;
+    void errors;
     return { sent, failed, errors };
   });
 
@@ -909,22 +875,10 @@ export const sendWhatsAppCampaign = createServerFn({ method: "POST" })
     const targets: string[] = (sel ?? []).map((s: any) => s.group_jid);
     if (targets.length === 0) throw new Error("Nenhum grupo selecionado");
 
-    const { getWhatsAppProvider } = await import("./index.server");
-    const provider = getWhatsAppProvider(row.provider);
+    throw new Error("Envio direto bloqueado: campanhas WhatsApp devem passar pelo CLAIM atômico da automação.");
 
     let sent = 0;
     let failed = 0;
     const errors: Array<{ jid: string; error: string }> = [];
-    for (const jid of targets) {
-      try {
-        await provider.sendText(row.instance_name, jid, data.text);
-        sent++;
-        // Pequeno delay entre envios (anti-flood)
-        await new Promise((r) => setTimeout(r, 800));
-      } catch (err) {
-        failed++;
-        errors.push({ jid, error: err instanceof Error ? err.message : String(err) });
-      }
-    }
     return { sent, failed, errors };
   });
