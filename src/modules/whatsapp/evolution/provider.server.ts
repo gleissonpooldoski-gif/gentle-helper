@@ -274,42 +274,15 @@ export const evolutionProvider: WhatsAppProvider = {
     }
   },
 
-  async sendText(instanceName, jid, text): Promise<{ id?: string }> {
+  async sendText(): Promise<{ id?: string }> {
     throw new Error(
       "Envio direto bloqueado: mensagens WhatsApp devem passar pelo CLAIM atômico da automação.",
     );
-    const number = jid.includes("@") ? jid.split("@")[0] : jid;
-    const res = await evolutionJson<any>(
-      `/message/sendText/${encodeURIComponent(instanceName)}`,
-      {
-        method: "POST",
-        body: JSON.stringify({ number, text, textMessage: { text } }),
-      },
-    );
-    const id = res?.key?.id ?? res?.messageId ?? res?.id;
-    return { id: typeof id === "string" ? id : undefined };
   },
 
-  async sendMedia(instanceName, jid, { mediaUrl, caption, fileName }): Promise<{ id?: string }> {
+  async sendMedia(): Promise<{ id?: string }> {
     throw new Error(
       "Envio direto bloqueado: mídia WhatsApp deve passar pelo CLAIM atômico da automação.",
     );
-    const number = jid.includes("@") ? jid.split("@")[0] : jid;
-    const body = {
-      number,
-      mediatype: "image",
-      mimetype: "image/jpeg",
-      caption,
-      media: mediaUrl,
-      fileName: fileName ?? "produto.jpg",
-      // compat com diferentes builds da Evolution
-      mediaMessage: { mediatype: "image", media: mediaUrl, caption, fileName: fileName ?? "produto.jpg" },
-    };
-    const res = await evolutionJson<any>(
-      `/message/sendMedia/${encodeURIComponent(instanceName)}`,
-      { method: "POST", body: JSON.stringify(body) },
-    );
-    const id = res?.key?.id ?? res?.messageId ?? res?.id;
-    return { id: typeof id === "string" ? id : undefined };
   },
 };
