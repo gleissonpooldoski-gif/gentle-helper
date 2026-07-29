@@ -129,7 +129,7 @@ function nextWindowOpen(start: string): Date {
   return new Date(openBrt.getTime() + 3 * 3600_000);
 }
 
-async function evolutionFetch(path: string, init?: RequestInit) {
+async function evolutionFetch(path: string, init?: RequestInit & { retries?: number }) {
   const { evolutionJson } = await import("@/modules/whatsapp/evolution/client.server");
   return evolutionJson<any>(path, init);
 }
@@ -155,17 +155,64 @@ async function connectionState(instance: string): Promise<string> {
  * ticks futuros. Falhas transitórias são tratadas como "envio possivelmente
  * concluído" e a próxima execução simplesmente escolhe outro produto.
  */
+interface ClaimGuard {
+  admin: any;
+  claimId: string;
+  configId: string;
+  productId: string;
+  groupId: string;
+  workerId: string;
+}
+
+interface SendMetrics {
+  attempts: 1;
+  durationMs: number;
+  messageId: string | null;
+}
+
+async function validateClaimBeforeSend(guard: ClaimGuard, ctx: LogFields): Promise<void> {
+  const { data, error } = await guard.admin
+    .from("automation_group_sends")
+    .select("id, status, worker_id")
+    .eq("config_id", guard.configId)
+    .eq("product_id", guard.productId)
+    .eq("group_id", guard.groupId)
+    .eq("status", "processing");
+
+  if (error) throw new Error(`CLAIM_VALIDATION_FAILED: ${error.message}`);
+  const claims = Array.isArray(data) ? data : [];
+  if (claims.length !== 1) {
+    log("CLAIM_VALIDATION_FAILED", { ...ctx, claim_id: guard.claimId, valid_claims: claims.length });
+    throw new Error(`CLAIM_INVALID: expected exactly 1 processing claim, got ${claims.length}`);
+  }
+
+  const claim = claims[0] as { id?: string | null; status?: string | null; worker_id?: string | null };
+  if (claim.id !== guard.claimId || claim.status !== "processing" || claim.worker_id !== guard.workerId) {
+    log("CLAIM_VALIDATION_FAILED", {
+      ...ctx,
+      claim_id: guard.claimId,
+      found_claim_id: claim.id ?? null,
+      found_status: claim.status ?? null,
+      found_worker_id: claim.worker_id ?? null,
+    });
+    throw new Error("CLAIM_INVALID: claim does not belong to current worker");
+  }
+}
+
 async function sendMediaOnce(
+  guard: ClaimGuard,
   instance: string,
   jid: string,
   mediaUrl: string,
   caption: string,
   ctx: LogFields,
-): Promise<{ attempts: 1; durationMs: number }> {
+): Promise<SendMetrics> {
   const started = Date.now();
   try {
-    await evolutionFetch(`/message/sendMedia/${encodeURIComponent(instance)}`, {
+    await validateClaimBeforeSend(guard, ctx);
+    const res = await evolutionFetch(`/message/sendMedia/${encodeURIComponent(instance)}`, {
       method: "POST",
+      retries: 0,
       body: JSON.stringify({
         number: jid,
         mediatype: "image",
@@ -173,11 +220,116 @@ async function sendMediaOnce(
         caption,
       }),
     });
-    return { attempts: 1, durationMs: Date.now() - started };
+    const id = res?.key?.id ?? res?.messageId ?? res?.id ?? null;
+    return { attempts: 1, durationMs: Date.now() - started, messageId: typeof id === "string" ? id : null };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     log("SEND_NO_RETRY", { ...ctx, reason: "idempotency_guard", error: msg });
     throw e;
+  }
+}
+
+export type AutomationClaimSendResult =
+  | { outcome: "duplicate"; claimId: null }
+  | { outcome: "sent"; claimId: string; sendMetrics: SendMetrics }
+  | { outcome: "failed"; claimId: string | null; error: string; errorClass: ErrorClass; sendMetrics: SendMetrics | null };
+
+export async function claimAndSendMediaOnceForAutomation(input: {
+  admin: any;
+  cfg: any;
+  product: any;
+  group: { group_jid: string; group_name: string | null };
+  instanceName: string;
+  mediaUrl: string | null | undefined;
+  caption: string;
+  workerId: string;
+  ctx: LogFields;
+  beforeSend?: () => Promise<void>;
+}): Promise<AutomationClaimSendResult> {
+  const { admin, cfg, product, group, instanceName, mediaUrl, caption, workerId, ctx, beforeSend } = input;
+  const { data: claimRow, error: reserveErr } = await admin
+    .from("automation_group_sends")
+    .insert({
+      user_id: cfg.user_id,
+      config_id: cfg.id,
+      product_id: product.id,
+      group_id: group.group_jid,
+      status: "processing",
+      worker_id: workerId,
+    })
+    .select("id")
+    .single();
+
+  if (reserveErr) {
+    const msg = String(reserveErr.message || reserveErr.code || "");
+    const isConflict = /duplicate key|unique|23505/i.test(msg);
+    if (isConflict) {
+      log("CLAIM_DUPLICATE", { ...ctx, reason: "another_worker_owns_this_destination" });
+      return { outcome: "duplicate", claimId: null };
+    }
+    log("CLAIM_FAILED", { ...ctx, error: msg });
+    return { outcome: "failed", claimId: null, error: `Claim atômico falhou: ${msg}`, errorClass: "transient", sendMetrics: null };
+  }
+
+  const claimId = String((claimRow as { id?: string })?.id ?? "");
+  if (!claimId) {
+    return { outcome: "failed", claimId: null, error: "Claim criado sem id", errorClass: "transient", sendMetrics: null };
+  }
+  log("CLAIM_CREATED", { ...ctx, claim_id: claimId });
+
+  let sendMetrics: SendMetrics | null = null;
+  try {
+    if (!mediaUrl) throw new Error("Produto sem imagem");
+    if (beforeSend) await beforeSend();
+    log("SEND_STARTED", { ...ctx, claim_id: claimId });
+    console.log("[WHATSAPP_FINAL_CAPTION]", { source: "automation", instance: instanceName, jid: group.group_jid, caption });
+    sendMetrics = await sendMediaOnce(
+      {
+        admin,
+        claimId,
+        configId: cfg.id,
+        productId: product.id,
+        groupId: group.group_jid,
+        workerId,
+      },
+      instanceName,
+      group.group_jid,
+      mediaUrl,
+      caption,
+      { ...ctx, claim_id: claimId },
+    );
+    log("SEND_SUCCESS", {
+      ...ctx,
+      claim_id: claimId,
+      attempts: sendMetrics.attempts,
+      duration_ms: sendMetrics.durationMs,
+      message_id: sendMetrics.messageId,
+    });
+    await admin
+      .from("automation_group_sends")
+      .update({
+        status: "sent",
+        message_id: sendMetrics.messageId,
+        sent_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", claimId);
+    return { outcome: "sent", claimId, sendMetrics };
+  } catch (e) {
+    const err = e instanceof Error ? e.message : String(e);
+    const errorClass = classifyError(e);
+    log("SEND_FAILED", {
+      ...ctx,
+      claim_id: claimId,
+      error_class: errorClass,
+      error: err,
+      policy: "fail_safe_no_resend",
+    });
+    await admin
+      .from("automation_group_sends")
+      .update({ status: "failed", updated_at: new Date().toISOString() })
+      .eq("id", claimId);
+    return { outcome: "failed", claimId, error: err, errorClass, sendMetrics };
   }
 }
 
