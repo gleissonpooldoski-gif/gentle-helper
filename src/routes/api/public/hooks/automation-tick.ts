@@ -83,7 +83,9 @@ const classifyError = classifyAutomationError;
  * - se chegou ao fim: loop → volta ao 0; senão marca 'done'.
  */
 
-const DEFAULT_INSTANCE = "DIVULGA LINKS";
+// LOTE FINAL — DEFAULT_INSTANCE removido. Não há mais fallback para
+// nenhuma instância "mágica"; cada config precisa apontar sua própria
+// instância, eliminando rota paralela de envio.
 const TZ = "America/Sao_Paulo";
 
 function nowInTz(): { hour: number; minute: number; date: Date } {
