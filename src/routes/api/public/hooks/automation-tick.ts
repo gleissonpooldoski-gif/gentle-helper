@@ -378,7 +378,48 @@ export async function claimAndSendMediaOnceForAutomation(input: {
 
 
 
+/**
+ * Wrapper de intervalo por destino. Garante que só exista UM envio em curso
+ * por destino e que o intervalo configurado seja respeitado ENTRE envios.
+ */
 async function tickOne(admin: any, cfg: any): Promise<void> {
+  const key = destinationKey(cfg);
+  const workerId = (globalThis as { __automation_worker_id?: string }).__automation_worker_id ?? null;
+
+  if (destinationInFlight.has(key)) {
+    log("INTERVAL_SKIPPED", { worker_id: workerId, config_id: cfg.id, group_id: cfg.group_id, reason: "destination_busy" });
+    return;
+  }
+  destinationInFlight.add(key);
+  try {
+    const gap = intervalMs(cfg);
+    const last = await lastSentAtForDestination(admin, cfg);
+    if (last != null) {
+      const elapsed = Date.now() - last;
+      if (elapsed < gap) {
+        const nextAt = new Date(last + gap).toISOString();
+        log("INTERVAL_SKIPPED", {
+          worker_id: workerId,
+          config_id: cfg.id,
+          group_id: cfg.group_id,
+          reason: "interval_not_elapsed",
+          elapsed_ms: elapsed,
+          interval_ms: gap,
+          next_run_at: nextAt,
+        });
+        // Realinha o relógio da config com o destino real (não altera status).
+        await admin.from("automation_configs").update({ next_run_at: nextAt }).eq("id", cfg.id);
+        return;
+      }
+    }
+    await tickOneForConfig(admin, cfg);
+  } finally {
+    destinationInFlight.delete(key);
+  }
+}
+
+async function tickOneForConfig(admin: any, cfg: any): Promise<void> {
+
   const { hour, minute } = nowInTz();
   const inWindow = isWithinWindow(hour, minute, String(cfg.hora_inicio).slice(0, 5), String(cfg.hora_fim).slice(0, 5));
 
