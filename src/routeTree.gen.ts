@@ -40,6 +40,7 @@ import { Route as ApiPublicWhatsappConnectRouteImport } from './routes/api/publi
 import { Route as ApiPublicWebhooksInstagramRouteImport } from './routes/api/public/webhooks/instagram'
 import { Route as ApiPublicMetaWebhookRouteImport } from './routes/api/public/meta/webhook'
 import { Route as ApiPublicInstagramCallbackRouteImport } from './routes/api/public/instagram/callback'
+import { Route as ApiPublicHooksSystemReaperRouteImport } from './routes/api/public/hooks/system-reaper'
 import { Route as ApiPublicHooksShopeeReportsSyncRouteImport } from './routes/api/public/hooks/shopee-reports-sync'
 import { Route as ApiPublicHooksShopeeRepairV2RouteImport } from './routes/api/public/hooks/shopee-repair-v2'
 import { Route as ApiPublicHooksShopeeRepairRetryRouteImport } from './routes/api/public/hooks/shopee-repair-retry'
@@ -216,6 +217,12 @@ const ApiPublicInstagramCallbackRoute =
     path: '/api/public/instagram/callback',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicHooksSystemReaperRoute =
+  ApiPublicHooksSystemReaperRouteImport.update({
+    id: '/api/public/hooks/system-reaper',
+    path: '/api/public/hooks/system-reaper',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicHooksShopeeReportsSyncRoute =
   ApiPublicHooksShopeeReportsSyncRouteImport.update({
     id: '/api/public/hooks/shopee-reports-sync',
@@ -331,6 +338,7 @@ export interface FileRoutesByFullPath {
   '/api/public/hooks/shopee-repair-retry': typeof ApiPublicHooksShopeeRepairRetryRoute
   '/api/public/hooks/shopee-repair-v2': typeof ApiPublicHooksShopeeRepairV2Route
   '/api/public/hooks/shopee-reports-sync': typeof ApiPublicHooksShopeeReportsSyncRoute
+  '/api/public/hooks/system-reaper': typeof ApiPublicHooksSystemReaperRoute
   '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
   '/api/public/meta/webhook': typeof ApiPublicMetaWebhookRoute
   '/api/public/webhooks/instagram': typeof ApiPublicWebhooksInstagramRoute
@@ -377,6 +385,7 @@ export interface FileRoutesByTo {
   '/api/public/hooks/shopee-repair-retry': typeof ApiPublicHooksShopeeRepairRetryRoute
   '/api/public/hooks/shopee-repair-v2': typeof ApiPublicHooksShopeeRepairV2Route
   '/api/public/hooks/shopee-reports-sync': typeof ApiPublicHooksShopeeReportsSyncRoute
+  '/api/public/hooks/system-reaper': typeof ApiPublicHooksSystemReaperRoute
   '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
   '/api/public/meta/webhook': typeof ApiPublicMetaWebhookRoute
   '/api/public/webhooks/instagram': typeof ApiPublicWebhooksInstagramRoute
@@ -424,6 +433,7 @@ export interface FileRoutesById {
   '/api/public/hooks/shopee-repair-retry': typeof ApiPublicHooksShopeeRepairRetryRoute
   '/api/public/hooks/shopee-repair-v2': typeof ApiPublicHooksShopeeRepairV2Route
   '/api/public/hooks/shopee-reports-sync': typeof ApiPublicHooksShopeeReportsSyncRoute
+  '/api/public/hooks/system-reaper': typeof ApiPublicHooksSystemReaperRoute
   '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
   '/api/public/meta/webhook': typeof ApiPublicMetaWebhookRoute
   '/api/public/webhooks/instagram': typeof ApiPublicWebhooksInstagramRoute
@@ -472,6 +482,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/shopee-repair-retry'
     | '/api/public/hooks/shopee-repair-v2'
     | '/api/public/hooks/shopee-reports-sync'
+    | '/api/public/hooks/system-reaper'
     | '/api/public/instagram/callback'
     | '/api/public/meta/webhook'
     | '/api/public/webhooks/instagram'
@@ -518,6 +529,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/shopee-repair-retry'
     | '/api/public/hooks/shopee-repair-v2'
     | '/api/public/hooks/shopee-reports-sync'
+    | '/api/public/hooks/system-reaper'
     | '/api/public/instagram/callback'
     | '/api/public/meta/webhook'
     | '/api/public/webhooks/instagram'
@@ -564,6 +576,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/shopee-repair-retry'
     | '/api/public/hooks/shopee-repair-v2'
     | '/api/public/hooks/shopee-reports-sync'
+    | '/api/public/hooks/system-reaper'
     | '/api/public/instagram/callback'
     | '/api/public/meta/webhook'
     | '/api/public/webhooks/instagram'
@@ -601,6 +614,7 @@ export interface RootRouteChildren {
   ApiPublicHooksShopeeRepairRetryRoute: typeof ApiPublicHooksShopeeRepairRetryRoute
   ApiPublicHooksShopeeRepairV2Route: typeof ApiPublicHooksShopeeRepairV2Route
   ApiPublicHooksShopeeReportsSyncRoute: typeof ApiPublicHooksShopeeReportsSyncRoute
+  ApiPublicHooksSystemReaperRoute: typeof ApiPublicHooksSystemReaperRoute
   ApiPublicInstagramCallbackRoute: typeof ApiPublicInstagramCallbackRoute
   ApiPublicMetaWebhookRoute: typeof ApiPublicMetaWebhookRoute
   ApiPublicWebhooksInstagramRoute: typeof ApiPublicWebhooksInstagramRoute
@@ -831,6 +845,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicInstagramCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/system-reaper': {
+      id: '/api/public/hooks/system-reaper'
+      path: '/api/public/hooks/system-reaper'
+      fullPath: '/api/public/hooks/system-reaper'
+      preLoaderRoute: typeof ApiPublicHooksSystemReaperRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/shopee-reports-sync': {
       id: '/api/public/hooks/shopee-reports-sync'
       path: '/api/public/hooks/shopee-reports-sync'
@@ -992,6 +1013,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicHooksShopeeRepairRetryRoute: ApiPublicHooksShopeeRepairRetryRoute,
   ApiPublicHooksShopeeRepairV2Route: ApiPublicHooksShopeeRepairV2Route,
   ApiPublicHooksShopeeReportsSyncRoute: ApiPublicHooksShopeeReportsSyncRoute,
+  ApiPublicHooksSystemReaperRoute: ApiPublicHooksSystemReaperRoute,
   ApiPublicInstagramCallbackRoute: ApiPublicInstagramCallbackRoute,
   ApiPublicMetaWebhookRoute: ApiPublicMetaWebhookRoute,
   ApiPublicWebhooksInstagramRoute: ApiPublicWebhooksInstagramRoute,
