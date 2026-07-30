@@ -912,6 +912,7 @@ async function tickOneForConfig(admin: any, cfg: any): Promise<void> {
     const err = claimResult.outcome === "failed" ? claimResult.error : null;
     const errorClass = claimResult.outcome === "failed" ? claimResult.errorClass : null;
     const sendMetrics = claimResult.outcome === "failed" ? claimResult.sendMetrics : claimResult.sendMetrics;
+    const sessionDead = claimResult.outcome === "failed" && claimResult.sessionDead === true;
 
     if (ok) {
       if (breakerInstanceId) await recordSuccess(breakerInstanceId).catch(() => undefined);
@@ -921,7 +922,9 @@ async function tickOneForConfig(admin: any, cfg: any): Promise<void> {
       // NUNCA realimentar o breaker com o próprio erro "breaker aberto":
       // isso criava um laço em que a instância nunca voltava a fechar.
       const isBreakerOwnError = /circuit breaker aberto/i.test(err ?? "");
-      if (breakerInstanceId && errorClass === "transient" && !isBreakerOwnError) {
+      // LOTE 14 — sessão morta não é sobrecarga da Evolution. Alimentar o
+      // breaker aqui só produzia ruído: o problema é a sessão, não a carga.
+      if (breakerInstanceId && errorClass === "transient" && !isBreakerOwnError && !sessionDead) {
         await recordFailure(breakerInstanceId, cfg.user_id, new Error(err ?? "erro desconhecido")).catch(() => undefined);
       }
 
@@ -933,7 +936,11 @@ async function tickOneForConfig(admin: any, cfg: any): Promise<void> {
           group_id: g.group_jid,
           instance_id: cfg.instance_id ?? null,
           error_message: (err ?? "erro desconhecido").slice(0, 500),
-          error_code: errorClass === "permanent" ? "permanent_error" : "send_failed",
+          error_code: sessionDead
+            ? "session_dead"
+            : errorClass === "permanent"
+              ? "permanent_error"
+              : "send_failed",
           attempt_count: sendMetrics?.attempts ?? 1,
           next_retry_at: null,
         });
