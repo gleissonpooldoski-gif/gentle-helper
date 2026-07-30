@@ -1,8 +1,8 @@
 /**
-import { fetchWithTimeout, TIMEOUTS } from "@/lib/http-timeout";
  * Meta Graph API helpers for the single-account Instagram Admin module.
  * All calls run server-side. The access token is obtained from `instagram_settings`.
  */
+import { fetchWithTimeout, TIMEOUTS } from "@/lib/http-timeout";
 const GRAPH = "https://graph.facebook.com/v21.0";
 
 async function gfetch<T>(

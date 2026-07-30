@@ -1,8 +1,8 @@
 /**
-import { fetchWithTimeout, TIMEOUTS } from "@/lib/http-timeout";
  * Minimal Instagram Graph API (Meta) client. All calls run server-side and
  * expect a valid Instagram Business/Creator page access token.
  */
+import { fetchWithTimeout, TIMEOUTS } from "@/lib/http-timeout";
 const GRAPH = "https://graph.facebook.com/v21.0";
 
 async function gfetch<T>(path: string, params: Record<string, string>, init?: RequestInit): Promise<T> {
