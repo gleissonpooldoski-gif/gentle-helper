@@ -487,6 +487,10 @@ async function tickOneForConfig(admin: any, cfg: any): Promise<void> {
       .in("platform", lojas)
       .eq("availability", "active")
       .not("affiliate_link", "is", null)
+      // Envio é sempre sendMedia: produto sem imagem falha 100% das vezes.
+      .not("image_url", "is", null)
+      .neq("image_url", "")
+
       .order("last_validated_at", { ascending: true, nullsFirst: true })
       .limit(30);
 
