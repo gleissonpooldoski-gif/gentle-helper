@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { fetchWithTimeout, TIMEOUTS } from "@/lib/http-timeout";
 
 /**
  * CORS-friendly image proxy so the client-side canvas can render remote product
@@ -21,7 +22,7 @@ export const Route = createFileRoute("/api/public/img-proxy")({
           return new Response("bad protocol", { status: 400 });
         }
         try {
-          const res = await fetch(parsed.toString(), {
+          const res = await fetchWithTimeout(parsed.toString(), {
             headers: {
               "user-agent":
                 "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Mobile Safari/537.36",

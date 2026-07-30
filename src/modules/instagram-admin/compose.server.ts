@@ -38,6 +38,7 @@ import {
   wrapTitleLines,
   formatBRL,
 } from "./story-layout";
+import { fetchWithTimeout, TIMEOUTS } from "@/lib/http-timeout";
 
 let storyFont: Font | null = null;
 
@@ -58,7 +59,7 @@ function ensureFont(): Font {
 
 async function fetchBitmap(url: string, label: string): Promise<Bitmap | null> {
   try {
-    const res = await fetch(url, {
+    const res = await fetchWithTimeout(url, {
       headers: {
         "user-agent":
           "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Mobile Safari/537.36",

@@ -12,6 +12,7 @@ import {
   type ConnectionStatus,
 } from "./validator";
 import { findConnection, upsertConnection, updateStatus } from "./repository";
+import { fetchWithTimeout, TIMEOUTS } from "@/lib/http-timeout";
 
 export type MLConnectionView = {
   affiliateLink: string;
@@ -28,7 +29,7 @@ export type MLConnectionView = {
  */
 async function resolveTagFromShortLink(link: string): Promise<string | null> {
   try {
-    const res = await fetch(link, {
+    const res = await fetchWithTimeout(link, {
       method: "GET",
       redirect: "follow",
       // Some ML endpoints refuse without a UA.

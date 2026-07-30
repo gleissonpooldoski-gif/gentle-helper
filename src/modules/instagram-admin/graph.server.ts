@@ -1,4 +1,5 @@
 /**
+import { fetchWithTimeout, TIMEOUTS } from "@/lib/http-timeout";
  * Meta Graph API helpers for the single-account Instagram Admin module.
  * All calls run server-side. The access token is obtained from `instagram_settings`.
  */
@@ -11,7 +12,7 @@ async function gfetch<T>(
 ): Promise<T> {
   const url = new URL(`${GRAPH}${path}`);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
-  const res = await fetch(url.toString(), init);
+  const res = await fetchWithTimeout(url.toString(), init, { timeoutMs: TIMEOUTS.api, label: `ig-admin-graph ${path}` });
   const text = await res.text();
   let body: any;
   try {
@@ -259,7 +260,7 @@ export async function sendDirectMessage(input: {
 }): Promise<void> {
   const url = new URL(`${GRAPH}/${input.igId}/messages`);
   url.searchParams.set("access_token", input.token);
-  const res = await fetch(url.toString(), {
+  const res = await fetchWithTimeout(url.toString(), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
