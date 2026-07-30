@@ -961,6 +961,28 @@ async function tickOneForConfig(admin: any, cfg: any): Promise<void> {
       status: ok ? "sent" : "failed",
       error_message: err,
     });
+
+    // LOTE 14 — sessão morta: aborta imediatamente. Continuar o laço só
+    // produziria mais falhas idênticas e mais ruído no histórico.
+    if (sessionDead) {
+      log("SESSION_DEAD", {
+        ...sendCtx,
+        error: err,
+        action: "instance_marked_disconnected",
+        claim_released: claimResult.outcome === "failed" ? claimResult.claimReleased === true : false,
+      });
+      await admin
+        .from("whatsapp_instances")
+        .update({ status: "disconnected", qr_code: null, updated_at: new Date().toISOString() })
+        .eq("id", inst.id);
+      await admin.from("automation_configs").update({
+        status: "waiting",
+        last_error:
+          "Sessão do WhatsApp caiu (aparelho desconectado). Releia o QR Code para reconectar a instância.",
+        next_run_at: new Date(Date.now() + Math.max(1, Math.min(cfg.intervalo_min ?? 15, 5)) * 60_000).toISOString(),
+      }).eq("id", cfg.id);
+      return;
+    }
   }
 
   // LOTE 8 — a reserva já foi feita ANTES de cada envio (idempotência
