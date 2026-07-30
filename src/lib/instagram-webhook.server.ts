@@ -31,43 +31,57 @@ export async function handleInstagramWebhook(payload: any): Promise<void> {
       const commentId = v.id;
       const fromId = v.from?.id;
       const mediaId = v.media?.id;
-      await supabaseAdmin.from("instagram_events").insert({
-        user_id: conn.user_id, connection_id: conn.id, channel_id: conn.channel_id,
-        kind: "comment", payload: v,
-      });
 
-      // ---- InstaBotHelp (per-media automation) has priority ----
-      if (mediaId) {
-        const handled = await tryInstabot({
-          supabaseAdmin, conn, igId, token,
-          mediaId, commentId, fromId, username: v.from?.username ?? null, text,
-        });
-        if (handled) continue;
-      }
-
-      const kw = await matchKeyword(supabaseAdmin, conn.channel_id, text);
-      if (!kw) continue;
-      const product = await pickProduct(supabaseAdmin, conn.channel_id, mediaId);
-      if (!product) continue;
-
-      if (kw.comment_reply_enabled && !conn.disable_comment_reply && commentId) {
-        try { await replyToComment({ commentId, token, message: kw.comment_reply_text }); } catch (e) { console.error(e); }
-      }
-      if (fromId) {
-        try {
-          await sendDirectMessage({
-            igId: igId, token, recipientId: fromId,
-            text: await buildProductText(product),
-            buttonUrl: (product.affiliate_link ?? product.raw_link) || undefined,
-            buttonTitle: "VER PARA COMPRAR",
-          });
+      // FASE 1 — um comentário só pode gerar UMA resposta e UMA DM, mesmo que
+      // a Meta reentregue o evento. A reserva é feita antes de qualquer efeito.
+      const { duplicate } = await runOnce(
+        "instagram_comment",
+        commentId ? String(commentId) : null,
+        async () => {
           await supabaseAdmin.from("instagram_events").insert({
             user_id: conn.user_id, connection_id: conn.id, channel_id: conn.channel_id,
-            product_id: product.id, kind: "dm_sent", payload: { via: "comment", commentId },
+            kind: "comment", payload: v,
           });
-        } catch (e) { console.error("dm-fail", e); }
+
+          // ---- InstaBotHelp (per-media automation) has priority ----
+          if (mediaId) {
+            const handled = await tryInstabot({
+              supabaseAdmin, conn, igId, token,
+              mediaId, commentId, fromId, username: v.from?.username ?? null, text,
+            });
+            if (handled) return;
+          }
+
+          const kw = await matchKeyword(supabaseAdmin, conn.channel_id, text);
+          if (!kw) return;
+          const product = await pickProduct(supabaseAdmin, conn.channel_id, mediaId);
+          if (!product) return;
+
+          if (kw.comment_reply_enabled && !conn.disable_comment_reply && commentId) {
+            try { await replyToComment({ commentId, token, message: kw.comment_reply_text }); } catch (e) { console.error(e); }
+          }
+          if (fromId) {
+            try {
+              await sendDirectMessage({
+                igId: igId, token, recipientId: fromId,
+                text: await buildProductText(product),
+                buttonUrl: (product.affiliate_link ?? product.raw_link) || undefined,
+                buttonTitle: "VER PARA COMPRAR",
+              });
+              await supabaseAdmin.from("instagram_events").insert({
+                user_id: conn.user_id, connection_id: conn.id, channel_id: conn.channel_id,
+                product_id: product.id, kind: "dm_sent", payload: { via: "comment", commentId },
+              });
+            } catch (e) { console.error("dm-fail", e); }
+          }
+        },
+        { scope: "instagram-comment" },
+      );
+      if (duplicate) {
+        obsLog("instagram-comment", "SIDE_EFFECT_BLOCKED", { comment_id: commentId });
       }
     }
+
 
     // STORY REPLIES / DMs
     for (const msg of entry.messaging ?? []) {
