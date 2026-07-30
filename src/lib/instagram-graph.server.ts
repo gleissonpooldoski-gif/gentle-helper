@@ -2,12 +2,13 @@
  * Minimal Instagram Graph API (Meta) client. All calls run server-side and
  * expect a valid Instagram Business/Creator page access token.
  */
+import { fetchWithTimeout, TIMEOUTS } from "@/lib/http-timeout";
 const GRAPH = "https://graph.facebook.com/v21.0";
 
 async function gfetch<T>(path: string, params: Record<string, string>, init?: RequestInit): Promise<T> {
   const url = new URL(`${GRAPH}${path}`);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
-  const res = await fetch(url.toString(), init);
+  const res = await fetchWithTimeout(url.toString(), init, { timeoutMs: TIMEOUTS.api, label: `ig-graph ${path}` });
   const text = await res.text();
   let body: any;
   try { body = JSON.parse(text); } catch { body = { raw: text }; }
@@ -168,11 +169,11 @@ export async function sendDirectMessage(input: {
   }
   const url = new URL(`${GRAPH}/${input.igId}/messages`);
   url.searchParams.set("access_token", input.token);
-  const res = await fetch(url.toString(), {
+  const res = await fetchWithTimeout(url.toString(), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(payload),
-  });
+  }, { timeoutMs: TIMEOUTS.api, label: "ig-graph messages" });
   if (!res.ok) throw new Error(`[graph messages] ${res.status} ${await res.text()}`);
 }
 

@@ -10,6 +10,7 @@
  */
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { encryptSecret, decryptSecret } from "@/modules/affiliate/crypto.server";
+import { fetchWithTimeout, TIMEOUTS } from "@/lib/http-timeout";
 
 const AUTH_URL = "https://auth.mercadolivre.com.br/authorization";
 const TOKEN_URL = "https://api.mercadolibre.com/oauth/token";
@@ -88,14 +89,14 @@ type TokenResponse = {
 };
 
 async function tokenRequest(body: URLSearchParams): Promise<TokenResponse> {
-  const res = await fetch(TOKEN_URL, {
+  const res = await fetchWithTimeout(TOKEN_URL, {
     method: "POST",
     headers: {
       accept: "application/json",
       "content-type": "application/x-www-form-urlencoded",
     },
     body,
-  });
+  }, { timeoutMs: TIMEOUTS.api, label: "ml-oauth-token" });
   const text = await res.text();
   let payload: Record<string, unknown> | null = null;
   try {

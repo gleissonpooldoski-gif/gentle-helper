@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { fetchWithTimeout, TIMEOUTS } from "@/lib/http-timeout";
 
 export const Route = createFileRoute('/api/ml/probe')({
   server: {
@@ -6,7 +7,7 @@ export const Route = createFileRoute('/api/ml/probe')({
       GET: async () => {
         const url = 'https://api.mercadolibre.com/sites/MLB/categories'
         try {
-          const res = await fetch(url)
+          const res = await fetchWithTimeout(url, {}, { timeoutMs: TIMEOUTS.probe, label: 'ml-probe' })
           const headers: Record<string, string> = {}
           res.headers.forEach((v, k) => { headers[k] = v })
           const body = await res.text()

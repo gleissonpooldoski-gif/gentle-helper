@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
+import { fetchWithTimeout, TIMEOUTS } from "@/lib/http-timeout";
 
 /* ---------------- Types ---------------- */
 
@@ -116,7 +117,7 @@ export const listInstagramMedia = createServerFn({ method: "POST" })
       "id,caption,media_type,media_url,thumbnail_url,permalink,timestamp",
     );
     url.searchParams.set("limit", "24");
-    const res = await fetch(url.toString());
+    const res = await fetchWithTimeout(url.toString(), {}, { timeoutMs: TIMEOUTS.api, label: "instabot ig-media" });
     const body: any = await res.json().catch(() => ({}));
     if (!res.ok || body?.error) {
       throw new Error(body?.error?.message ?? `Meta ${res.status}`);
@@ -312,7 +313,7 @@ export const generateAutomationWithAI = createServerFn({ method: "POST" })
       ]
         .filter(Boolean)
         .join("\n");
-      const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      const res = await fetchWithTimeout("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
         headers: {
           "content-type": "application/json",
@@ -326,7 +327,7 @@ export const generateAutomationWithAI = createServerFn({ method: "POST" })
           ],
           response_format: { type: "json_object" },
         }),
-      });
+      }, { timeoutMs: TIMEOUTS.ai, label: "ai-gateway instabot" });
       if (!res.ok) {
         const t = await res.text();
         if (res.status === 429) throw new Error("Limite de IA atingido, tente novamente em instantes.");

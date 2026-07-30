@@ -1,5 +1,6 @@
 import { decryptToken } from "./instagram-crypto.server";
 import { replyToComment, sendDirectMessage } from "./instagram-graph.server";
+import { fetchWithTimeout, TIMEOUTS } from "@/lib/http-timeout";
 
 /**
  * Handles Instagram Graph webhook events. Detects keyword hits in comments
@@ -242,7 +243,7 @@ async function tryInstabot(input: {
 async function aiCommentReply(commentText: string): Promise<string | null> {
   const apiKey = process.env.LOVABLE_API_KEY;
   if (!apiKey) return null;
-  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+  const res = await fetchWithTimeout("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
     headers: { "content-type": "application/json", Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({
@@ -252,7 +253,7 @@ async function aiCommentReply(commentText: string): Promise<string | null> {
         { role: "user", content: `Comentário: ${commentText}` },
       ],
     }),
-  });
+  }, { timeoutMs: TIMEOUTS.ai, label: "ai-gateway ig-comment-reply" });
   if (!res.ok) return null;
   const body: any = await res.json().catch(() => ({}));
   const txt = body?.choices?.[0]?.message?.content;

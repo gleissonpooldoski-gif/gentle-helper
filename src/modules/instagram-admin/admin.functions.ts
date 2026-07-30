@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
+import { fetchWithTimeout, TIMEOUTS } from "@/lib/http-timeout";
 
 const settingsInput = z.object({
   instagramBusinessId: z.string().min(1),
@@ -474,7 +475,7 @@ export const suggestAutomationCopy = createServerFn({ method: "POST" })
       .filter(Boolean)
       .join("\n");
 
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const res = await fetchWithTimeout("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -488,7 +489,7 @@ export const suggestAutomationCopy = createServerFn({ method: "POST" })
         ],
         response_format: { type: "json_object" },
       }),
-    });
+    }, { timeoutMs: TIMEOUTS.ai, label: "ai-gateway ig-copy" });
     if (!res.ok) {
       const t = await res.text();
       throw new Error(`Lovable AI (${res.status}): ${t.slice(0, 200)}`);
