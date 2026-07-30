@@ -76,7 +76,34 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
   },
 });
 
+/**
+ * Chave de idempotência do evento Meta.
+ * Prioriza identificadores estáveis (mid da mensagem, id do comentário) e cai
+ * para um hash do corpo quando o payload não trouxer nenhum id conhecido.
+ */
+function metaEventId(payload: any, bodyText: string): string {
+  const ids: string[] = [];
+  for (const entry of payload?.entry ?? []) {
+    for (const change of entry?.changes ?? []) {
+      const v = change?.value ?? {};
+      if (v.id) ids.push(`c:${v.id}`);
+      else if (v.comment_id) ids.push(`c:${v.comment_id}`);
+    }
+    for (const msg of entry?.messaging ?? []) {
+      if (msg?.message?.mid) ids.push(`m:${msg.message.mid}`);
+    }
+  }
+  if (ids.length) return ids.sort().join("|").slice(0, 300);
+  let h = 0x811c9dc5;
+  for (let i = 0; i < bodyText.length; i++) {
+    h ^= bodyText.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return `hash:${h.toString(16)}-${bodyText.length}`;
+}
+
 const DEFAULT_TRIGGERS = ["link", "promoção", "promocao", "promo", "oferta", "cupom", "desconto"];
+
 
 function matchTrigger(text: string, keyword?: string | null): string | null {
   const lower = text.toLowerCase();
