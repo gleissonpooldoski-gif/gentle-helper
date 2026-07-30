@@ -34,6 +34,7 @@ function classifyAutomationError(err: unknown): ErrorClass {
   const lower = msg.toLowerCase();
   if (
     /\b(400|401|403|404)\b/.test(msg) ||
+    lower.includes("produto sem imagem") ||
     lower.includes("group not found") ||
     lower.includes("grupo não encontrado") ||
     lower.includes("grupo removido") ||
@@ -44,6 +45,7 @@ function classifyAutomationError(err: unknown): ErrorClass {
   ) {
     return "permanent";
   }
+
   if (
     /\b(408|429|5\d\d)\b/.test(msg) ||
     lower.includes("timeout") ||
@@ -485,6 +487,10 @@ async function tickOneForConfig(admin: any, cfg: any): Promise<void> {
       .in("platform", lojas)
       .eq("availability", "active")
       .not("affiliate_link", "is", null)
+      // Envio é sempre sendMedia: produto sem imagem falha 100% das vezes.
+      .not("image_url", "is", null)
+      .neq("image_url", "")
+
       .order("last_validated_at", { ascending: true, nullsFirst: true })
       .limit(30);
 
@@ -819,9 +825,13 @@ async function tickOneForConfig(admin: any, cfg: any): Promise<void> {
       await new Promise((r) => setTimeout(r, 800));
       anySent = true;
     } else {
-      if (breakerInstanceId && errorClass === "transient") {
+      // NUNCA realimentar o breaker com o próprio erro "breaker aberto":
+      // isso criava um laço em que a instância nunca voltava a fechar.
+      const isBreakerOwnError = /circuit breaker aberto/i.test(err ?? "");
+      if (breakerInstanceId && errorClass === "transient" && !isBreakerOwnError) {
         await recordFailure(breakerInstanceId, cfg.user_id, new Error(err ?? "erro desconhecido")).catch(() => undefined);
       }
+
       try {
         await admin.from("automation_failures").insert({
           user_id: cfg.user_id,
