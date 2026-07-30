@@ -83,17 +83,36 @@ export const Route = createFileRoute("/api/public/whatsapp/webhook")({
         }
 
         // Captura de produtos a partir de grupos monitorados.
+        // FASE 1 — idempotência por message.key.id: reentrega da Evolution não
+        // pode capturar o mesmo produto duas vezes.
         if (event.includes("MESSAGES_UPSERT") || event.includes("MESSAGE")) {
           try {
             const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
             const { handleEvolutionMessage } = await import("@/modules/monitor/capture.server");
-            const stats = await handleEvolutionMessage(supabaseAdmin as any, instanceName, payload);
-            return json({ ok: true, event, stats });
+            const { runOnce } = await import("@/lib/webhook-idempotency.server");
+
+            const messages: any[] = Array.isArray(data?.messages)
+              ? data.messages
+              : data?.key
+                ? [data]
+                : [];
+            const messageId: string | null =
+              messages.map((m) => m?.key?.id).find((id) => typeof id === "string" && id) ?? null;
+
+            const { duplicate, result } = await runOnce(
+              "evolution",
+              messageId ? `${instanceName}:${messageId}` : null,
+              () => handleEvolutionMessage(supabaseAdmin as any, instanceName, payload),
+              { scope: "evolution-webhook" },
+            );
+            if (duplicate) return json({ ok: true, event, duplicate: true });
+            return json({ ok: true, event, stats: result });
           } catch (err) {
             console.error("[WA][WEBHOOK] monitor capture error", (err as Error).message);
             return json({ ok: false, error: "capture_error" }, 500);
           }
         }
+
 
         if (Object.keys(patch).length === 0) return json({ ok: true, ignored: event });
 
