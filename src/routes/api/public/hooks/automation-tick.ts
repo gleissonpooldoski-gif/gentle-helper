@@ -1090,6 +1090,10 @@ export const Route = createFileRoute("/api/public/hooks/automation-tick")({
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
+        // LOTE 15 — auto-cura: recupera claims órfãos antes de processar.
+        await reapOrphanClaims(supabaseAdmin, workerId);
+
+
         const { data: configs, error } = await supabaseAdmin
           .from("automation_configs")
           .select("*")
