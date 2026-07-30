@@ -253,7 +253,7 @@ async function aiCommentReply(commentText: string): Promise<string | null> {
         { role: "user", content: `Comentário: ${commentText}` },
       ],
     }),
-  });
+  }, { timeoutMs: TIMEOUTS.ai, label: "ai-gateway ig-comment-reply" });
   if (!res.ok) return null;
   const body: any = await res.json().catch(() => ({}));
   const txt = body?.choices?.[0]?.message?.content;
