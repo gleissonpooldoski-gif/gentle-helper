@@ -160,7 +160,74 @@ const TZ = "America/Sao_Paulo";
  *
  * Nada aqui altera claim, UNIQUE, reserva ou pickNext.
  */
-const destinationInFlight = new Set<string>();
+/**
+ * LOTE 15 — LOCK EM MEMÓRIA COM TTL (AUTO-CURA).
+ *
+ * Antes: `Set<string>` sem expiração. Se o isolate fosse abortado no meio do
+ * envio, o `finally` não rodava e a chave ficava presa PARA SEMPRE naquele
+ * isolate reutilizado — todo tick seguinte logava INTERVAL_SKIPPED
+ * destination_busy e nada era enviado.
+ *
+ * Agora é um Map com deadline. A autoridade anti-duplicidade continua sendo o
+ * CLAIM ATÔMICO no banco (UNIQUE em automation_group_sends); este lock é apenas
+ * uma otimização local e NUNCA pode bloquear indefinidamente.
+ */
+const DESTINATION_LOCK_TTL_MS = 120_000;
+const destinationInFlight = new Map<string, number>();
+
+/** Retorna true se conseguiu o lock local; false se há envio em curso válido. */
+function acquireDestinationLock(key: string, ctx: LogFields): boolean {
+  const now = Date.now();
+  const until = destinationInFlight.get(key);
+  if (until != null && until > now) return false;
+  if (until != null && until <= now) {
+    destinationInFlight.delete(key);
+    log("DESTINATION_LOCK_EXPIRED", { ...ctx, destination: key, expired_ms_ago: now - until });
+  }
+  destinationInFlight.set(key, now + DESTINATION_LOCK_TTL_MS);
+  return true;
+}
+
+function releaseDestinationLock(key: string): void {
+  destinationInFlight.delete(key);
+}
+
+/**
+ * LOTE 15 — REAPER DE CLAIMS ÓRFÃOS.
+ *
+ * Claims presos em `processing` (worker abortado antes do update final) travam
+ * o destino. Estratégia SEGURA: nunca reenviar — o claim antigo é marcado como
+ * `failed`, mantendo o registro (produto não volta ao ciclo, sem risco de
+ * duplicidade) e liberando o fluxo.
+ */
+const ORPHAN_CLAIM_AGE_MS = 10 * 60_000;
+
+async function reapOrphanClaims(admin: any, workerId: string): Promise<number> {
+  const cutoff = new Date(Date.now() - ORPHAN_CLAIM_AGE_MS).toISOString();
+  const { data, error } = await admin
+    .from("automation_group_sends")
+    .update({ status: "failed", updated_at: new Date().toISOString() })
+    .eq("status", "processing")
+    .lt("sent_at", cutoff)
+    .select("id, config_id, product_id, group_id");
+  if (error) {
+    log("CLAIM_REAPER_FAILED", { worker_id: workerId, error: error.message });
+    return 0;
+  }
+  const rows = data ?? [];
+  for (const r of rows) {
+    log("CLAIM_ORPHAN_RECOVERED", {
+      worker_id: workerId,
+      claim_id: r.id,
+      config_id: r.config_id,
+      product_id: r.product_id,
+      group_id: r.group_id,
+      policy: "marked_failed_no_resend",
+    });
+  }
+  if (rows.length > 0) log("CLAIM_REAPER_DONE", { worker_id: workerId, recovered: rows.length });
+  return rows.length;
+}
 
 function destinationKey(cfg: any): string {
   return `${cfg.instance_id ?? "no-instance"}|${cfg.group_id ?? "no-group"}`;
@@ -480,12 +547,12 @@ export async function claimAndSendMediaOnceForAutomation(input: {
 async function tickOne(admin: any, cfg: any): Promise<void> {
   const key = destinationKey(cfg);
   const workerId = (globalThis as { __automation_worker_id?: string }).__automation_worker_id ?? null;
+  const lockCtx: LogFields = { worker_id: workerId, config_id: cfg.id, group_id: cfg.group_id };
 
-  if (destinationInFlight.has(key)) {
-    log("INTERVAL_SKIPPED", { worker_id: workerId, config_id: cfg.id, group_id: cfg.group_id, reason: "destination_busy" });
+  if (!acquireDestinationLock(key, lockCtx)) {
+    log("INTERVAL_SKIPPED", { ...lockCtx, reason: "destination_busy", ttl_ms: DESTINATION_LOCK_TTL_MS });
     return;
   }
-  destinationInFlight.add(key);
   try {
     const gap = intervalMs(cfg);
     const last = await lastSentAtForDestination(admin, cfg);
@@ -494,9 +561,7 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
       if (elapsed < gap) {
         const nextAt = new Date(last + gap).toISOString();
         log("INTERVAL_SKIPPED", {
-          worker_id: workerId,
-          config_id: cfg.id,
-          group_id: cfg.group_id,
+          ...lockCtx,
           reason: "interval_not_elapsed",
           elapsed_ms: elapsed,
           interval_ms: gap,
@@ -509,7 +574,7 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
     }
     await tickOneForConfig(admin, cfg);
   } finally {
-    destinationInFlight.delete(key);
+    releaseDestinationLock(key);
   }
 }
 
@@ -1024,6 +1089,10 @@ export const Route = createFileRoute("/api/public/hooks/automation-tick")({
         log("TICK_STARTED", { worker_id: workerId });
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+        // LOTE 15 — auto-cura: recupera claims órfãos antes de processar.
+        await reapOrphanClaims(supabaseAdmin, workerId);
+
 
         const { data: configs, error } = await supabaseAdmin
           .from("automation_configs")
