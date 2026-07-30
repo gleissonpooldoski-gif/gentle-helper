@@ -267,7 +267,7 @@ export async function sendDirectMessage(input: {
       recipient: { id: input.recipientId },
       message: { text: input.text.slice(0, 1000) },
     }),
-  });
+  }, { timeoutMs: TIMEOUTS.api, label: "ig-admin-graph messages" });
   if (!res.ok) throw new Error(`[graph messages] ${res.status} ${await res.text()}`);
 }
 

@@ -489,7 +489,7 @@ export const suggestAutomationCopy = createServerFn({ method: "POST" })
         ],
         response_format: { type: "json_object" },
       }),
-    });
+    }, { timeoutMs: TIMEOUTS.ai, label: "ai-gateway ig-copy" });
     if (!res.ok) {
       const t = await res.text();
       throw new Error(`Lovable AI (${res.status}): ${t.slice(0, 200)}`);

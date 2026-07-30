@@ -28,7 +28,7 @@ export const Route = createFileRoute("/api/public/img-proxy")({
                 "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Mobile Safari/537.36",
               accept: "image/*,*/*;q=0.8",
             },
-          });
+          }, { timeoutMs: TIMEOUTS.media, label: "img-proxy" });
           if (!res.ok) return new Response("upstream " + res.status, { status: 502 });
           const buf = await res.arrayBuffer();
           const ct = res.headers.get("content-type") ?? "image/jpeg";

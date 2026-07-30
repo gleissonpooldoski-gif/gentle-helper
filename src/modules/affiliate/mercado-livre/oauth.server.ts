@@ -96,7 +96,7 @@ async function tokenRequest(body: URLSearchParams): Promise<TokenResponse> {
       "content-type": "application/x-www-form-urlencoded",
     },
     body,
-  });
+  }, { timeoutMs: TIMEOUTS.api, label: "ml-oauth-token" });
   const text = await res.text();
   let payload: Record<string, unknown> | null = null;
   try {

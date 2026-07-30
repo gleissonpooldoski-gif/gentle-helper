@@ -34,7 +34,7 @@ async function resolveTagFromShortLink(link: string): Promise<string | null> {
       redirect: "follow",
       // Some ML endpoints refuse without a UA.
       headers: { "user-agent": "Mozilla/5.0 (compatible; DivulgaLinksBot/1.0)" },
-    });
+    }, { timeoutMs: TIMEOUTS.probe, label: "ml-shortlink" });
     return extractAffiliateTag(res.url);
   } catch {
     return null;

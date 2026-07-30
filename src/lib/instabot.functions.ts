@@ -327,7 +327,7 @@ export const generateAutomationWithAI = createServerFn({ method: "POST" })
           ],
           response_format: { type: "json_object" },
         }),
-      });
+      }, { timeoutMs: TIMEOUTS.ai, label: "ai-gateway instabot" });
       if (!res.ok) {
         const t = await res.text();
         if (res.status === 429) throw new Error("Limite de IA atingido, tente novamente em instantes.");
