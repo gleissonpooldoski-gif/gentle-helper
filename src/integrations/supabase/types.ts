@@ -62,6 +62,39 @@ export type Database = {
         }
         Relationships: []
       }
+      audit_log: {
+        Row: {
+          action: string
+          created_at: string
+          details: Json
+          entity: string | null
+          entity_id: string | null
+          id: string
+          ip: string | null
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          details?: Json
+          entity?: string | null
+          entity_id?: string | null
+          id?: string
+          ip?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          details?: Json
+          entity?: string | null
+          entity_id?: string | null
+          id?: string
+          ip?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       automation_configs: {
         Row: {
           channel_id: string
@@ -1114,6 +1147,39 @@ export type Database = {
           },
         ]
       }
+      instagram_schedule_runs: {
+        Row: {
+          created_at: string
+          detail: string | null
+          id: string
+          kind: string
+          run_key: string
+          schedule_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          detail?: string | null
+          id?: string
+          kind?: string
+          run_key: string
+          schedule_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          detail?: string | null
+          id?: string
+          kind?: string
+          run_key?: string
+          schedule_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       instagram_settings: {
         Row: {
           access_token_ciphertext: string
@@ -1954,6 +2020,123 @@ export type Database = {
           },
         ]
       }
+      system_alerts: {
+        Row: {
+          created_at: string
+          details: Json
+          first_seen_at: string
+          id: string
+          kind: string
+          last_seen_at: string
+          message: string
+          occurrences: number
+          resolved_at: string | null
+          severity: string
+          status: string
+          subject: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          details?: Json
+          first_seen_at?: string
+          id?: string
+          kind: string
+          last_seen_at?: string
+          message?: string
+          occurrences?: number
+          resolved_at?: string | null
+          severity?: string
+          status?: string
+          subject?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          details?: Json
+          first_seen_at?: string
+          id?: string
+          kind?: string
+          last_seen_at?: string
+          message?: string
+          occurrences?: number
+          resolved_at?: string | null
+          severity?: string
+          status?: string
+          subject?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      system_metrics_history: {
+        Row: {
+          automations_error: number
+          automations_running: number
+          avg_processing_ms: number | null
+          captured_at: string
+          details: Json
+          dlq_retry_scheduled: number
+          dlq_unresolved: number
+          evolution_latency_ms: number | null
+          evolution_online: boolean | null
+          failed_last_hour: number
+          id: string
+          instances_down: number
+          instances_stalled: number
+          instances_total: number
+          queue_processing: number
+          queue_stuck: number
+          reaper_recovered: number
+          sent_last_hour: number
+          status: string
+        }
+        Insert: {
+          automations_error?: number
+          automations_running?: number
+          avg_processing_ms?: number | null
+          captured_at?: string
+          details?: Json
+          dlq_retry_scheduled?: number
+          dlq_unresolved?: number
+          evolution_latency_ms?: number | null
+          evolution_online?: boolean | null
+          failed_last_hour?: number
+          id?: string
+          instances_down?: number
+          instances_stalled?: number
+          instances_total?: number
+          queue_processing?: number
+          queue_stuck?: number
+          reaper_recovered?: number
+          sent_last_hour?: number
+          status?: string
+        }
+        Update: {
+          automations_error?: number
+          automations_running?: number
+          avg_processing_ms?: number | null
+          captured_at?: string
+          details?: Json
+          dlq_retry_scheduled?: number
+          dlq_unresolved?: number
+          evolution_latency_ms?: number | null
+          evolution_online?: boolean | null
+          failed_last_hour?: number
+          id?: string
+          instances_down?: number
+          instances_stalled?: number
+          instances_total?: number
+          queue_processing?: number
+          queue_stuck?: number
+          reaper_recovered?: number
+          sent_last_hour?: number
+          status?: string
+        }
+        Relationships: []
+      }
       users: {
         Row: {
           created_at: string
@@ -2326,6 +2509,7 @@ export type Database = {
       cleanup_old_webhook_events: { Args: never; Returns: undefined }
       dispatch_automation_tick: { Args: never; Returns: number }
       format_sales_label: { Args: { n: number }; Returns: string }
+      run_retention_policies: { Args: never; Returns: Json }
       try_lock_automation_config: {
         Args: { _config_id: string }
         Returns: boolean
