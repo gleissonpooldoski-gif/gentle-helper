@@ -38,24 +38,40 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
           payload = { raw: bodyText };
         }
 
-        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-        await (supabaseAdmin as any).from("instagram_logs").insert({
-          type: `webhook_${payload?.object ?? "unknown"}`,
-          payload,
-        });
+        // FASE 1 — idempotência: a Meta reentrega o mesmo evento em retry.
+        // O registro acontece ANTES de qualquer efeito colateral (DM/reply).
+        const { runOnce, hashPayload } = await import("@/lib/webhook-idempotency.server");
+        const eventId = metaEventId(payload, bodyText);
 
-        try {
-          await handleWebhook(payload, started);
-        } catch (e) {
-          await (supabaseAdmin as any).from("instagram_logs").insert({
-            type: "automation_error",
-            payload: { message: (e as Error).message },
-            latency_ms: Date.now() - started,
-          });
-        }
+        const { duplicate } = await runOnce(
+          "meta",
+          eventId,
+          async () => {
+            const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+            await (supabaseAdmin as any).from("instagram_logs").insert({
+              type: `webhook_${payload?.object ?? "unknown"}`,
+              payload,
+            });
 
-        return new Response("EVENT_RECEIVED", { status: 200 });
+            const { withProcessLog } = await import("@/lib/obs-log");
+            try {
+              await withProcessLog("meta-webhook", { event_id: eventId }, () =>
+                handleWebhook(payload, started),
+              );
+            } catch (e) {
+              await (supabaseAdmin as any).from("instagram_logs").insert({
+                type: "automation_error",
+                payload: { message: (e as Error).message },
+                latency_ms: Date.now() - started,
+              });
+            }
+          },
+          { payloadHash: hashPayload(bodyText), scope: "meta-webhook" },
+        );
+
+        return new Response(duplicate ? "DUPLICATE_IGNORED" : "EVENT_RECEIVED", { status: 200 });
       },
+
     },
   },
 });
