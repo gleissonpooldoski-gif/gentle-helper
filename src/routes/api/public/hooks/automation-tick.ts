@@ -71,6 +71,61 @@ function classifyAutomationError(err: unknown): ErrorClass {
 // Alias retrocompatível — todo o worker deve preferir classifyAutomationError.
 const classifyError = classifyAutomationError;
 
+/**
+ * LOTE 14 — SESSÃO WHATSAPP MORTA (socket Baileys fechado).
+ *
+ * A Evolution continua respondendo `connectionState = open` mesmo depois que o
+ * aparelho foi removido do WhatsApp (`disconnectionReasonCode: 401`,
+ * `tag: conflict`, `type: device_removed`). Nesse estado TODO envio devolve
+ * `{"status":500|400,...,"message":["Error: Connection Closed"]}`.
+ *
+ * Esse erro NÃO é sobrecarga (não deve alimentar o circuit breaker) e NÃO é
+ * culpa do produto (não pode queimar o produto do ciclo). É um problema de
+ * sessão: exige que o usuário releia o QR Code.
+ */
+function isSessionDeadError(err: unknown): boolean {
+  const msg = (err instanceof Error ? err.message : String(err ?? "")).toLowerCase();
+  return (
+    msg.includes("connection closed") ||
+    msg.includes("device_removed") ||
+    msg.includes("stream errored") ||
+    msg.includes("connection terminated")
+  );
+}
+
+/**
+ * LOTE 14 — PROVA DE NÃO-ENTREGA.
+ *
+ * Só é seguro devolver o produto ao ciclo (liberar o claim) quando existe
+ * PROVA de que a mensagem nunca saiu. Isso acontece em dois casos:
+ *
+ *  1. A requisição nem chegou a ser feita (produto sem imagem, breaker aberto,
+ *     claim inválido) — nenhuma chamada à Evolution ocorreu.
+ *  2. A Evolution respondeu com um corpo de erro HTTP (`Evolution API 4xx/5xx
+ *     em /message/...`). A resposta chegou completa e é uma REJEIÇÃO explícita:
+ *     nenhuma mensagem foi despachada ao WhatsApp.
+ *
+ * Timeout, abort, ECONNRESET, "fetch failed", tunnel offline e qualquer erro
+ * desconhecido continuam sendo AMBÍGUOS ("pode ter chegado sem ack") e o claim
+ * permanece gravado como `failed` para sempre — política fail-safe dos
+ * LOTES 8/9/10 preservada integralmente.
+ */
+function isProvenNotDelivered(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err ?? "");
+  const lower = msg.toLowerCase();
+  if (
+    lower.includes("produto sem imagem") ||
+    lower.includes("circuit breaker aberto") ||
+    msg.startsWith("CLAIM_INVALID") ||
+    msg.startsWith("CLAIM_VALIDATION_FAILED")
+  ) {
+    return true;
+  }
+  // Resposta HTTP de erro completa vinda da Evolution (rejeição explícita).
+  return /^Evolution API \d{3} em /.test(msg);
+}
+
+
 
 
 /**
@@ -277,7 +332,17 @@ async function sendMediaOnce(
 export type AutomationClaimSendResult =
   | { outcome: "duplicate"; claimId: null }
   | { outcome: "sent"; claimId: string; sendMetrics: SendMetrics }
-  | { outcome: "failed"; claimId: string | null; error: string; errorClass: ErrorClass; sendMetrics: SendMetrics | null };
+  | {
+      outcome: "failed";
+      claimId: string | null;
+      error: string;
+      errorClass: ErrorClass;
+      sendMetrics: SendMetrics | null;
+      /** LOTE 14 — claim liberado: houve prova de não-entrega, produto volta ao ciclo. */
+      claimReleased?: boolean;
+      /** LOTE 14 — socket Baileys morto: exige releitura do QR Code. */
+      sessionDead?: boolean;
+    };
 
 export async function claimAndSendMediaOnceForAutomation(input: {
   admin: any;
@@ -363,18 +428,46 @@ export async function claimAndSendMediaOnceForAutomation(input: {
   } catch (e) {
     const err = e instanceof Error ? e.message : String(e);
     const errorClass = classifyError(e);
+    const sessionDead = isSessionDeadError(e);
+    // LOTE 14 — só libera o claim quando existe PROVA de não-entrega.
+    // Ambíguo (timeout/rede) continua queimando o claim (fail-safe LOTE 8/9/10).
+    const canRelease = isProvenNotDelivered(e);
     log("SEND_FAILED", {
       ...ctx,
       claim_id: claimId,
       error_class: errorClass,
       error: err,
-      policy: "fail_safe_no_resend",
+      session_dead: sessionDead,
+      policy: canRelease ? "claim_released_proven_not_delivered" : "fail_safe_no_resend",
     });
+
+    if (canRelease) {
+      const { error: delErr } = await admin
+        .from("automation_group_sends")
+        .delete()
+        .eq("id", claimId)
+        .eq("worker_id", workerId)
+        .eq("status", "processing");
+      if (!delErr) {
+        log("CLAIM_RELEASED", { ...ctx, claim_id: claimId, reason: "proven_not_delivered" });
+        return {
+          outcome: "failed",
+          claimId,
+          error: err,
+          errorClass,
+          sendMetrics,
+          claimReleased: true,
+          sessionDead,
+        };
+      }
+      log("CLAIM_RELEASE_FAILED", { ...ctx, claim_id: claimId, error: delErr.message });
+    }
+
     await admin
       .from("automation_group_sends")
       .update({ status: "failed", updated_at: new Date().toISOString() })
       .eq("id", claimId);
-    return { outcome: "failed", claimId, error: err, errorClass, sendMetrics };
+    return { outcome: "failed", claimId, error: err, errorClass, sendMetrics, claimReleased: false, sessionDead };
   }
 }
 
@@ -819,6 +912,7 @@ async function tickOneForConfig(admin: any, cfg: any): Promise<void> {
     const err = claimResult.outcome === "failed" ? claimResult.error : null;
     const errorClass = claimResult.outcome === "failed" ? claimResult.errorClass : null;
     const sendMetrics = claimResult.outcome === "failed" ? claimResult.sendMetrics : claimResult.sendMetrics;
+    const sessionDead = claimResult.outcome === "failed" && claimResult.sessionDead === true;
 
     if (ok) {
       if (breakerInstanceId) await recordSuccess(breakerInstanceId).catch(() => undefined);
@@ -828,7 +922,9 @@ async function tickOneForConfig(admin: any, cfg: any): Promise<void> {
       // NUNCA realimentar o breaker com o próprio erro "breaker aberto":
       // isso criava um laço em que a instância nunca voltava a fechar.
       const isBreakerOwnError = /circuit breaker aberto/i.test(err ?? "");
-      if (breakerInstanceId && errorClass === "transient" && !isBreakerOwnError) {
+      // LOTE 14 — sessão morta não é sobrecarga da Evolution. Alimentar o
+      // breaker aqui só produzia ruído: o problema é a sessão, não a carga.
+      if (breakerInstanceId && errorClass === "transient" && !isBreakerOwnError && !sessionDead) {
         await recordFailure(breakerInstanceId, cfg.user_id, new Error(err ?? "erro desconhecido")).catch(() => undefined);
       }
 
@@ -840,7 +936,11 @@ async function tickOneForConfig(admin: any, cfg: any): Promise<void> {
           group_id: g.group_jid,
           instance_id: cfg.instance_id ?? null,
           error_message: (err ?? "erro desconhecido").slice(0, 500),
-          error_code: errorClass === "permanent" ? "permanent_error" : "send_failed",
+          error_code: sessionDead
+            ? "session_dead"
+            : errorClass === "permanent"
+              ? "permanent_error"
+              : "send_failed",
           attempt_count: sendMetrics?.attempts ?? 1,
           next_retry_at: null,
         });
@@ -861,6 +961,28 @@ async function tickOneForConfig(admin: any, cfg: any): Promise<void> {
       status: ok ? "sent" : "failed",
       error_message: err,
     });
+
+    // LOTE 14 — sessão morta: aborta imediatamente. Continuar o laço só
+    // produziria mais falhas idênticas e mais ruído no histórico.
+    if (sessionDead) {
+      log("SESSION_DEAD", {
+        ...sendCtx,
+        error: err,
+        action: "instance_marked_disconnected",
+        claim_released: claimResult.outcome === "failed" ? claimResult.claimReleased === true : false,
+      });
+      await admin
+        .from("whatsapp_instances")
+        .update({ status: "disconnected", qr_code: null, updated_at: new Date().toISOString() })
+        .eq("id", inst.id);
+      await admin.from("automation_configs").update({
+        status: "waiting",
+        last_error:
+          "Sessão do WhatsApp caiu (aparelho desconectado). Releia o QR Code para reconectar a instância.",
+        next_run_at: new Date(Date.now() + Math.max(1, Math.min(cfg.intervalo_min ?? 15, 5)) * 60_000).toISOString(),
+      }).eq("id", cfg.id);
+      return;
+    }
   }
 
   // LOTE 8 — a reserva já foi feita ANTES de cada envio (idempotência
