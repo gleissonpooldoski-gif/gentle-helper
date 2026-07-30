@@ -34,6 +34,7 @@ function classifyAutomationError(err: unknown): ErrorClass {
   const lower = msg.toLowerCase();
   if (
     /\b(400|401|403|404)\b/.test(msg) ||
+    lower.includes("produto sem imagem") ||
     lower.includes("group not found") ||
     lower.includes("grupo não encontrado") ||
     lower.includes("grupo removido") ||
@@ -44,6 +45,7 @@ function classifyAutomationError(err: unknown): ErrorClass {
   ) {
     return "permanent";
   }
+
   if (
     /\b(408|429|5\d\d)\b/.test(msg) ||
     lower.includes("timeout") ||
