@@ -332,7 +332,17 @@ async function sendMediaOnce(
 export type AutomationClaimSendResult =
   | { outcome: "duplicate"; claimId: null }
   | { outcome: "sent"; claimId: string; sendMetrics: SendMetrics }
-  | { outcome: "failed"; claimId: string | null; error: string; errorClass: ErrorClass; sendMetrics: SendMetrics | null };
+  | {
+      outcome: "failed";
+      claimId: string | null;
+      error: string;
+      errorClass: ErrorClass;
+      sendMetrics: SendMetrics | null;
+      /** LOTE 14 — claim liberado: houve prova de não-entrega, produto volta ao ciclo. */
+      claimReleased?: boolean;
+      /** LOTE 14 — socket Baileys morto: exige releitura do QR Code. */
+      sessionDead?: boolean;
+    };
 
 export async function claimAndSendMediaOnceForAutomation(input: {
   admin: any;
