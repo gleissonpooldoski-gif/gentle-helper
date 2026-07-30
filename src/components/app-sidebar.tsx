@@ -1,6 +1,7 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useState } from "react";
 import {
+  Activity,
   AlertTriangle,
   BarChart3,
   CreditCard,
@@ -34,6 +35,7 @@ const CONFIG: Item[] = [
   { id: "relatorios", label: "Relatórios", icon: BarChart3, href: "/relatorios" },
   { id: "falhas", label: "Falhas de Envio", icon: AlertTriangle, href: "/falhas" },
   { id: "envios-whatsapp", label: "Envios WhatsApp", icon: Send, href: "/configuracoes/envios-whatsapp" },
+  { id: "saude", label: "Saúde do Sistema", icon: Activity, href: "/saude" },
 ];
 
 

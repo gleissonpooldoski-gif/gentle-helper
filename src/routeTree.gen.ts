@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TemplatesRouteImport } from './routes/templates'
+import { Route as SaudeRouteImport } from './routes/saude'
 import { Route as RelatoriosRouteImport } from './routes/relatorios'
 import { Route as InstagramRouteImport } from './routes/instagram'
 import { Route as FalhasRouteImport } from './routes/falhas'
@@ -56,6 +57,11 @@ import { Route as ApiPublicChannelsWhatsappConnectRouteImport } from './routes/a
 const TemplatesRoute = TemplatesRouteImport.update({
   id: '/templates',
   path: '/templates',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SaudeRoute = SaudeRouteImport.update({
+  id: '/saude',
+  path: '/saude',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RelatoriosRoute = RelatoriosRouteImport.update({
@@ -296,6 +302,7 @@ export interface FileRoutesByFullPath {
   '/falhas': typeof FalhasRoute
   '/instagram': typeof InstagramRouteWithChildren
   '/relatorios': typeof RelatoriosRoute
+  '/saude': typeof SaudeRoute
   '/templates': typeof TemplatesRouteWithChildren
   '/configuracoes/envios-whatsapp': typeof ConfiguracoesEnviosWhatsappRoute
   '/configuracoes/sessoes-whatsapp': typeof ConfiguracoesSessoesWhatsappRoute
@@ -341,6 +348,7 @@ export interface FileRoutesByTo {
   '/falhas': typeof FalhasRoute
   '/instagram': typeof InstagramRouteWithChildren
   '/relatorios': typeof RelatoriosRoute
+  '/saude': typeof SaudeRoute
   '/templates': typeof TemplatesRouteWithChildren
   '/configuracoes/envios-whatsapp': typeof ConfiguracoesEnviosWhatsappRoute
   '/configuracoes/sessoes-whatsapp': typeof ConfiguracoesSessoesWhatsappRoute
@@ -387,6 +395,7 @@ export interface FileRoutesById {
   '/falhas': typeof FalhasRoute
   '/instagram': typeof InstagramRouteWithChildren
   '/relatorios': typeof RelatoriosRoute
+  '/saude': typeof SaudeRoute
   '/templates': typeof TemplatesRouteWithChildren
   '/configuracoes/envios-whatsapp': typeof ConfiguracoesEnviosWhatsappRoute
   '/configuracoes/sessoes-whatsapp': typeof ConfiguracoesSessoesWhatsappRoute
@@ -434,6 +443,7 @@ export interface FileRouteTypes {
     | '/falhas'
     | '/instagram'
     | '/relatorios'
+    | '/saude'
     | '/templates'
     | '/configuracoes/envios-whatsapp'
     | '/configuracoes/sessoes-whatsapp'
@@ -479,6 +489,7 @@ export interface FileRouteTypes {
     | '/falhas'
     | '/instagram'
     | '/relatorios'
+    | '/saude'
     | '/templates'
     | '/configuracoes/envios-whatsapp'
     | '/configuracoes/sessoes-whatsapp'
@@ -524,6 +535,7 @@ export interface FileRouteTypes {
     | '/falhas'
     | '/instagram'
     | '/relatorios'
+    | '/saude'
     | '/templates'
     | '/configuracoes/envios-whatsapp'
     | '/configuracoes/sessoes-whatsapp'
@@ -570,6 +582,7 @@ export interface RootRouteChildren {
   FalhasRoute: typeof FalhasRoute
   InstagramRoute: typeof InstagramRouteWithChildren
   RelatoriosRoute: typeof RelatoriosRoute
+  SaudeRoute: typeof SaudeRoute
   TemplatesRoute: typeof TemplatesRouteWithChildren
   ConfiguracoesEnviosWhatsappRoute: typeof ConfiguracoesEnviosWhatsappRoute
   ConfiguracoesSessoesWhatsappRoute: typeof ConfiguracoesSessoesWhatsappRoute
@@ -606,6 +619,13 @@ declare module '@tanstack/react-router' {
       path: '/templates'
       fullPath: '/templates'
       preLoaderRoute: typeof TemplatesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/saude': {
+      id: '/saude'
+      path: '/saude'
+      fullPath: '/saude'
+      preLoaderRoute: typeof SaudeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/relatorios': {
@@ -952,6 +972,7 @@ const rootRouteChildren: RootRouteChildren = {
   FalhasRoute: FalhasRoute,
   InstagramRoute: InstagramRouteWithChildren,
   RelatoriosRoute: RelatoriosRoute,
+  SaudeRoute: SaudeRoute,
   TemplatesRoute: TemplatesRouteWithChildren,
   ConfiguracoesEnviosWhatsappRoute: ConfiguracoesEnviosWhatsappRoute,
   ConfiguracoesSessoesWhatsappRoute: ConfiguracoesSessoesWhatsappRoute,
