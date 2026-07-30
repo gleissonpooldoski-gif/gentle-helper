@@ -71,6 +71,61 @@ function classifyAutomationError(err: unknown): ErrorClass {
 // Alias retrocompatível — todo o worker deve preferir classifyAutomationError.
 const classifyError = classifyAutomationError;
 
+/**
+ * LOTE 14 — SESSÃO WHATSAPP MORTA (socket Baileys fechado).
+ *
+ * A Evolution continua respondendo `connectionState = open` mesmo depois que o
+ * aparelho foi removido do WhatsApp (`disconnectionReasonCode: 401`,
+ * `tag: conflict`, `type: device_removed`). Nesse estado TODO envio devolve
+ * `{"status":500|400,...,"message":["Error: Connection Closed"]}`.
+ *
+ * Esse erro NÃO é sobrecarga (não deve alimentar o circuit breaker) e NÃO é
+ * culpa do produto (não pode queimar o produto do ciclo). É um problema de
+ * sessão: exige que o usuário releia o QR Code.
+ */
+function isSessionDeadError(err: unknown): boolean {
+  const msg = (err instanceof Error ? err.message : String(err ?? "")).toLowerCase();
+  return (
+    msg.includes("connection closed") ||
+    msg.includes("device_removed") ||
+    msg.includes("stream errored") ||
+    msg.includes("connection terminated")
+  );
+}
+
+/**
+ * LOTE 14 — PROVA DE NÃO-ENTREGA.
+ *
+ * Só é seguro devolver o produto ao ciclo (liberar o claim) quando existe
+ * PROVA de que a mensagem nunca saiu. Isso acontece em dois casos:
+ *
+ *  1. A requisição nem chegou a ser feita (produto sem imagem, breaker aberto,
+ *     claim inválido) — nenhuma chamada à Evolution ocorreu.
+ *  2. A Evolution respondeu com um corpo de erro HTTP (`Evolution API 4xx/5xx
+ *     em /message/...`). A resposta chegou completa e é uma REJEIÇÃO explícita:
+ *     nenhuma mensagem foi despachada ao WhatsApp.
+ *
+ * Timeout, abort, ECONNRESET, "fetch failed", tunnel offline e qualquer erro
+ * desconhecido continuam sendo AMBÍGUOS ("pode ter chegado sem ack") e o claim
+ * permanece gravado como `failed` para sempre — política fail-safe dos
+ * LOTES 8/9/10 preservada integralmente.
+ */
+function isProvenNotDelivered(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err ?? "");
+  const lower = msg.toLowerCase();
+  if (
+    lower.includes("produto sem imagem") ||
+    lower.includes("circuit breaker aberto") ||
+    msg.startsWith("CLAIM_INVALID") ||
+    msg.startsWith("CLAIM_VALIDATION_FAILED")
+  ) {
+    return true;
+  }
+  // Resposta HTTP de erro completa vinda da Evolution (rejeição explícita).
+  return /^Evolution API \d{3} em /.test(msg);
+}
+
+
 
 
 /**
