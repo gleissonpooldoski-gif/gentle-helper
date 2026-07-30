@@ -1,6 +1,8 @@
 import { decryptToken } from "./instagram-crypto.server";
 import { replyToComment, sendDirectMessage } from "./instagram-graph.server";
 import { fetchWithTimeout, TIMEOUTS } from "@/lib/http-timeout";
+import { runOnce } from "@/lib/webhook-idempotency.server";
+import { obsLog } from "@/lib/obs-log";
 
 /**
  * Handles Instagram Graph webhook events. Detects keyword hits in comments
