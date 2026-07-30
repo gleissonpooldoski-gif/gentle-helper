@@ -821,9 +821,13 @@ async function tickOneForConfig(admin: any, cfg: any): Promise<void> {
       await new Promise((r) => setTimeout(r, 800));
       anySent = true;
     } else {
-      if (breakerInstanceId && errorClass === "transient") {
+      // NUNCA realimentar o breaker com o próprio erro "breaker aberto":
+      // isso criava um laço em que a instância nunca voltava a fechar.
+      const isBreakerOwnError = /circuit breaker aberto/i.test(err ?? "");
+      if (breakerInstanceId && errorClass === "transient" && !isBreakerOwnError) {
         await recordFailure(breakerInstanceId, cfg.user_id, new Error(err ?? "erro desconhecido")).catch(() => undefined);
       }
+
       try {
         await admin.from("automation_failures").insert({
           user_id: cfg.user_id,
