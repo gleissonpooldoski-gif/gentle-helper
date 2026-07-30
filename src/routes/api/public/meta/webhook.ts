@@ -38,29 +38,72 @@ export const Route = createFileRoute("/api/public/meta/webhook")({
           payload = { raw: bodyText };
         }
 
-        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-        await (supabaseAdmin as any).from("instagram_logs").insert({
-          type: `webhook_${payload?.object ?? "unknown"}`,
-          payload,
-        });
+        // FASE 1 — idempotência: a Meta reentrega o mesmo evento em retry.
+        // O registro acontece ANTES de qualquer efeito colateral (DM/reply).
+        const { runOnce, hashPayload } = await import("@/lib/webhook-idempotency.server");
+        const eventId = metaEventId(payload, bodyText);
 
-        try {
-          await handleWebhook(payload, started);
-        } catch (e) {
-          await (supabaseAdmin as any).from("instagram_logs").insert({
-            type: "automation_error",
-            payload: { message: (e as Error).message },
-            latency_ms: Date.now() - started,
-          });
-        }
+        const { duplicate } = await runOnce(
+          "meta",
+          eventId,
+          async () => {
+            const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+            await (supabaseAdmin as any).from("instagram_logs").insert({
+              type: `webhook_${payload?.object ?? "unknown"}`,
+              payload,
+            });
 
-        return new Response("EVENT_RECEIVED", { status: 200 });
+            const { withProcessLog } = await import("@/lib/obs-log");
+            try {
+              await withProcessLog("meta-webhook", { event_id: eventId }, () =>
+                handleWebhook(payload, started),
+              );
+            } catch (e) {
+              await (supabaseAdmin as any).from("instagram_logs").insert({
+                type: "automation_error",
+                payload: { message: (e as Error).message },
+                latency_ms: Date.now() - started,
+              });
+            }
+          },
+          { payloadHash: hashPayload(bodyText), scope: "meta-webhook" },
+        );
+
+        return new Response(duplicate ? "DUPLICATE_IGNORED" : "EVENT_RECEIVED", { status: 200 });
       },
+
     },
   },
 });
 
+/**
+ * Chave de idempotência do evento Meta.
+ * Prioriza identificadores estáveis (mid da mensagem, id do comentário) e cai
+ * para um hash do corpo quando o payload não trouxer nenhum id conhecido.
+ */
+function metaEventId(payload: any, bodyText: string): string {
+  const ids: string[] = [];
+  for (const entry of payload?.entry ?? []) {
+    for (const change of entry?.changes ?? []) {
+      const v = change?.value ?? {};
+      if (v.id) ids.push(`c:${v.id}`);
+      else if (v.comment_id) ids.push(`c:${v.comment_id}`);
+    }
+    for (const msg of entry?.messaging ?? []) {
+      if (msg?.message?.mid) ids.push(`m:${msg.message.mid}`);
+    }
+  }
+  if (ids.length) return ids.sort().join("|").slice(0, 300);
+  let h = 0x811c9dc5;
+  for (let i = 0; i < bodyText.length; i++) {
+    h ^= bodyText.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return `hash:${h.toString(16)}-${bodyText.length}`;
+}
+
 const DEFAULT_TRIGGERS = ["link", "promoção", "promocao", "promo", "oferta", "cupom", "desconto"];
+
 
 function matchTrigger(text: string, keyword?: string | null): string | null {
   const lower = text.toLowerCase();
