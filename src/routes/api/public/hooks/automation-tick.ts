@@ -428,18 +428,46 @@ export async function claimAndSendMediaOnceForAutomation(input: {
   } catch (e) {
     const err = e instanceof Error ? e.message : String(e);
     const errorClass = classifyError(e);
+    const sessionDead = isSessionDeadError(e);
+    // LOTE 14 — só libera o claim quando existe PROVA de não-entrega.
+    // Ambíguo (timeout/rede) continua queimando o claim (fail-safe LOTE 8/9/10).
+    const canRelease = isProvenNotDelivered(e);
     log("SEND_FAILED", {
       ...ctx,
       claim_id: claimId,
       error_class: errorClass,
       error: err,
-      policy: "fail_safe_no_resend",
+      session_dead: sessionDead,
+      policy: canRelease ? "claim_released_proven_not_delivered" : "fail_safe_no_resend",
     });
+
+    if (canRelease) {
+      const { error: delErr } = await admin
+        .from("automation_group_sends")
+        .delete()
+        .eq("id", claimId)
+        .eq("worker_id", workerId)
+        .eq("status", "processing");
+      if (!delErr) {
+        log("CLAIM_RELEASED", { ...ctx, claim_id: claimId, reason: "proven_not_delivered" });
+        return {
+          outcome: "failed",
+          claimId,
+          error: err,
+          errorClass,
+          sendMetrics,
+          claimReleased: true,
+          sessionDead,
+        };
+      }
+      log("CLAIM_RELEASE_FAILED", { ...ctx, claim_id: claimId, error: delErr.message });
+    }
+
     await admin
       .from("automation_group_sends")
       .update({ status: "failed", updated_at: new Date().toISOString() })
       .eq("id", claimId);
-    return { outcome: "failed", claimId, error: err, errorClass, sendMetrics };
+    return { outcome: "failed", claimId, error: err, errorClass, sendMetrics, claimReleased: false, sessionDead };
   }
 }
 
