@@ -547,12 +547,12 @@ export async function claimAndSendMediaOnceForAutomation(input: {
 async function tickOne(admin: any, cfg: any): Promise<void> {
   const key = destinationKey(cfg);
   const workerId = (globalThis as { __automation_worker_id?: string }).__automation_worker_id ?? null;
+  const lockCtx: LogFields = { worker_id: workerId, config_id: cfg.id, group_id: cfg.group_id };
 
-  if (destinationInFlight.has(key)) {
-    log("INTERVAL_SKIPPED", { worker_id: workerId, config_id: cfg.id, group_id: cfg.group_id, reason: "destination_busy" });
+  if (!acquireDestinationLock(key, lockCtx)) {
+    log("INTERVAL_SKIPPED", { ...lockCtx, reason: "destination_busy", ttl_ms: DESTINATION_LOCK_TTL_MS });
     return;
   }
-  destinationInFlight.add(key);
   try {
     const gap = intervalMs(cfg);
     const last = await lastSentAtForDestination(admin, cfg);
@@ -561,9 +561,7 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
       if (elapsed < gap) {
         const nextAt = new Date(last + gap).toISOString();
         log("INTERVAL_SKIPPED", {
-          worker_id: workerId,
-          config_id: cfg.id,
-          group_id: cfg.group_id,
+          ...lockCtx,
           reason: "interval_not_elapsed",
           elapsed_ms: elapsed,
           interval_ms: gap,
@@ -576,7 +574,7 @@ async function tickOne(admin: any, cfg: any): Promise<void> {
     }
     await tickOneForConfig(admin, cfg);
   } finally {
-    destinationInFlight.delete(key);
+    releaseDestinationLock(key);
   }
 }
 
