@@ -3619,7 +3619,12 @@ type ShopeeProduct = {
   affiliateLink?: string;
   rawLink?: string;
   imageUrl?: string;
+  priceValue?: number | null;
+  createdAtMs?: number;
+  salesValue?: number | null;
+  sentCount?: number;
 };
+
 
 
 const SHOPEE_PRODUCTS: ShopeeProduct[] = [
