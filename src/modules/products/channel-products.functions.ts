@@ -18,7 +18,9 @@ export interface ChannelProductDTO {
   sales: number | null;
   availability: string;
   createdAt: string;
+  sentCount: number;
 }
+
 
 const ListSchema = z.object({
   channelId: z.string().uuid(),
