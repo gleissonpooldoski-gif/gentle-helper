@@ -115,14 +115,17 @@ function notFoundError(wanted: string, available: string[]): Error {
 export async function readEvolutionConnectionState(
   cfg: ResolvedEvolutionConfig,
 ): Promise<EvolutionConnectionState> {
-  const raw = await evolutionJson<unknown>("/instance/fetchInstances", {
-    config: cfg,
-    timeoutMs: 10_000,
-  });
-  const instances = normalizeInstances(raw);
+  const instances = await listRemoteInstances(cfg);
   const target = cfg.instanceName
     ? instances.find((i) => i.name.trim().toUpperCase() === cfg.instanceName!.trim().toUpperCase())
     : undefined;
+
+  evoLog("CONNECTION_STATE", {
+    instanceName: cfg.instanceName,
+    found: Boolean(target),
+    state: target?.state ?? null,
+    source: cfg.source,
+  });
 
   return {
     configured: true,
@@ -133,8 +136,12 @@ export async function readEvolutionConnectionState(
     message: target
       ? `Instância "${target.name}" em estado ${target.state}.`
       : cfg.instanceName
-        ? `Instância "${cfg.instanceName}" não encontrada na Evolution API.`
-        : "Nenhuma instância padrão definida.",
+        ? `A instância "${cfg.instanceName}" não existe na Evolution API.${
+            instances.length ? ` Disponíveis: ${instances.map((i) => i.name).join(", ")}.` : ""
+          }`
+        : instances.length
+          ? `Selecione uma instância. Disponíveis: ${instances.map((i) => i.name).join(", ")}.`
+          : "Nenhuma instância encontrada nesta Evolution API.",
     instances,
   };
 }
@@ -143,6 +150,13 @@ export async function createRemoteInstance(
   cfg: ResolvedEvolutionConfig,
   instanceName: string,
 ): Promise<string | null> {
+  const existing = await resolveRemoteInstanceName(cfg, instanceName);
+  if (existing.found) {
+    // Já existe: não recriar (a Evolution devolve 403). Apenas pedir o QR.
+    evoLog("INSTANCE_EXISTS", { instanceName: existing.name });
+    const conn = await connectRemoteInstance(cfg, existing.name);
+    return conn.qrCode;
+  }
   const json = await evolutionJson<any>("/instance/create", {
     config: cfg,
     method: "POST",
@@ -153,6 +167,7 @@ export async function createRemoteInstance(
       integration: "WHATSAPP-BAILEYS",
     }),
   });
+  evoLog("INSTANCE_CREATED", { instanceName });
   return normalizeQr(json).qrCode;
 }
 
@@ -160,33 +175,55 @@ export async function connectRemoteInstance(
   cfg: ResolvedEvolutionConfig,
   instanceName: string,
 ): Promise<{ qrCode: string | null; pairingCode: string | null; status: string }> {
+  const resolved = await resolveRemoteInstanceName(cfg, instanceName);
+  if (!resolved.found) {
+    evoLog("CONNECT_NOT_FOUND", { instanceName, available: resolved.available });
+    throw notFoundError(instanceName, resolved.available);
+  }
   const json = await evolutionJson<any>(
-    `/instance/connect/${encodeURIComponent(instanceName)}`,
+    `/instance/connect/${encodeURIComponent(resolved.name)}`,
     { config: cfg, timeoutMs: 20_000 },
   );
   const qr = normalizeQr(json);
-  return {
-    ...qr,
-    status: qr.qrCode || qr.pairingCode ? "awaiting_qr" : String(json?.instance?.state ?? "unknown"),
-  };
+  const rawState = String(json?.instance?.state ?? json?.state ?? "").toLowerCase();
+  const status = qr.qrCode || qr.pairingCode ? "awaiting_qr" : mapState(rawState);
+  evoLog("CONNECT", {
+    instanceName: resolved.name,
+    hasQr: Boolean(qr.qrCode),
+    hasPairing: Boolean(qr.pairingCode),
+    status,
+  });
+  if (status === "connected") {
+    return { ...qr, status: "connected" };
+  }
+  if (!qr.qrCode && !qr.pairingCode) {
+    throw new Error(
+      `A Evolution não retornou QR para "${resolved.name}" (estado: ${rawState || "desconhecido"}). Desconecte a instância e tente novamente.`,
+    );
+  }
+  return { ...qr, status };
 }
 
 export async function logoutRemoteInstance(
   cfg: ResolvedEvolutionConfig,
   instanceName: string,
 ): Promise<{ ok: boolean; message: string }> {
-  const res = await evolutionFetch(`/instance/logout/${encodeURIComponent(instanceName)}`, {
+  const resolved = await resolveRemoteInstanceName(cfg, instanceName);
+  if (!resolved.found) throw notFoundError(instanceName, resolved.available);
+  const res = await evolutionFetch(`/instance/logout/${encodeURIComponent(resolved.name)}`, {
     config: cfg,
     method: "DELETE",
     timeoutMs: 15_000,
     retries: 0,
   });
   const text = await res.text();
+  evoLog("LOGOUT", { instanceName: resolved.name, status: res.status });
   return {
     ok: res.ok,
     message: res.ok ? "WhatsApp desconectado." : `Evolution ${res.status}: ${text.slice(0, 200)}`,
   };
 }
+
 
 export async function sendTextViaEvolution(
   cfg: ResolvedEvolutionConfig,
