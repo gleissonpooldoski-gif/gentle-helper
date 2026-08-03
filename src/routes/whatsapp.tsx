@@ -13,6 +13,7 @@ import {
   createEvolutionInstance,
   connectEvolutionInstance,
   disconnectEvolutionInstance,
+  testEvolutionIntegration,
 } from "@/modules/whatsapp/evolution/user-settings.functions";
 import {
   sendWhatsAppMessage,
@@ -82,6 +83,7 @@ function WhatsAppPage() {
   const disconnectInstance = useServerFn(disconnectEvolutionInstance);
   const sendMessage = useServerFn(sendWhatsAppMessage);
   const fetchMessages = useServerFn(listWhatsAppMessages);
+  const runDiagnostic = useServerFn(testEvolutionIntegration);
 
   const settings = useQuery({ queryKey: ["evo-settings"], queryFn: () => fetchSettings() });
   const state = useQuery({
@@ -101,6 +103,12 @@ function WhatsAppPage() {
   const baseUrl = form.baseUrl ?? settings.data?.baseUrl ?? "";
   const instanceName = form.instanceName ?? settings.data?.instanceName ?? "";
   const st = STATUS_UI[state.data?.status ?? "unknown"]!;
+
+  const testMut = useMutation({
+    mutationFn: () => runDiagnostic({ data: { instanceName } }),
+    onSuccess: (r) => (r.ok ? toast.success(r.message) : toast.error(r.message)),
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   const saveMut = useMutation({
     mutationFn: () =>
@@ -209,6 +217,9 @@ function WhatsAppPage() {
           >
             <Power className="h-4 w-4" /> Desconectar
           </button>
+          <button className={btnCls} onClick={() => testMut.mutate()} disabled={testMut.isPending}>
+            <RefreshCw className={`h-4 w-4 ${testMut.isPending ? "animate-spin" : ""}`} /> Testar conexão
+          </button>
         </div>
 
         {qr?.qrCode ? (
@@ -250,6 +261,21 @@ function WhatsAppPage() {
                   onChange={(e) => setForm((f) => ({ ...f, instanceName: e.target.value }))}
                 />
               </Field>
+              {(state.data?.instances ?? []).length ? (
+                <div className="flex flex-wrap gap-2">
+                  <span className="text-xs text-muted-foreground">Instâncias existentes:</span>
+                  {state.data!.instances.map((i) => (
+                    <button
+                      key={i.name}
+                      type="button"
+                      className="rounded-md border border-border px-2 py-1 text-xs hover:bg-secondary"
+                      onClick={() => setForm((f) => ({ ...f, instanceName: i.name }))}
+                    >
+                      {i.name}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
               <button className={btnPrimary} onClick={() => saveMut.mutate()} disabled={saveMut.isPending}>
                 Salvar configurações
               </button>
