@@ -8,6 +8,8 @@ import type { AutomationConfigDTO } from "@/modules/automation/automation.functi
 // useServerFn(fn) → fn (identity), so os handlers chamam nossos spies direto.
 vi.mock("@tanstack/react-start", () => ({
   useServerFn: (fn: any) => fn,
+  createMiddleware: () => ({ server: () => ({}), client: () => ({}) }),
+
   createServerFn: () => ({
     middleware: () => ({
       inputValidator: () => ({ handler: () => async () => undefined }),
