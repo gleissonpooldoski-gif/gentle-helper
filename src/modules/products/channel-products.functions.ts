@@ -53,8 +53,24 @@ export const listChannelProducts = createServerFn({ method: "POST" })
       rows.push(...b);
       if (b.length < pageSize) break;
     }
-
-
+    // Conta envios já realizados por produto (histórico de campanhas WhatsApp).
+    const sentByProduct = new Map<string, number>();
+    for (let i = 0; i < 20; i++) {
+      const from = i * pageSize;
+      const { data: batch, error } = await context.supabase
+        .from("whatsapp_campaign_history")
+        .select("product_id")
+        .eq("user_id", context.userId)
+        .not("product_id", "is", null)
+        .range(from, from + pageSize - 1);
+      if (error) break;
+      const b = (batch ?? []) as { product_id: string | null }[];
+      for (const h of b) {
+        if (!h.product_id) continue;
+        sentByProduct.set(h.product_id, (sentByProduct.get(h.product_id) ?? 0) + 1);
+      }
+      if (b.length < pageSize) break;
+    }
 
     return (rows ?? []).map((row) => ({
       id: row.id,
@@ -71,5 +87,6 @@ export const listChannelProducts = createServerFn({ method: "POST" })
       sales: row.sales == null ? null : Number(row.sales),
       availability: row.availability ?? "unknown",
       createdAt: row.created_at,
+      sentCount: sentByProduct.get(row.id) ?? 0,
     }));
   });
