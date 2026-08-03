@@ -83,10 +83,10 @@ function WhatsAppPage() {
   const sendMessage = useServerFn(sendWhatsAppMessage);
   const fetchMessages = useServerFn(listWhatsAppMessages);
 
-  const settings = useQuery({ queryKey: ["evo-settings"], queryFn: () => fetchSettings({ data: {} }) });
+  const settings = useQuery({ queryKey: ["evo-settings"], queryFn: () => fetchSettings() });
   const state = useQuery({
     queryKey: ["evo-state"],
-    queryFn: () => fetchState({ data: {} }),
+    queryFn: () => fetchState(),
     refetchInterval: 20_000,
   });
   const messages = useQuery({
@@ -180,7 +180,7 @@ function WhatsAppPage() {
             <p className="mt-1 text-xs text-muted-foreground">{state.data?.message ?? "Carregando…"}</p>
           </Card>
           <Card title="Instância">
-            <p className="text-lg font-semibold">{state.data?.instanceName ?? instanceName || "—"}</p>
+            <p className="text-lg font-semibold">{state.data?.instanceName ?? (instanceName || "—")}</p>
             <p className="mt-1 text-xs text-muted-foreground">
               Credenciais: {settings.data?.source === "user" ? "próprias" : "padrão do sistema"}
             </p>
