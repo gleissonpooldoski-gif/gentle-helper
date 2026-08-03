@@ -147,7 +147,8 @@ export function SendToGroupsModal({ open, onClose, product, channelId }: Props) 
               {product?.title ?? ""}
             </p>
             <p className="mt-1 text-[11px] text-muted-foreground">
-              Instância: <b className="text-foreground">{DEFAULT_INSTANCE_NAME}</b>
+              Instância:{" "}
+              <b className="text-foreground">{instance?.instanceName ?? "—"}</b>
               {instance ? ` · status: ${instance.status}` : ""}
             </p>
           </div>
@@ -168,7 +169,7 @@ export function SendToGroupsModal({ open, onClose, product, channelId }: Props) 
             <AlertTriangle className="h-6 w-6 text-[oklch(0.6_0.19_50)]" />
             <p className="text-[13px] font-semibold text-foreground">{error}</p>
             <p className="text-[12px] text-muted-foreground">
-              Conecte {DEFAULT_INSTANCE_NAME} no painel para liberar o envio.
+              Conecte uma instância WhatsApp no painel para liberar o envio.
             </p>
             <Button variant="outline" size="sm" className="mt-2 gap-1.5" onClick={() => void refresh()}>
               <RefreshCw className="h-3.5 w-3.5" /> Tentar novamente
