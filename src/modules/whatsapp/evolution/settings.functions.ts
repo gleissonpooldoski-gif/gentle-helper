@@ -98,13 +98,10 @@ export const testEvolutionConnection = createServerFn({ method: "POST" })
       });
       const text = await res.text();
       if (res.ok) {
-        const instanceRes = await fetch(
-          `${baseUrl}/instance/connectionState/${encodeURIComponent("DIVULGA LINKS")}`,
-          {
-            headers: apiKey ? { apikey: apiKey } : undefined,
-            signal: controller.signal,
-          },
-        );
+        const instanceRes = await fetch(`${baseUrl}/instance/fetchInstances`, {
+          headers: apiKey ? { apikey: apiKey } : undefined,
+          signal: controller.signal,
+        });
         const instanceText = await instanceRes.text();
         if (instanceRes.status === 401 || instanceRes.status === 403) {
           return { ok: false, status: instanceRes.status, message: "Erro de autenticação na Evolution API (apikey inválida).", baseUrl };
@@ -113,22 +110,24 @@ export const testEvolutionConnection = createServerFn({ method: "POST" })
           return { ok: false, status: instanceRes.status, message: "Tunnel Cloudflare offline. Atualize a URL da Evolution API.", baseUrl };
         }
         if (!instanceRes.ok) {
-          return { ok: false, status: instanceRes.status, message: `Falha ao consultar a instância DIVULGA LINKS: HTTP ${instanceRes.status}`, baseUrl };
+          return { ok: false, status: instanceRes.status, message: `Falha ao listar instâncias: HTTP ${instanceRes.status}`, baseUrl };
         }
-        let state = "";
+        let names: string[] = [];
         try {
-          const instanceJson = JSON.parse(instanceText);
-          state = String(instanceJson?.instance?.state ?? instanceJson?.state ?? instanceJson?.status ?? "").toLowerCase();
+          const parsed = JSON.parse(instanceText);
+          const arr: any[] = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.instances) ? parsed.instances : [];
+          names = arr
+            .map((i) => String(i?.name ?? i?.instance?.instanceName ?? i?.instanceName ?? ""))
+            .filter(Boolean);
         } catch {
-          state = instanceText.trim().toLowerCase();
-        }
-        if (state === "open" || state === "connected") {
-          return { ok: true, status: res.status, message: "Evolution API conectada.", baseUrl };
+          names = [];
         }
         return {
-          ok: false,
-          status: instanceRes.status,
-          message: `Instância DIVULGA LINKS desconectada${state ? ` (${state})` : ""}.`,
+          ok: true,
+          status: res.status,
+          message: names.length
+            ? `Evolution API acessível. Instâncias: ${names.join(", ")}.`
+            : "Evolution API acessível, mas sem instâncias cadastradas.",
           baseUrl,
         };
       }
