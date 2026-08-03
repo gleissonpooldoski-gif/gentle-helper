@@ -543,6 +543,33 @@ export type Database = {
         }
         Relationships: []
       }
+      evolution_user_settings: {
+        Row: {
+          api_key_ciphertext: string | null
+          base_url: string | null
+          created_at: string
+          instance_name: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          api_key_ciphertext?: string | null
+          base_url?: string | null
+          created_at?: string
+          instance_name?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          api_key_ciphertext?: string | null
+          base_url?: string | null
+          created_at?: string
+          instance_name?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       instabot_automations: {
         Row: {
           button_label: string
@@ -2380,6 +2407,48 @@ export type Database = {
           qr_code?: string | null
           status?: string
           updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      whatsapp_messages: {
+        Row: {
+          created_at: string
+          direction: string
+          error: string | null
+          id: string
+          instance_name: string
+          message: string | null
+          message_id: string | null
+          phone: string
+          raw: Json | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          direction: string
+          error?: string | null
+          id?: string
+          instance_name: string
+          message?: string | null
+          message_id?: string | null
+          phone: string
+          raw?: Json | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          direction?: string
+          error?: string | null
+          id?: string
+          instance_name?: string
+          message?: string | null
+          message_id?: string | null
+          phone?: string
+          raw?: Json | null
+          status?: string
           user_id?: string
         }
         Relationships: []
