@@ -60,6 +60,58 @@ function normalizeQr(raw: any): { qrCode: string | null; pairingCode: string | n
   };
 }
 
+/** Log estruturado single-line (nunca imprime a apikey). */
+export function evoLog(event: string, payload: Record<string, unknown> = {}) {
+  try {
+    // eslint-disable-next-line no-console
+    console.log(JSON.stringify({ tag: "EVOLUTION", event, ...payload }));
+  } catch {
+    // ignore
+  }
+}
+
+export async function listRemoteInstances(
+  cfg: ResolvedEvolutionConfig,
+): Promise<EvolutionInstanceSummary[]> {
+  const raw = await evolutionJson<unknown>("/instance/fetchInstances", {
+    config: cfg,
+    timeoutMs: 10_000,
+  });
+  const instances = normalizeInstances(raw);
+  evoLog("FETCH_INSTANCES", { count: instances.length, names: instances.map((i) => i.name) });
+  return instances;
+}
+
+/**
+ * A Evolution API 2.x é case/space sensitive no path.
+ * Resolvemos o nome exato conferindo a lista real de instâncias.
+ */
+export async function resolveRemoteInstanceName(
+  cfg: ResolvedEvolutionConfig,
+  wanted: string,
+): Promise<{ name: string; found: boolean; available: string[] }> {
+  const instances = await listRemoteInstances(cfg);
+  const available = instances.map((i) => i.name);
+  const target = wanted.trim();
+  const exact = available.find((n) => n === target);
+  if (exact) return { name: exact, found: true, available };
+  const loose = available.find(
+    (n) => n.trim().toLowerCase() === target.toLowerCase(),
+  );
+  if (loose) return { name: loose, found: true, available };
+  return { name: target, found: false, available };
+}
+
+function notFoundError(wanted: string, available: string[]): Error {
+  return new Error(
+    `A instância "${wanted}" não existe na Evolution API.` +
+      (available.length
+        ? ` Instâncias disponíveis: ${available.join(", ")}.`
+        : " Nenhuma instância encontrada nesta Evolution API."),
+  );
+}
+
+
 export async function readEvolutionConnectionState(
   cfg: ResolvedEvolutionConfig,
 ): Promise<EvolutionConnectionState> {
