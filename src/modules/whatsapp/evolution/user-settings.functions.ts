@@ -175,3 +175,83 @@ export const disconnectEvolutionInstance = createServerFn({ method: "POST" })
     if (!instanceName) throw new Error("Defina o nome da instância nas configurações");
     return logoutRemoteInstance(cfg, instanceName);
   });
+
+export interface EvolutionDiagnostic {
+  ok: boolean;
+  baseUrl: string;
+  host: string;
+  source: "user" | "global";
+  hasApiKey: boolean;
+  instanceName: string | null;
+  instanceFound: boolean;
+  instanceState: string | null;
+  instances: EvolutionInstanceSummary[];
+  message: string;
+}
+
+/** Teste automático da integração: URL, apikey, instância e estado. */
+export const testEvolutionIntegration = createServerFn({ method: "POST" })
+  .middleware([apiClient, requireSupabaseAuth])
+  .inputValidator((data: { instanceName?: string } = {}) => ({
+    instanceName: String(data?.instanceName ?? "").trim(),
+  }))
+  .handler(async ({ data, context }): Promise<EvolutionDiagnostic> => {
+    const { supabase, userId } = context;
+    const { resolveEvolutionConfigForUser } = await import("./user-config.server");
+    const base: EvolutionDiagnostic = {
+      ok: false,
+      baseUrl: "",
+      host: "",
+      source: "global",
+      hasApiKey: false,
+      instanceName: null,
+      instanceFound: false,
+      instanceState: null,
+      instances: [],
+      message: "",
+    };
+    try {
+      const cfg = await resolveEvolutionConfigForUser(supabase as any, userId);
+      base.baseUrl = cfg.baseUrl;
+      base.source = cfg.source;
+      base.hasApiKey = Boolean(cfg.apiKey);
+      try {
+        base.host = new URL(cfg.baseUrl).host;
+      } catch {
+        base.host = cfg.baseUrl;
+      }
+      const wanted = data.instanceName || cfg.instanceName || "";
+      base.instanceName = wanted || null;
+
+      const { listRemoteInstances } = await import("./panel.server");
+      const instances = await listRemoteInstances(cfg);
+      base.instances = instances;
+
+      if (!wanted) {
+        base.message = instances.length
+          ? `Conexão OK. Escolha uma instância: ${instances.map((i) => i.name).join(", ")}.`
+          : "Conexão OK, mas nenhuma instância existe nesta Evolution API.";
+        return base;
+      }
+
+      const match = instances.find(
+        (i) => i.name.trim().toLowerCase() === wanted.toLowerCase(),
+      );
+      if (!match) {
+        base.message = `A instância "${wanted}" não existe na Evolution API.${
+          instances.length ? ` Disponíveis: ${instances.map((i) => i.name).join(", ")}.` : ""
+        }`;
+        return base;
+      }
+      base.instanceFound = true;
+      base.instanceState = match.state;
+      base.ok = /open|connected/i.test(match.state);
+      base.message = base.ok
+        ? `Instância "${match.name}" conectada${match.phone ? ` (+${match.phone})` : ""}.`
+        : `Instância "${match.name}" existe, mas está em estado "${match.state}". Gere o QR Code.`;
+      return base;
+    } catch (err) {
+      base.message = err instanceof Error ? err.message : String(err);
+      return base;
+    }
+  });

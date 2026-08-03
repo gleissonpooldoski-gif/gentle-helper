@@ -119,8 +119,28 @@ export async function evolutionFetch(
   const retries = init.retries ?? 2;
   let lastErr: unknown = null;
   for (let attempt = 0; attempt <= retries; attempt++) {
+    const startedAt = Date.now();
     try {
       const res = await doFetchOnce(path, init, cfg);
+      // eslint-disable-next-line no-console
+      console.log(
+        JSON.stringify({
+          tag: "EVOLUTION",
+          event: "HTTP",
+          method: (init.method ?? "GET").toUpperCase(),
+          path,
+          host: (() => {
+            try {
+              return new URL(cfg.baseUrl).host;
+            } catch {
+              return cfg.baseUrl;
+            }
+          })(),
+          status: res.status,
+          ms: Date.now() - startedAt,
+          attempt: attempt + 1,
+        }),
+      );
       if (isRetriableStatus(res.status) && attempt < retries) {
         // eslint-disable-next-line no-console
         console.warn(
@@ -130,6 +150,7 @@ export async function evolutionFetch(
         continue;
       }
       return res;
+
     } catch (err) {
       lastErr = err;
       if (attempt < retries && isRetriableError(err)) {
