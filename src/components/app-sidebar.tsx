@@ -8,6 +8,7 @@ import {
   Instagram,
   LayoutDashboard,
   Menu,
+  MessageCircle,
   Radio,
   Send,
   Settings,
