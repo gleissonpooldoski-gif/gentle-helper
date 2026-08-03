@@ -8,6 +8,7 @@ import {
   Instagram,
   LayoutDashboard,
   Menu,
+  MessageCircle,
   Radio,
   Send,
   Settings,
@@ -34,6 +35,7 @@ const CONFIG: Item[] = [
   { id: "canais", label: "Canais/Grupos", icon: Radio, href: "/" },
   { id: "relatorios", label: "Relatórios", icon: BarChart3, href: "/relatorios" },
   { id: "falhas", label: "Falhas de Envio", icon: AlertTriangle, href: "/falhas" },
+  { id: "whatsapp", label: "WhatsApp", icon: MessageCircle, href: "/whatsapp" },
   { id: "envios-whatsapp", label: "Envios WhatsApp", icon: Send, href: "/configuracoes/envios-whatsapp" },
   { id: "saude", label: "Saúde do Sistema", icon: Activity, href: "/saude" },
 ];

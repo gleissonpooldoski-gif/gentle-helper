@@ -90,6 +90,15 @@ export const Route = createFileRoute("/api/public/whatsapp/webhook")({
             const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
             const { handleEvolutionMessage } = await import("@/modules/monitor/capture.server");
             const { runOnce } = await import("@/lib/webhook-idempotency.server");
+            const { logEvolutionMessages } = await import("@/modules/whatsapp/message-log.server");
+
+            // Histórico (conversas 1:1). Best-effort: não bloqueia a captura.
+            try {
+              await logEvolutionMessages(supabaseAdmin as any, instanceName, data);
+            } catch (e) {
+              console.warn("[WA][MSG-LOG] falhou:", (e as Error).message);
+            }
+
 
             const messages: any[] = Array.isArray(data?.messages)
               ? data.messages

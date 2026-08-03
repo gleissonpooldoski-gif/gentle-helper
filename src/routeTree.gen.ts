@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as WhatsappRouteImport } from './routes/whatsapp'
 import { Route as TemplatesRouteImport } from './routes/templates'
 import { Route as SaudeRouteImport } from './routes/saude'
 import { Route as RelatoriosRouteImport } from './routes/relatorios'
@@ -55,6 +56,11 @@ import { Route as ApiPublicInstabotREventIdRouteImport } from './routes/api/publ
 import { Route as ApiPublicChannelsWhatsappSessionStatusRouteImport } from './routes/api/public/channels/whatsapp/session-status'
 import { Route as ApiPublicChannelsWhatsappConnectRouteImport } from './routes/api/public/channels/whatsapp/connect'
 
+const WhatsappRoute = WhatsappRouteImport.update({
+  id: '/whatsapp',
+  path: '/whatsapp',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TemplatesRoute = TemplatesRouteImport.update({
   id: '/templates',
   path: '/templates',
@@ -311,6 +317,7 @@ export interface FileRoutesByFullPath {
   '/relatorios': typeof RelatoriosRoute
   '/saude': typeof SaudeRoute
   '/templates': typeof TemplatesRouteWithChildren
+  '/whatsapp': typeof WhatsappRoute
   '/configuracoes/envios-whatsapp': typeof ConfiguracoesEnviosWhatsappRoute
   '/configuracoes/sessoes-whatsapp': typeof ConfiguracoesSessoesWhatsappRoute
   '/g/$slug': typeof GSlugRoute
@@ -358,6 +365,7 @@ export interface FileRoutesByTo {
   '/relatorios': typeof RelatoriosRoute
   '/saude': typeof SaudeRoute
   '/templates': typeof TemplatesRouteWithChildren
+  '/whatsapp': typeof WhatsappRoute
   '/configuracoes/envios-whatsapp': typeof ConfiguracoesEnviosWhatsappRoute
   '/configuracoes/sessoes-whatsapp': typeof ConfiguracoesSessoesWhatsappRoute
   '/g/$slug': typeof GSlugRoute
@@ -406,6 +414,7 @@ export interface FileRoutesById {
   '/relatorios': typeof RelatoriosRoute
   '/saude': typeof SaudeRoute
   '/templates': typeof TemplatesRouteWithChildren
+  '/whatsapp': typeof WhatsappRoute
   '/configuracoes/envios-whatsapp': typeof ConfiguracoesEnviosWhatsappRoute
   '/configuracoes/sessoes-whatsapp': typeof ConfiguracoesSessoesWhatsappRoute
   '/g/$slug': typeof GSlugRoute
@@ -455,6 +464,7 @@ export interface FileRouteTypes {
     | '/relatorios'
     | '/saude'
     | '/templates'
+    | '/whatsapp'
     | '/configuracoes/envios-whatsapp'
     | '/configuracoes/sessoes-whatsapp'
     | '/g/$slug'
@@ -502,6 +512,7 @@ export interface FileRouteTypes {
     | '/relatorios'
     | '/saude'
     | '/templates'
+    | '/whatsapp'
     | '/configuracoes/envios-whatsapp'
     | '/configuracoes/sessoes-whatsapp'
     | '/g/$slug'
@@ -549,6 +560,7 @@ export interface FileRouteTypes {
     | '/relatorios'
     | '/saude'
     | '/templates'
+    | '/whatsapp'
     | '/configuracoes/envios-whatsapp'
     | '/configuracoes/sessoes-whatsapp'
     | '/g/$slug'
@@ -597,6 +609,7 @@ export interface RootRouteChildren {
   RelatoriosRoute: typeof RelatoriosRoute
   SaudeRoute: typeof SaudeRoute
   TemplatesRoute: typeof TemplatesRouteWithChildren
+  WhatsappRoute: typeof WhatsappRoute
   ConfiguracoesEnviosWhatsappRoute: typeof ConfiguracoesEnviosWhatsappRoute
   ConfiguracoesSessoesWhatsappRoute: typeof ConfiguracoesSessoesWhatsappRoute
   GSlugRoute: typeof GSlugRoute
@@ -628,6 +641,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/whatsapp': {
+      id: '/whatsapp'
+      path: '/whatsapp'
+      fullPath: '/whatsapp'
+      preLoaderRoute: typeof WhatsappRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/templates': {
       id: '/templates'
       path: '/templates'
@@ -995,6 +1015,7 @@ const rootRouteChildren: RootRouteChildren = {
   RelatoriosRoute: RelatoriosRoute,
   SaudeRoute: SaudeRoute,
   TemplatesRoute: TemplatesRouteWithChildren,
+  WhatsappRoute: WhatsappRoute,
   ConfiguracoesEnviosWhatsappRoute: ConfiguracoesEnviosWhatsappRoute,
   ConfiguracoesSessoesWhatsappRoute: ConfiguracoesSessoesWhatsappRoute,
   GSlugRoute: GSlugRoute,
@@ -1028,13 +1049,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
