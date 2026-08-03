@@ -3669,13 +3669,52 @@ function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {})
   const enrichBatchFn = useServerFn(enrichShopeeImagesBatch);
   const syncPricesFn = useServerFn(syncShopeePricesForProducts);
   const deleteByItemsFn = useServerFn(deleteProductsByItemIds);
-
+  const deleteByIdsFn = useServerFn(deleteProductsByIds);
   const deleteAllFn = useServerFn(deleteAllProducts);
   const listProductsFn = useServerFn(listChannelProducts);
   const listImportGroupsFn = useServerFn(listAutomationGroups);
 
-  const products = importedProducts.filter((p) => !deletedIds.has(p.id));
+  const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch] = useState("");
+  const [sentFilter, setSentFilter] = useState<"all" | "sent" | "unsent">("all");
+  const [sortBy, setSortBy] = useState<"new" | "old" | "priceAsc" | "priceDesc" | "discount" | "title">("new");
+  const [pageSize, setPageSize] = useState(12);
+  const [page, setPage] = useState(1);
+
+  const visibleProducts = importedProducts.filter((p) => !deletedIds.has(p.id));
+  const term = search.trim().toLowerCase();
+  const filteredProducts = visibleProducts.filter((p) => {
+    if (term && !p.title.toLowerCase().includes(term) && !(p.itemId ?? "").includes(term)) return false;
+    const sent = p.sentCount ?? 0;
+    if (sentFilter === "sent" && sent <= 0) return false;
+    if (sentFilter === "unsent" && sent > 0) return false;
+    return true;
+  });
+  const sortedProducts = [...filteredProducts].sort((a, b) => {
+    switch (sortBy) {
+      case "old":
+        return (a.createdAtMs ?? 0) - (b.createdAtMs ?? 0);
+      case "priceAsc":
+        return (a.priceValue ?? Infinity) - (b.priceValue ?? Infinity);
+      case "priceDesc":
+        return (b.priceValue ?? -Infinity) - (a.priceValue ?? -Infinity);
+      case "discount":
+        return b.discount - a.discount;
+      case "title":
+        return a.title.localeCompare(b.title, "pt-BR");
+      default:
+        return (b.createdAtMs ?? 0) - (a.createdAtMs ?? 0);
+    }
+  });
+  const totalPages = Math.max(1, Math.ceil(sortedProducts.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const products = sortedProducts.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   const allChecked = products.length > 0 && products.every((p) => selected[p.id]);
+  const selectedIds = visibleProducts.filter((p) => selected[p.id]).map((p) => p.id);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, sentFilter, sortBy, pageSize]);
 
   // Extract Shopee item_id from a preview product id like `csv-<itemId>-<idx>`
   const extractItemId = (previewId: string): string | null => {
@@ -3705,8 +3744,13 @@ function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {})
       affiliateLink: row.affiliateLink,
       rawLink: row.rawLink,
       imageUrl: row.imageUrl ?? undefined,
+      priceValue: current,
+      createdAtMs: new Date(row.createdAt).getTime(),
+      salesValue: row.sales,
+      sentCount: row.sentCount ?? 0,
     };
   };
+
 
   const reloadProducts = useCallback(async () => {
     const rows = await listProductsFn({ data: { channelId, platform: "shopee" } });
