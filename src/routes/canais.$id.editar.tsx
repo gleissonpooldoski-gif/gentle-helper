@@ -4627,17 +4627,26 @@ function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {})
                     size="sm"
                     variant="outline"
                     onClick={() => {
-                      const m = /^csv-(.+)-\d+$/.exec(p.id);
-                      const itemId = m?.[1] ?? p.id;
-                      setEditTarget({ kind: "byItem", platform: "shopee", itemId });
+                      if (UUID_RE.test(p.id)) setEditTarget({ kind: "byId", id: p.id });
+                      else {
+                        const itemId = extractItemId(p.id);
+                        if (itemId) setEditTarget({ kind: "byItem", platform: "shopee", itemId });
+                      }
                     }}
                     className="h-8 gap-1 rounded-md px-1.5 text-[11px]"
                   >
                     <Edit3 className="h-3 w-3" /> Editar
                   </Button>
-                  <Button size="sm" variant="outline" className="h-8 gap-1 rounded-md px-1.5 text-[11px]">
-                    <MoreHorizontal className="h-3 w-3" /> Mais
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={bulkBusy}
+                    onClick={() => void handleDeleteOne(p.id)}
+                    className="h-8 gap-1 rounded-md border-destructive/40 px-1.5 text-[11px] text-destructive hover:bg-destructive/10"
+                  >
+                    <Trash2 className="h-3 w-3" /> Excluir
                   </Button>
+
                 </div>
               </div>
             </div>
