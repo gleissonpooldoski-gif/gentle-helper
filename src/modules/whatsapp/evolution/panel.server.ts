@@ -231,13 +231,18 @@ export async function sendTextViaEvolution(
   number: string,
   text: string,
 ): Promise<{ ok: boolean; messageId: string | null; error: string | null }> {
-  const res = await evolutionFetch(`/message/sendText/${encodeURIComponent(instanceName)}`, {
+  const resolved = await resolveRemoteInstanceName(cfg, instanceName);
+  if (!resolved.found) {
+    return { ok: false, messageId: null, error: notFoundError(instanceName, resolved.available).message };
+  }
+  const res = await evolutionFetch(`/message/sendText/${encodeURIComponent(resolved.name)}`, {
     config: cfg,
     method: "POST",
     timeoutMs: 20_000,
     retries: 0, // sem retry oculto: evita mensagem duplicada
     body: JSON.stringify({ number, text }),
   });
+
   const raw = await res.text();
   let parsed: any = null;
   try {
