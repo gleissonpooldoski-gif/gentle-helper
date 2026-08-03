@@ -129,10 +129,18 @@ beforeEach(() => {
 });
 
 async function openEditor(groupLabel: RegExp) {
-  const item = (await screen.findByText(groupLabel)).closest("li")!;
-  const btn = within(item as HTMLElement).getByRole("button", { name: /editar/i });
+  const label = await screen.findByText(groupLabel);
+  // o card do grupo pode ser <li> ou uma <div>; sobe até achar o botão Editar
+  let node: HTMLElement | null = label as HTMLElement;
+  let btn: HTMLElement | null = null;
+  while (node && !btn) {
+    btn = within(node).queryByRole("button", { name: /editar/i });
+    if (!btn) node = node.parentElement;
+  }
+  if (!btn) throw new Error("Botão Editar não encontrado para o grupo");
   await userEvent.click(btn);
 }
+
 
 async function waitForPanel(_expectedGroupName: string) {
   // Botão Salvar só renderiza depois de loading=false (config carregada)
