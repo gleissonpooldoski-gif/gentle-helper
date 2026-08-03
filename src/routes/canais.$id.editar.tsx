@@ -3780,58 +3780,36 @@ function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {})
       .catch(() => setImportGroups([]));
   }, [channelId, listImportGroupsFn]);
 
-  const handleExecute = async () => {
-    if (bulkBusy) return;
-    if (bulkAction !== "Excluir") {
-      toast.error("Selecione uma ação para executar.");
-      return;
-    }
-    const selectedIds = products.map((p) => p.id).filter((id) => selected[id]);
-    const isAll = products.length > 0 && selectedIds.length === products.length;
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-    if (isAll) {
-      if (!window.confirm("Tem certeza que deseja excluir todos os produtos?")) return;
-      setBulkBusy(true);
-      try {
-        await deleteAllFn({ data: { channelId, platform: "shopee" } });
-        setImportedProducts([]);
-        setDeletedIds(new Set());
-        setSelected({});
-        setBulkAction("");
-        toast.success("Produtos excluídos com sucesso.");
-      } catch (err) {
-        console.error(err);
-        toast.error("Não foi possível excluir os produtos.", {
-          description: err instanceof Error ? err.message : undefined,
-        });
-      } finally {
-        setBulkBusy(false);
-      }
-      return;
+  const deleteIds = async (ids: string[]) => {
+    const uuids = ids.filter((id) => UUID_RE.test(id));
+    const legacy = ids.filter((id) => !UUID_RE.test(id));
+    for (let i = 0; i < uuids.length; i += 500) {
+      await deleteByIdsFn({ data: { channelId, ids: uuids.slice(i, i + 500) } });
     }
-
-    if (selectedIds.length === 0) {
-      toast.error("Selecione ao menos um produto.");
-      return;
-    }
-
     const itemIds = Array.from(
-      new Set(selectedIds.map(extractItemId).filter((v): v is string => !!v)),
+      new Set(legacy.map(extractItemId).filter((v): v is string => !!v)),
     );
+    for (let i = 0; i < itemIds.length; i += 500) {
+      await deleteByItemsFn({
+        data: { channelId, platform: "shopee", itemIds: itemIds.slice(i, i + 500) },
+      });
+    }
+  };
 
+  const handleDeleteAll = async () => {
+    if (bulkBusy) return;
+    if (!window.confirm(`Excluir TODOS os ${visibleProducts.length} produtos Shopee deste grupo?`)) return;
     setBulkBusy(true);
     try {
-      if (itemIds.length > 0) {
-        await deleteByItemsFn({ data: { channelId, platform: "shopee", itemIds } });
-      }
-      setDeletedIds((prev) => {
-        const next = new Set(prev);
-        for (const id of selectedIds) next.add(id);
-        return next;
-      });
+      const res = await deleteAllFn({ data: { channelId, platform: "shopee" } });
+      setImportedProducts([]);
+      setDeletedIds(new Set());
       setSelected({});
       setBulkAction("");
-      toast.success("Produtos excluídos com sucesso.");
+      onCountsChanged?.();
+      toast.success(`${res.deleted} produtos excluídos.`);
     } catch (err) {
       console.error(err);
       toast.error("Não foi possível excluir os produtos.", {
@@ -3841,6 +3819,103 @@ function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {})
       setBulkBusy(false);
     }
   };
+
+  const handleDeleteOne = async (id: string) => {
+    if (bulkBusy) return;
+    if (!window.confirm("Excluir este produto?")) return;
+    setBulkBusy(true);
+    try {
+      await deleteIds([id]);
+      setDeletedIds((prev) => new Set(prev).add(id));
+      setSelected(({ [id]: _drop, ...rest }) => rest);
+      onCountsChanged?.();
+      toast.success("Produto excluído.");
+    } catch (err) {
+      console.error(err);
+      toast.error("Não foi possível excluir o produto.", {
+        description: err instanceof Error ? err.message : undefined,
+      });
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const handleExecute = async () => {
+    if (bulkBusy) return;
+    if (!bulkAction) {
+      toast.error("Selecione uma ação para executar.");
+      return;
+    }
+    if (selectedIds.length === 0) {
+      toast.error("Selecione ao menos um produto.");
+      return;
+    }
+
+    if (bulkAction === "Enviar para grupos") {
+      if (selectedIds.length !== 1) {
+        toast.error("Selecione apenas 1 produto para enviar aos grupos.");
+        return;
+      }
+      const p = visibleProducts.find((x) => x.id === selectedIds[0]);
+      if (!p) return;
+      setSendProduct({
+        title: p.title,
+        link: p.affiliateLink ?? p.rawLink ?? "",
+        price: p.price,
+        price_original: p.original,
+        image: p.imageUrl ?? null,
+      });
+      return;
+    }
+
+    if (bulkAction === "Editar") {
+      if (selectedIds.length !== 1) {
+        toast.error("Selecione apenas 1 produto para editar.");
+        return;
+      }
+      const id = selectedIds[0]!;
+      if (UUID_RE.test(id)) setEditTarget({ kind: "byId", id });
+      else {
+        const itemId = extractItemId(id);
+        if (itemId) setEditTarget({ kind: "byItem", platform: "shopee", itemId });
+      }
+      return;
+    }
+
+    if (bulkAction !== "Excluir") {
+      toast.error("Ação não suportada.");
+      return;
+    }
+
+    const isAll = visibleProducts.length > 0 && selectedIds.length === visibleProducts.length;
+    if (isAll) {
+      await handleDeleteAll();
+      return;
+    }
+
+    if (!window.confirm(`Excluir ${selectedIds.length} produto(s) selecionado(s)?`)) return;
+    setBulkBusy(true);
+    try {
+      await deleteIds(selectedIds);
+      setDeletedIds((prev) => {
+        const next = new Set(prev);
+        for (const id of selectedIds) next.add(id);
+        return next;
+      });
+      setSelected({});
+      setBulkAction("");
+      onCountsChanged?.();
+      toast.success(`${selectedIds.length} produto(s) excluído(s).`);
+    } catch (err) {
+      console.error(err);
+      toast.error("Não foi possível excluir os produtos.", {
+        description: err instanceof Error ? err.message : undefined,
+      });
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
 
 
   const removeTag = (id: string) => setTags((t) => t.filter((x) => x.id !== id));
