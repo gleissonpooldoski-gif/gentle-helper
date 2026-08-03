@@ -17,8 +17,6 @@ import { useWhatsAppGroups } from "@/hooks/use-whatsapp-groups";
  * abertos simultaneamente.
  */
 
-const DEFAULT_INSTANCE_NAME = "DIVULGA LINKS";
-
 export interface SendProduct {
   title: string;
   link: string;

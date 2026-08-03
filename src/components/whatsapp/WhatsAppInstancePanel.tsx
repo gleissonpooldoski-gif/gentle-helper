@@ -291,7 +291,7 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
     if (!name) return;
     try {
       setBusy("create");
-      if (name.toUpperCase() === "DIVULGA LINKS") {
+      if (items.some((i) => i.instanceName.trim().toUpperCase() === name.toUpperCase())) {
         await importAllFn({});
         setModalOpen(false);
         setNewName("");
@@ -800,8 +800,7 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
             </div>
             <div className="space-y-4 px-5 py-6">
               <p className="text-xs text-muted-foreground">
-                Informe o nome exato da instância já criada na Evolution API (ex:{" "}
-                <b>DIVULGA LINKS</b>).
+                Informe o nome exato da instância já criada na Evolution API.
               </p>
               <input
                 autoFocus
