@@ -4,7 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { parseShopeeCsv, type ShopeeCsvRow } from "@/modules/products/shopee-import/csv.processor";
 import { importShopeeBatch } from "@/modules/products/shopee-import/shopee-import.controller.functions";
-import { deleteProductsByItemIds, deleteAllProducts } from "@/modules/products/shopee-import/product-delete.functions";
+import { deleteProductsByItemIds, deleteProductsByIds, deleteAllProducts } from "@/modules/products/shopee-import/product-delete.functions";
 import { listPendingShopeeImages, enrichShopeeImagesBatch } from "@/modules/products/shopee-import/image-enrich.functions";
 import { syncShopeePricesForProducts } from "@/modules/shopee-affiliate/auto-sync.functions";
 
@@ -3546,6 +3546,8 @@ function MercadoLivrePanel({ onCountsChanged }: { onCountsChanged?: () => void }
                 sales: null,
                 availability: updated.availability,
                 createdAt: updated.created_at,
+                sentCount: 0,
+
               })
             : p));
           setEditTarget(null);
@@ -3617,7 +3619,12 @@ type ShopeeProduct = {
   affiliateLink?: string;
   rawLink?: string;
   imageUrl?: string;
+  priceValue?: number | null;
+  createdAtMs?: number;
+  salesValue?: number | null;
+  sentCount?: number;
 };
+
 
 
 const SHOPEE_PRODUCTS: ShopeeProduct[] = [
@@ -3662,13 +3669,52 @@ function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {})
   const enrichBatchFn = useServerFn(enrichShopeeImagesBatch);
   const syncPricesFn = useServerFn(syncShopeePricesForProducts);
   const deleteByItemsFn = useServerFn(deleteProductsByItemIds);
-
+  const deleteByIdsFn = useServerFn(deleteProductsByIds);
   const deleteAllFn = useServerFn(deleteAllProducts);
   const listProductsFn = useServerFn(listChannelProducts);
   const listImportGroupsFn = useServerFn(listAutomationGroups);
 
-  const products = importedProducts.filter((p) => !deletedIds.has(p.id));
+  const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch] = useState("");
+  const [sentFilter, setSentFilter] = useState<"all" | "sent" | "unsent">("all");
+  const [sortBy, setSortBy] = useState<"new" | "old" | "priceAsc" | "priceDesc" | "discount" | "title">("new");
+  const [pageSize, setPageSize] = useState(12);
+  const [page, setPage] = useState(1);
+
+  const visibleProducts = importedProducts.filter((p) => !deletedIds.has(p.id));
+  const term = search.trim().toLowerCase();
+  const filteredProducts = visibleProducts.filter((p) => {
+    if (term && !p.title.toLowerCase().includes(term) && !(p.itemId ?? "").includes(term)) return false;
+    const sent = p.sentCount ?? 0;
+    if (sentFilter === "sent" && sent <= 0) return false;
+    if (sentFilter === "unsent" && sent > 0) return false;
+    return true;
+  });
+  const sortedProducts = [...filteredProducts].sort((a, b) => {
+    switch (sortBy) {
+      case "old":
+        return (a.createdAtMs ?? 0) - (b.createdAtMs ?? 0);
+      case "priceAsc":
+        return (a.priceValue ?? Infinity) - (b.priceValue ?? Infinity);
+      case "priceDesc":
+        return (b.priceValue ?? -Infinity) - (a.priceValue ?? -Infinity);
+      case "discount":
+        return b.discount - a.discount;
+      case "title":
+        return a.title.localeCompare(b.title, "pt-BR");
+      default:
+        return (b.createdAtMs ?? 0) - (a.createdAtMs ?? 0);
+    }
+  });
+  const totalPages = Math.max(1, Math.ceil(sortedProducts.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const products = sortedProducts.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   const allChecked = products.length > 0 && products.every((p) => selected[p.id]);
+  const selectedIds = visibleProducts.filter((p) => selected[p.id]).map((p) => p.id);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, sentFilter, sortBy, pageSize]);
 
   // Extract Shopee item_id from a preview product id like `csv-<itemId>-<idx>`
   const extractItemId = (previewId: string): string | null => {
@@ -3698,8 +3744,13 @@ function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {})
       affiliateLink: row.affiliateLink,
       rawLink: row.rawLink,
       imageUrl: row.imageUrl ?? undefined,
+      priceValue: current,
+      createdAtMs: new Date(row.createdAt).getTime(),
+      salesValue: row.sales,
+      sentCount: row.sentCount ?? 0,
     };
   };
+
 
   const reloadProducts = useCallback(async () => {
     const rows = await listProductsFn({ data: { channelId, platform: "shopee" } });
@@ -3729,58 +3780,36 @@ function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {})
       .catch(() => setImportGroups([]));
   }, [channelId, listImportGroupsFn]);
 
-  const handleExecute = async () => {
-    if (bulkBusy) return;
-    if (bulkAction !== "Excluir") {
-      toast.error("Selecione uma ação para executar.");
-      return;
-    }
-    const selectedIds = products.map((p) => p.id).filter((id) => selected[id]);
-    const isAll = products.length > 0 && selectedIds.length === products.length;
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-    if (isAll) {
-      if (!window.confirm("Tem certeza que deseja excluir todos os produtos?")) return;
-      setBulkBusy(true);
-      try {
-        await deleteAllFn({ data: { channelId, platform: "shopee" } });
-        setImportedProducts([]);
-        setDeletedIds(new Set());
-        setSelected({});
-        setBulkAction("");
-        toast.success("Produtos excluídos com sucesso.");
-      } catch (err) {
-        console.error(err);
-        toast.error("Não foi possível excluir os produtos.", {
-          description: err instanceof Error ? err.message : undefined,
-        });
-      } finally {
-        setBulkBusy(false);
-      }
-      return;
+  const deleteIds = async (ids: string[]) => {
+    const uuids = ids.filter((id) => UUID_RE.test(id));
+    const legacy = ids.filter((id) => !UUID_RE.test(id));
+    for (let i = 0; i < uuids.length; i += 500) {
+      await deleteByIdsFn({ data: { channelId, ids: uuids.slice(i, i + 500) } });
     }
-
-    if (selectedIds.length === 0) {
-      toast.error("Selecione ao menos um produto.");
-      return;
-    }
-
     const itemIds = Array.from(
-      new Set(selectedIds.map(extractItemId).filter((v): v is string => !!v)),
+      new Set(legacy.map(extractItemId).filter((v): v is string => !!v)),
     );
+    for (let i = 0; i < itemIds.length; i += 500) {
+      await deleteByItemsFn({
+        data: { channelId, platform: "shopee", itemIds: itemIds.slice(i, i + 500) },
+      });
+    }
+  };
 
+  const handleDeleteAll = async () => {
+    if (bulkBusy) return;
+    if (!window.confirm(`Excluir TODOS os ${visibleProducts.length} produtos Shopee deste grupo?`)) return;
     setBulkBusy(true);
     try {
-      if (itemIds.length > 0) {
-        await deleteByItemsFn({ data: { channelId, platform: "shopee", itemIds } });
-      }
-      setDeletedIds((prev) => {
-        const next = new Set(prev);
-        for (const id of selectedIds) next.add(id);
-        return next;
-      });
+      const res = await deleteAllFn({ data: { channelId, platform: "shopee" } });
+      setImportedProducts([]);
+      setDeletedIds(new Set());
       setSelected({});
       setBulkAction("");
-      toast.success("Produtos excluídos com sucesso.");
+      onCountsChanged?.();
+      toast.success(`${res.deleted} produtos excluídos.`);
     } catch (err) {
       console.error(err);
       toast.error("Não foi possível excluir os produtos.", {
@@ -3790,6 +3819,103 @@ function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {})
       setBulkBusy(false);
     }
   };
+
+  const handleDeleteOne = async (id: string) => {
+    if (bulkBusy) return;
+    if (!window.confirm("Excluir este produto?")) return;
+    setBulkBusy(true);
+    try {
+      await deleteIds([id]);
+      setDeletedIds((prev) => new Set(prev).add(id));
+      setSelected(({ [id]: _drop, ...rest }) => rest);
+      onCountsChanged?.();
+      toast.success("Produto excluído.");
+    } catch (err) {
+      console.error(err);
+      toast.error("Não foi possível excluir o produto.", {
+        description: err instanceof Error ? err.message : undefined,
+      });
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const handleExecute = async () => {
+    if (bulkBusy) return;
+    if (!bulkAction) {
+      toast.error("Selecione uma ação para executar.");
+      return;
+    }
+    if (selectedIds.length === 0) {
+      toast.error("Selecione ao menos um produto.");
+      return;
+    }
+
+    if (bulkAction === "Enviar para grupos") {
+      if (selectedIds.length !== 1) {
+        toast.error("Selecione apenas 1 produto para enviar aos grupos.");
+        return;
+      }
+      const p = visibleProducts.find((x) => x.id === selectedIds[0]);
+      if (!p) return;
+      setSendProduct({
+        title: p.title,
+        link: p.affiliateLink ?? p.rawLink ?? "",
+        price: p.price,
+        price_original: p.original,
+        image: p.imageUrl ?? null,
+      });
+      return;
+    }
+
+    if (bulkAction === "Editar") {
+      if (selectedIds.length !== 1) {
+        toast.error("Selecione apenas 1 produto para editar.");
+        return;
+      }
+      const id = selectedIds[0]!;
+      if (UUID_RE.test(id)) setEditTarget({ kind: "byId", id });
+      else {
+        const itemId = extractItemId(id);
+        if (itemId) setEditTarget({ kind: "byItem", platform: "shopee", itemId });
+      }
+      return;
+    }
+
+    if (bulkAction !== "Excluir") {
+      toast.error("Ação não suportada.");
+      return;
+    }
+
+    const isAll = visibleProducts.length > 0 && selectedIds.length === visibleProducts.length;
+    if (isAll) {
+      await handleDeleteAll();
+      return;
+    }
+
+    if (!window.confirm(`Excluir ${selectedIds.length} produto(s) selecionado(s)?`)) return;
+    setBulkBusy(true);
+    try {
+      await deleteIds(selectedIds);
+      setDeletedIds((prev) => {
+        const next = new Set(prev);
+        for (const id of selectedIds) next.add(id);
+        return next;
+      });
+      setSelected({});
+      setBulkAction("");
+      onCountsChanged?.();
+      toast.success(`${selectedIds.length} produto(s) excluído(s).`);
+    } catch (err) {
+      console.error(err);
+      toast.error("Não foi possível excluir os produtos.", {
+        description: err instanceof Error ? err.message : undefined,
+      });
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
 
 
   const removeTag = (id: string) => setTags((t) => t.filter((x) => x.id !== id));
@@ -4214,11 +4340,34 @@ function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {})
         <div className="mt-4 flex gap-2">
           <div className="relative flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input placeholder="Pesquisar produtos cadastrados..." className="h-10 pl-9" />
+            <Input
+              placeholder="Pesquisar produtos cadastrados..."
+              className="h-10 pl-9"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") setSearch(searchInput);
+              }}
+            />
           </div>
-          <Button className="h-10 gap-2 rounded-md bg-primary px-5 hover:bg-primary/90">
+          <Button
+            onClick={() => setSearch(searchInput)}
+            className="h-10 gap-2 rounded-md bg-primary px-5 hover:bg-primary/90"
+          >
             <Search className="h-4 w-4" /> Pesquisar
           </Button>
+          {search ? (
+            <Button
+              variant="outline"
+              className="h-10 rounded-md"
+              onClick={() => {
+                setSearchInput("");
+                setSearch("");
+              }}
+            >
+              Limpar
+            </Button>
+          ) : null}
         </div>
       </div>
 
@@ -4228,13 +4377,43 @@ function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {})
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h3 className="text-[15px] font-semibold">Produtos cadastrados</h3>
-              <p className="text-[12px] text-muted-foreground">{products.length} produtos vinculados a este canal</p>
+              <p className="text-[12px] text-muted-foreground">
+                {sortedProducts.length === visibleProducts.length
+                  ? `${visibleProducts.length} produtos vinculados a este canal`
+                  : `${sortedProducts.length} de ${visibleProducts.length} produtos (filtrados)`}
+              </p>
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" className="h-9 gap-1.5 rounded-full">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 gap-1.5 rounded-full"
+                onClick={() => {
+                  void reloadProducts()
+                    .then(() => toast.success("Lista atualizada."))
+                    .catch((err) =>
+                      toast.error("Falha ao atualizar", {
+                        description: err instanceof Error ? err.message : undefined,
+                      }),
+                    );
+                }}
+              >
                 <RefreshCw className="h-3.5 w-3.5" /> Atualizar
               </Button>
-              <Button size="sm" className="h-9 gap-1.5 rounded-full bg-primary hover:bg-primary/90">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={bulkBusy || visibleProducts.length === 0}
+                onClick={() => void handleDeleteAll()}
+                className="h-9 gap-1.5 rounded-full border-destructive/40 text-destructive hover:bg-destructive/10"
+              >
+                <Trash2 className="h-3.5 w-3.5" /> Excluir tudo
+              </Button>
+              <Button
+                size="sm"
+                onClick={handlePickCsv}
+                className="h-9 gap-1.5 rounded-full bg-primary hover:bg-primary/90"
+              >
                 <Plus className="h-3.5 w-3.5" /> Novo produto
               </Button>
             </div>
@@ -4249,28 +4428,42 @@ function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {})
 
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <div className="relative">
-              <select className="h-9 appearance-none rounded-md border border-input bg-background px-3 pr-8 text-[12.5px]">
-                <option>12 por página</option>
-                <option>24 por página</option>
-                <option>48 por página</option>
+              <select
+                className="h-9 appearance-none rounded-md border border-input bg-background px-3 pr-8 text-[12.5px]"
+                value={String(pageSize)}
+                onChange={(e) => setPageSize(Number(e.target.value))}
+              >
+                <option value="12">12 por página</option>
+                <option value="24">24 por página</option>
+                <option value="48">48 por página</option>
+                <option value="96">96 por página</option>
               </select>
               <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             </div>
             <div className="relative">
-              <select className="h-9 appearance-none rounded-md border border-input bg-background px-3 pr-8 text-[12.5px]">
-                <option>Mais novos</option>
-                <option>Mais antigos</option>
-                <option>Maior desconto</option>
-                <option>Menor preço</option>
-                <option>Mais vendidos</option>
+              <select
+                className="h-9 appearance-none rounded-md border border-input bg-background px-3 pr-8 text-[12.5px]"
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+              >
+                <option value="new">Mais novos</option>
+                <option value="old">Mais antigos</option>
+                <option value="discount">Maior desconto</option>
+                <option value="priceAsc">Menor preço</option>
+                <option value="priceDesc">Maior preço</option>
+                <option value="title">Título (A-Z)</option>
               </select>
               <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             </div>
             <div className="relative">
-              <select className="h-9 appearance-none rounded-md border border-input bg-background px-3 pr-8 text-[12.5px]">
-                <option>Todos os envios</option>
-                <option>Enviados</option>
-                <option>Não enviados</option>
+              <select
+                className="h-9 appearance-none rounded-md border border-input bg-background px-3 pr-8 text-[12.5px]"
+                value={sentFilter}
+                onChange={(e) => setSentFilter(e.target.value as typeof sentFilter)}
+              >
+                <option value="all">Todos os envios</option>
+                <option value="sent">Enviados</option>
+                <option value="unsent">Não enviados</option>
               </select>
               <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             </div>
@@ -4281,14 +4474,33 @@ function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {})
                   checked={allChecked}
                   onChange={(e) => {
                     const v = e.target.checked;
-                    const next: Record<string, boolean> = {};
-                    products.forEach((p) => (next[p.id] = v));
-                    setSelected(next);
+                    setSelected((prev) => {
+                      const next = { ...prev };
+                      products.forEach((p) => {
+                        if (v) next[p.id] = true;
+                        else delete next[p.id];
+                      });
+                      return next;
+                    });
                   }}
                   className="h-3.5 w-3.5 accent-[oklch(0.62_0.19_256)]"
                 />
                 Todos
               </label>
+              <button
+                type="button"
+                onClick={() => {
+                  const next: Record<string, boolean> = {};
+                  sortedProducts.forEach((p) => (next[p.id] = true));
+                  setSelected(next);
+                }}
+                className="text-[11.5px] font-medium text-primary hover:underline"
+              >
+                Selecionar {sortedProducts.length}
+              </button>
+              {selectedIds.length > 0 ? (
+                <span className="text-[11.5px] text-muted-foreground">{selectedIds.length} sel.</span>
+              ) : null}
               <div className="relative">
                 <select
                   className="h-8 appearance-none rounded-md border border-input bg-background px-2.5 pr-7 text-[12px]"
@@ -4296,9 +4508,8 @@ function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {})
                   onChange={(e) => setBulkAction(e.target.value)}
                 >
                   <option value="">Selecione uma ação...</option>
-                  <option value="Enviar Feed WhatsApp">Enviar Feed WhatsApp</option>
-                  <option value="Enviar Story Instagram">Enviar Story Instagram</option>
-                  <option value="Republicar">Republicar</option>
+                  <option value="Enviar para grupos">Enviar para grupos</option>
+                  <option value="Editar">Editar</option>
                   <option value="Excluir">Excluir</option>
                 </select>
                 <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -4314,6 +4525,7 @@ function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {})
             </div>
           </div>
         </div>
+
 
         <div className="grid grid-cols-2 gap-4 p-5 md:grid-cols-3 xl:grid-cols-4">
           {products.map((p) => (
@@ -4415,17 +4627,26 @@ function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {})
                     size="sm"
                     variant="outline"
                     onClick={() => {
-                      const m = /^csv-(.+)-\d+$/.exec(p.id);
-                      const itemId = m?.[1] ?? p.id;
-                      setEditTarget({ kind: "byItem", platform: "shopee", itemId });
+                      if (UUID_RE.test(p.id)) setEditTarget({ kind: "byId", id: p.id });
+                      else {
+                        const itemId = extractItemId(p.id);
+                        if (itemId) setEditTarget({ kind: "byItem", platform: "shopee", itemId });
+                      }
                     }}
                     className="h-8 gap-1 rounded-md px-1.5 text-[11px]"
                   >
                     <Edit3 className="h-3 w-3" /> Editar
                   </Button>
-                  <Button size="sm" variant="outline" className="h-8 gap-1 rounded-md px-1.5 text-[11px]">
-                    <MoreHorizontal className="h-3 w-3" /> Mais
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={bulkBusy}
+                    onClick={() => void handleDeleteOne(p.id)}
+                    className="h-8 gap-1 rounded-md border-destructive/40 px-1.5 text-[11px] text-destructive hover:bg-destructive/10"
+                  >
+                    <Trash2 className="h-3 w-3" /> Excluir
                   </Button>
+
                 </div>
               </div>
             </div>
@@ -4435,26 +4656,53 @@ function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {})
 
         {/* Pagination */}
         <div className="flex flex-col items-center justify-between gap-3 border-t border-border/60 bg-muted/20 px-5 py-3 sm:flex-row">
-          <p className="text-[12px] text-muted-foreground">{products.length} produtos neste grupo</p>
+          <p className="text-[12px] text-muted-foreground">
+            Página {currentPage} de {totalPages} — {sortedProducts.length} produtos
+          </p>
           <div className="flex flex-wrap items-center gap-1">
-            <Button size="sm" variant="outline" className="h-8 rounded-md">Anterior</Button>
-            {[1, 2, 3, 4, 5].map((n) => (
-              <Button
-                key={n}
-                size="sm"
-                className={cn(
-                  "h-8 min-w-[32px] rounded-md px-2",
-                  n === 1 ? "bg-primary text-primary-foreground" : "bg-background text-foreground border border-input hover:bg-muted",
-                )}
-              >
-                {n}
-              </Button>
-            ))}
-            <span className="px-1 text-muted-foreground">…</span>
-            <Button size="sm" variant="outline" className="h-8 min-w-[32px] rounded-md px-2">67</Button>
-            <Button size="sm" variant="outline" className="h-8 rounded-md">Próximo</Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 rounded-md"
+              disabled={currentPage <= 1}
+              onClick={() => setPage(currentPage - 1)}
+            >
+              Anterior
+            </Button>
+            {Array.from({ length: totalPages })
+              .map((_, i) => i + 1)
+              .filter((n) => n === 1 || n === totalPages || Math.abs(n - currentPage) <= 2)
+              .map((n, idx, arr) => (
+                <span key={n} className="flex items-center gap-1">
+                  {idx > 0 && n - (arr[idx - 1] ?? 0) > 1 ? (
+                    <span className="px-1 text-muted-foreground">…</span>
+                  ) : null}
+                  <Button
+                    size="sm"
+                    onClick={() => setPage(n)}
+                    className={cn(
+                      "h-8 min-w-[32px] rounded-md px-2",
+                      n === currentPage
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-background text-foreground border border-input hover:bg-muted",
+                    )}
+                  >
+                    {n}
+                  </Button>
+                </span>
+              ))}
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 rounded-md"
+              disabled={currentPage >= totalPages}
+              onClick={() => setPage(currentPage + 1)}
+            >
+              Próximo
+            </Button>
           </div>
         </div>
+
       </div>
       <SendToGroupsModal
         open={sendProduct !== null}

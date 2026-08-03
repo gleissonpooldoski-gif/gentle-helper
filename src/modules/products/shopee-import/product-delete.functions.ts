@@ -26,6 +26,25 @@ export const deleteProductsByItemIds = createServerFn({ method: "POST" })
     return { deleted: count ?? 0 };
   });
 
+const DeleteByIdsSchema = z.object({
+  channelId: z.string().uuid(),
+  ids: z.array(z.string().uuid()).min(1).max(1000),
+});
+
+export const deleteProductsByIds = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => DeleteByIdsSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    const { error, count } = await context.supabase
+      .from("products")
+      .delete({ count: "exact" })
+      .eq("user_id", context.userId)
+      .eq("channel_id", data.channelId)
+      .in("id", data.ids);
+    if (error) throw new Error(error.message);
+    return { deleted: count ?? 0 };
+  });
+
 const DeleteAllSchema = z.object({
   channelId: z.string().uuid(),
   platform: z.string().min(1),
@@ -44,3 +63,4 @@ export const deleteAllProducts = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { deleted: count ?? 0 };
   });
+
