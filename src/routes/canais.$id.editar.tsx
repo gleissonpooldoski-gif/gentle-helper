@@ -4340,11 +4340,34 @@ function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {})
         <div className="mt-4 flex gap-2">
           <div className="relative flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input placeholder="Pesquisar produtos cadastrados..." className="h-10 pl-9" />
+            <Input
+              placeholder="Pesquisar produtos cadastrados..."
+              className="h-10 pl-9"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") setSearch(searchInput);
+              }}
+            />
           </div>
-          <Button className="h-10 gap-2 rounded-md bg-primary px-5 hover:bg-primary/90">
+          <Button
+            onClick={() => setSearch(searchInput)}
+            className="h-10 gap-2 rounded-md bg-primary px-5 hover:bg-primary/90"
+          >
             <Search className="h-4 w-4" /> Pesquisar
           </Button>
+          {search ? (
+            <Button
+              variant="outline"
+              className="h-10 rounded-md"
+              onClick={() => {
+                setSearchInput("");
+                setSearch("");
+              }}
+            >
+              Limpar
+            </Button>
+          ) : null}
         </div>
       </div>
 
@@ -4354,13 +4377,43 @@ function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {})
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h3 className="text-[15px] font-semibold">Produtos cadastrados</h3>
-              <p className="text-[12px] text-muted-foreground">{products.length} produtos vinculados a este canal</p>
+              <p className="text-[12px] text-muted-foreground">
+                {sortedProducts.length === visibleProducts.length
+                  ? `${visibleProducts.length} produtos vinculados a este canal`
+                  : `${sortedProducts.length} de ${visibleProducts.length} produtos (filtrados)`}
+              </p>
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" className="h-9 gap-1.5 rounded-full">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 gap-1.5 rounded-full"
+                onClick={() => {
+                  void reloadProducts()
+                    .then(() => toast.success("Lista atualizada."))
+                    .catch((err) =>
+                      toast.error("Falha ao atualizar", {
+                        description: err instanceof Error ? err.message : undefined,
+                      }),
+                    );
+                }}
+              >
                 <RefreshCw className="h-3.5 w-3.5" /> Atualizar
               </Button>
-              <Button size="sm" className="h-9 gap-1.5 rounded-full bg-primary hover:bg-primary/90">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={bulkBusy || visibleProducts.length === 0}
+                onClick={() => void handleDeleteAll()}
+                className="h-9 gap-1.5 rounded-full border-destructive/40 text-destructive hover:bg-destructive/10"
+              >
+                <Trash2 className="h-3.5 w-3.5" /> Excluir tudo
+              </Button>
+              <Button
+                size="sm"
+                onClick={handlePickCsv}
+                className="h-9 gap-1.5 rounded-full bg-primary hover:bg-primary/90"
+              >
                 <Plus className="h-3.5 w-3.5" /> Novo produto
               </Button>
             </div>
@@ -4375,28 +4428,42 @@ function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {})
 
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <div className="relative">
-              <select className="h-9 appearance-none rounded-md border border-input bg-background px-3 pr-8 text-[12.5px]">
-                <option>12 por página</option>
-                <option>24 por página</option>
-                <option>48 por página</option>
+              <select
+                className="h-9 appearance-none rounded-md border border-input bg-background px-3 pr-8 text-[12.5px]"
+                value={String(pageSize)}
+                onChange={(e) => setPageSize(Number(e.target.value))}
+              >
+                <option value="12">12 por página</option>
+                <option value="24">24 por página</option>
+                <option value="48">48 por página</option>
+                <option value="96">96 por página</option>
               </select>
               <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             </div>
             <div className="relative">
-              <select className="h-9 appearance-none rounded-md border border-input bg-background px-3 pr-8 text-[12.5px]">
-                <option>Mais novos</option>
-                <option>Mais antigos</option>
-                <option>Maior desconto</option>
-                <option>Menor preço</option>
-                <option>Mais vendidos</option>
+              <select
+                className="h-9 appearance-none rounded-md border border-input bg-background px-3 pr-8 text-[12.5px]"
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+              >
+                <option value="new">Mais novos</option>
+                <option value="old">Mais antigos</option>
+                <option value="discount">Maior desconto</option>
+                <option value="priceAsc">Menor preço</option>
+                <option value="priceDesc">Maior preço</option>
+                <option value="title">Título (A-Z)</option>
               </select>
               <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             </div>
             <div className="relative">
-              <select className="h-9 appearance-none rounded-md border border-input bg-background px-3 pr-8 text-[12.5px]">
-                <option>Todos os envios</option>
-                <option>Enviados</option>
-                <option>Não enviados</option>
+              <select
+                className="h-9 appearance-none rounded-md border border-input bg-background px-3 pr-8 text-[12.5px]"
+                value={sentFilter}
+                onChange={(e) => setSentFilter(e.target.value as typeof sentFilter)}
+              >
+                <option value="all">Todos os envios</option>
+                <option value="sent">Enviados</option>
+                <option value="unsent">Não enviados</option>
               </select>
               <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             </div>
@@ -4407,14 +4474,33 @@ function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {})
                   checked={allChecked}
                   onChange={(e) => {
                     const v = e.target.checked;
-                    const next: Record<string, boolean> = {};
-                    products.forEach((p) => (next[p.id] = v));
-                    setSelected(next);
+                    setSelected((prev) => {
+                      const next = { ...prev };
+                      products.forEach((p) => {
+                        if (v) next[p.id] = true;
+                        else delete next[p.id];
+                      });
+                      return next;
+                    });
                   }}
                   className="h-3.5 w-3.5 accent-[oklch(0.62_0.19_256)]"
                 />
                 Todos
               </label>
+              <button
+                type="button"
+                onClick={() => {
+                  const next: Record<string, boolean> = {};
+                  sortedProducts.forEach((p) => (next[p.id] = true));
+                  setSelected(next);
+                }}
+                className="text-[11.5px] font-medium text-primary hover:underline"
+              >
+                Selecionar {sortedProducts.length}
+              </button>
+              {selectedIds.length > 0 ? (
+                <span className="text-[11.5px] text-muted-foreground">{selectedIds.length} sel.</span>
+              ) : null}
               <div className="relative">
                 <select
                   className="h-8 appearance-none rounded-md border border-input bg-background px-2.5 pr-7 text-[12px]"
@@ -4422,9 +4508,8 @@ function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {})
                   onChange={(e) => setBulkAction(e.target.value)}
                 >
                   <option value="">Selecione uma ação...</option>
-                  <option value="Enviar Feed WhatsApp">Enviar Feed WhatsApp</option>
-                  <option value="Enviar Story Instagram">Enviar Story Instagram</option>
-                  <option value="Republicar">Republicar</option>
+                  <option value="Enviar para grupos">Enviar para grupos</option>
+                  <option value="Editar">Editar</option>
                   <option value="Excluir">Excluir</option>
                 </select>
                 <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -4440,6 +4525,7 @@ function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {})
             </div>
           </div>
         </div>
+
 
         <div className="grid grid-cols-2 gap-4 p-5 md:grid-cols-3 xl:grid-cols-4">
           {products.map((p) => (
