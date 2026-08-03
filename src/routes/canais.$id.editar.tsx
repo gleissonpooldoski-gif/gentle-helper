@@ -4656,26 +4656,53 @@ function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {})
 
         {/* Pagination */}
         <div className="flex flex-col items-center justify-between gap-3 border-t border-border/60 bg-muted/20 px-5 py-3 sm:flex-row">
-          <p className="text-[12px] text-muted-foreground">{products.length} produtos neste grupo</p>
+          <p className="text-[12px] text-muted-foreground">
+            Página {currentPage} de {totalPages} — {sortedProducts.length} produtos
+          </p>
           <div className="flex flex-wrap items-center gap-1">
-            <Button size="sm" variant="outline" className="h-8 rounded-md">Anterior</Button>
-            {[1, 2, 3, 4, 5].map((n) => (
-              <Button
-                key={n}
-                size="sm"
-                className={cn(
-                  "h-8 min-w-[32px] rounded-md px-2",
-                  n === 1 ? "bg-primary text-primary-foreground" : "bg-background text-foreground border border-input hover:bg-muted",
-                )}
-              >
-                {n}
-              </Button>
-            ))}
-            <span className="px-1 text-muted-foreground">…</span>
-            <Button size="sm" variant="outline" className="h-8 min-w-[32px] rounded-md px-2">67</Button>
-            <Button size="sm" variant="outline" className="h-8 rounded-md">Próximo</Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 rounded-md"
+              disabled={currentPage <= 1}
+              onClick={() => setPage(currentPage - 1)}
+            >
+              Anterior
+            </Button>
+            {Array.from({ length: totalPages })
+              .map((_, i) => i + 1)
+              .filter((n) => n === 1 || n === totalPages || Math.abs(n - currentPage) <= 2)
+              .map((n, idx, arr) => (
+                <span key={n} className="flex items-center gap-1">
+                  {idx > 0 && n - (arr[idx - 1] ?? 0) > 1 ? (
+                    <span className="px-1 text-muted-foreground">…</span>
+                  ) : null}
+                  <Button
+                    size="sm"
+                    onClick={() => setPage(n)}
+                    className={cn(
+                      "h-8 min-w-[32px] rounded-md px-2",
+                      n === currentPage
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-background text-foreground border border-input hover:bg-muted",
+                    )}
+                  >
+                    {n}
+                  </Button>
+                </span>
+              ))}
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 rounded-md"
+              disabled={currentPage >= totalPages}
+              onClick={() => setPage(currentPage + 1)}
+            >
+              Próximo
+            </Button>
           </div>
         </div>
+
       </div>
       <SendToGroupsModal
         open={sendProduct !== null}
