@@ -18,6 +18,8 @@ export const Route = createFileRoute("/api/public/whatsapp/diagnostic")({
         const baseUrl = rawUrl.replace(/\/+$/, "");
         const headers = { apikey: apiKey };
 
+        let target = "";
+
         const result: Record<string, unknown> = {
           evolution_host: host,
           evolution_url_configured: !!rawUrl,
@@ -36,20 +38,22 @@ export const Route = createFileRoute("/api/public/whatsapp/diagnostic")({
               ? parsed.instances
               : [];
           const names = arr.map((i) => i?.name ?? i?.instance?.instanceName ?? i?.instanceName ?? i?.instance?.name).filter(Boolean);
+          target = names[0] ? String(names[0]) : target;
           result.fetchInstances = {
             status: res.status,
             count: arr.length,
             names,
-            divulga_links_present: names.some((n: string) => String(n).trim().toUpperCase() === "DIVULGA LINKS"),
             raw_preview: typeof parsed === "string" ? parsed : undefined,
           };
         } catch (e: any) {
           result.fetchInstances = { error: e?.message ?? String(e) };
         }
 
-        // 2) connectionState DIVULGA LINKS
+        result.target_instance = target || null;
+
+        // 2) connectionState da instância alvo
         try {
-          const res = await fetch(`${baseUrl}/instance/connectionState/${encodeURIComponent("DIVULGA LINKS")}`, { headers });
+          const res = await fetch(`${baseUrl}/instance/connectionState/${encodeURIComponent(target)}`, { headers });
           const text = await res.text();
           let parsed: any = null;
           try { parsed = JSON.parse(text); } catch { parsed = text.slice(0, 500); }
@@ -58,10 +62,10 @@ export const Route = createFileRoute("/api/public/whatsapp/diagnostic")({
           result.connectionState = { error: e?.message ?? String(e) };
         }
 
-        // 3) fetchAllGroups DIVULGA LINKS
+        // 3) fetchAllGroups da instância alvo
         try {
           const res = await fetch(
-            `${baseUrl}/group/fetchAllGroups/${encodeURIComponent("DIVULGA LINKS")}?getParticipants=false`,
+            `${baseUrl}/group/fetchAllGroups/${encodeURIComponent(target)}?getParticipants=false`,
             { headers },
           );
           const text = await res.text();
@@ -83,7 +87,7 @@ export const Route = createFileRoute("/api/public/whatsapp/diagnostic")({
 
         // 4) webhook/find
         try {
-          const res = await fetch(`${baseUrl}/webhook/find/${encodeURIComponent("DIVULGA LINKS")}`, { headers });
+          const res = await fetch(`${baseUrl}/webhook/find/${encodeURIComponent(target)}`, { headers });
           const text = await res.text();
           let parsed: any = null;
           try { parsed = JSON.parse(text); } catch { parsed = text.slice(0, 500); }

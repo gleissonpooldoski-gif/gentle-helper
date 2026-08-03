@@ -116,7 +116,7 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
     }
   }, [listFn, channelId]);
 
-  // Sempre consulta/adota "DIVULGA LINKS" ao abrir e força refresh ao vivo
+  // Importa TODAS as instâncias reais da Evolution ao abrir e força refresh ao vivo
   // (connectionState) de cada instância, para nunca exibir status cacheado do DB.
   const autoAdoptedRef = useRef(false);
   useEffect(() => {
@@ -124,7 +124,7 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
     autoAdoptedRef.current = true;
     (async () => {
       try {
-        await adoptFn({ data: { instanceName: "DIVULGA LINKS", channelId } });
+        await importAllFn({});
       } catch {
         /* silencioso */
       }
@@ -139,7 +139,7 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
       );
       await reload();
     })();
-  }, [reload, adoptFn, refreshFn, channelId]);
+  }, [reload, importAllFn, refreshFn, channelId]);
 
   // Realtime: refresh automático via postgres_changes
   const reloadRef = useRef(reload);
@@ -291,8 +291,8 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
     if (!name) return;
     try {
       setBusy("create");
-      if (name.toUpperCase() === "DIVULGA LINKS") {
-        await adoptFn({ data: { instanceName: "DIVULGA LINKS", channelId } });
+      if (items.some((i) => i.instanceName.trim().toUpperCase() === name.toUpperCase())) {
+        await importAllFn({});
         setModalOpen(false);
         setNewName("");
         toast.success("Instância existente conectada");
@@ -800,8 +800,7 @@ export function WhatsAppInstancePanel({ channelId }: Props) {
             </div>
             <div className="space-y-4 px-5 py-6">
               <p className="text-xs text-muted-foreground">
-                Informe o nome exato da instância já criada na Evolution API (ex:{" "}
-                <b>DIVULGA LINKS</b>).
+                Informe o nome exato da instância já criada na Evolution API.
               </p>
               <input
                 autoFocus

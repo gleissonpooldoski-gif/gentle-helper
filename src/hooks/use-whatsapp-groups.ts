@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
-import { adoptEvolutionInstance, fetchWhatsAppGroups, type WhatsAppGroupDTO, type WhatsAppInstanceDTO } from "@/modules/whatsapp/instances.functions";
+import {
+  importAllEvolutionInstances,
+  listWhatsAppInstances,
+  fetchWhatsAppGroups,
+  type WhatsAppGroupDTO,
+  type WhatsAppInstanceDTO,
+} from "@/modules/whatsapp/instances.functions";
 
 /**
  * Cache global compartilhado da lista de grupos WhatsApp por canal.
@@ -9,7 +15,19 @@ import { adoptEvolutionInstance, fetchWhatsAppGroups, type WhatsAppGroupDTO, typ
  * consumidores abertos ao mesmo tempo.
  */
 
-const DEFAULT_INSTANCE_NAME = "DIVULGA LINKS";
+/**
+ * Resolve a instância a ser usada dinamicamente: nunca há nome fixo.
+ * Preferimos uma instância conectada; senão a mais recente disponível.
+ */
+async function resolveInstance(channelId: string): Promise<WhatsAppInstanceDTO | null> {
+  try {
+    await importAllEvolutionInstances({});
+  } catch (err) {
+    console.warn("[WA] importAll falhou:", err);
+  }
+  const rows = await listWhatsAppInstances({ data: { channelId } });
+  return rows.find((r) => r.status === "connected") ?? rows[0] ?? null;
+}
 
 type CacheEntry = {
   instance: WhatsAppInstanceDTO | null;
@@ -48,7 +66,7 @@ async function loadInto(channelId: string, force: boolean): Promise<void> {
     try {
       let inst: WhatsAppInstanceDTO | null = entry.instance;
       try {
-        inst = await adoptEvolutionInstance({ data: { instanceName: DEFAULT_INSTANCE_NAME } });
+        inst = await resolveInstance(channelId);
       } catch (err) {
         // Falha transitória no provider não deve invalidar a instância —
         // se já temos uma no cache (conectada anteriormente), seguimos com ela.
@@ -56,7 +74,7 @@ async function loadInto(channelId: string, force: boolean): Promise<void> {
       }
       entry.instance = inst;
       if (!inst) {
-        entry.error = "WhatsApp não configurado";
+        entry.error = "Nenhuma instância WhatsApp conectada";
         entry.groups = [];
         return;
       }
