@@ -23,12 +23,6 @@ function mapState(state: string | undefined | null): WhatsAppInstanceStatus {
   }
 }
 
-const EXISTING_DIVULGA_LINKS_INSTANCE = "DIVULGA LINKS";
-
-function isExistingDivulgaLinksInstance(instanceName: string): boolean {
-  return instanceName.trim().toUpperCase() === EXISTING_DIVULGA_LINKS_INSTANCE;
-}
-
 function normalizeQr(raw: any): { base64: string | null; code: string | null } {
   const base64 =
     raw?.base64 ??
@@ -106,11 +100,6 @@ export const evolutionProvider: WhatsAppProvider = {
   name: "evolution",
 
   async createInstance({ instanceName, webhookUrl }): Promise<WhatsAppProviderStatus> {
-    // Instância compartilhada já provisionada: nunca tentar recriá-la.
-    if (isExistingDivulgaLinksInstance(instanceName)) {
-      return this.getStatus(EXISTING_DIVULGA_LINKS_INSTANCE);
-    }
-
     // Se já existe, apenas reconecta
     const existing = await evolutionFetch(
       `/instance/connectionState/${encodeURIComponent(instanceName)}`,

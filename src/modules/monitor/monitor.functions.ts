@@ -39,7 +39,7 @@ export const listMonitorGroups = createServerFn({ method: "POST" })
       .from("whatsapp_instances")
       .select("id, provider, instance_name, status")
       .eq("user_id", userId)
-      .or(`channel_id.eq.${data.channelId},instance_name.eq.DIVULGA LINKS`);
+      .or(`channel_id.eq.${data.channelId},channel_id.is.null`);
     if (instancesError) throw new Error(instancesError.message);
 
     const instanceIds = (instances ?? []).map((i: any) => i.id);
@@ -179,7 +179,7 @@ export const saveMonitorGroups = createServerFn({ method: "POST" })
       .from("whatsapp_instances")
       .select("id")
       .eq("user_id", userId)
-      .or(`channel_id.eq.${data.channelId},instance_name.eq.DIVULGA LINKS`);
+      .or(`channel_id.eq.${data.channelId},channel_id.is.null`);
     if (instancesError) throw new Error(instancesError.message);
     const instanceIds: string[] = (instances ?? []).map((i: any) => i.id);
     if (instanceIds.length === 0) {
