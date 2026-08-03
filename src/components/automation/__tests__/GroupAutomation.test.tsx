@@ -107,6 +107,7 @@ vi.mock("@/modules/automation/automation.functions", () => ({
   startAutomation: mocks.startAutomation,
   stopAutomation: mocks.stopAutomation,
   listCampaignHistory: mocks.listCampaignHistory,
+  toggleGroupAutomation: vi.fn(async () => ({ ok: true })),
 }));
 
 
