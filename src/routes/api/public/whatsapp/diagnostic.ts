@@ -18,6 +18,8 @@ export const Route = createFileRoute("/api/public/whatsapp/diagnostic")({
         const baseUrl = rawUrl.replace(/\/+$/, "");
         const headers = { apikey: apiKey };
 
+        let target = "";
+
         const result: Record<string, unknown> = {
           evolution_host: host,
           evolution_url_configured: !!rawUrl,
@@ -46,6 +48,8 @@ export const Route = createFileRoute("/api/public/whatsapp/diagnostic")({
         } catch (e: any) {
           result.fetchInstances = { error: e?.message ?? String(e) };
         }
+
+        result.target_instance = target || null;
 
         // 2) connectionState da instância alvo
         try {
