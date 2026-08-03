@@ -3546,6 +3546,8 @@ function MercadoLivrePanel({ onCountsChanged }: { onCountsChanged?: () => void }
                 sales: null,
                 availability: updated.availability,
                 createdAt: updated.created_at,
+                sentCount: 0,
+
               })
             : p));
           setEditTarget(null);
