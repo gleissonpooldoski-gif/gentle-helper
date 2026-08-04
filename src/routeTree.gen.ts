@@ -42,6 +42,7 @@ import { Route as ApiPublicWebhooksInstagramRouteImport } from './routes/api/pub
 import { Route as ApiPublicMetaWebhookRouteImport } from './routes/api/public/meta/webhook'
 import { Route as ApiPublicInstagramCallbackRouteImport } from './routes/api/public/instagram/callback'
 import { Route as ApiPublicHooksTunnelUrlRouteImport } from './routes/api/public/hooks/tunnel-url'
+import { Route as ApiPublicHooksTunnelHealthRouteImport } from './routes/api/public/hooks/tunnel-health'
 import { Route as ApiPublicHooksSystemReaperRouteImport } from './routes/api/public/hooks/system-reaper'
 import { Route as ApiPublicHooksShopeeReportsSyncRouteImport } from './routes/api/public/hooks/shopee-reports-sync'
 import { Route as ApiPublicHooksShopeeRepairV2RouteImport } from './routes/api/public/hooks/shopee-repair-v2'
@@ -229,6 +230,12 @@ const ApiPublicHooksTunnelUrlRoute = ApiPublicHooksTunnelUrlRouteImport.update({
   path: '/api/public/hooks/tunnel-url',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicHooksTunnelHealthRoute =
+  ApiPublicHooksTunnelHealthRouteImport.update({
+    id: '/api/public/hooks/tunnel-health',
+    path: '/api/public/hooks/tunnel-health',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicHooksSystemReaperRoute =
   ApiPublicHooksSystemReaperRouteImport.update({
     id: '/api/public/hooks/system-reaper',
@@ -352,6 +359,7 @@ export interface FileRoutesByFullPath {
   '/api/public/hooks/shopee-repair-v2': typeof ApiPublicHooksShopeeRepairV2Route
   '/api/public/hooks/shopee-reports-sync': typeof ApiPublicHooksShopeeReportsSyncRoute
   '/api/public/hooks/system-reaper': typeof ApiPublicHooksSystemReaperRoute
+  '/api/public/hooks/tunnel-health': typeof ApiPublicHooksTunnelHealthRoute
   '/api/public/hooks/tunnel-url': typeof ApiPublicHooksTunnelUrlRoute
   '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
   '/api/public/meta/webhook': typeof ApiPublicMetaWebhookRoute
@@ -401,6 +409,7 @@ export interface FileRoutesByTo {
   '/api/public/hooks/shopee-repair-v2': typeof ApiPublicHooksShopeeRepairV2Route
   '/api/public/hooks/shopee-reports-sync': typeof ApiPublicHooksShopeeReportsSyncRoute
   '/api/public/hooks/system-reaper': typeof ApiPublicHooksSystemReaperRoute
+  '/api/public/hooks/tunnel-health': typeof ApiPublicHooksTunnelHealthRoute
   '/api/public/hooks/tunnel-url': typeof ApiPublicHooksTunnelUrlRoute
   '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
   '/api/public/meta/webhook': typeof ApiPublicMetaWebhookRoute
@@ -451,6 +460,7 @@ export interface FileRoutesById {
   '/api/public/hooks/shopee-repair-v2': typeof ApiPublicHooksShopeeRepairV2Route
   '/api/public/hooks/shopee-reports-sync': typeof ApiPublicHooksShopeeReportsSyncRoute
   '/api/public/hooks/system-reaper': typeof ApiPublicHooksSystemReaperRoute
+  '/api/public/hooks/tunnel-health': typeof ApiPublicHooksTunnelHealthRoute
   '/api/public/hooks/tunnel-url': typeof ApiPublicHooksTunnelUrlRoute
   '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
   '/api/public/meta/webhook': typeof ApiPublicMetaWebhookRoute
@@ -502,6 +512,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/shopee-repair-v2'
     | '/api/public/hooks/shopee-reports-sync'
     | '/api/public/hooks/system-reaper'
+    | '/api/public/hooks/tunnel-health'
     | '/api/public/hooks/tunnel-url'
     | '/api/public/instagram/callback'
     | '/api/public/meta/webhook'
@@ -551,6 +562,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/shopee-repair-v2'
     | '/api/public/hooks/shopee-reports-sync'
     | '/api/public/hooks/system-reaper'
+    | '/api/public/hooks/tunnel-health'
     | '/api/public/hooks/tunnel-url'
     | '/api/public/instagram/callback'
     | '/api/public/meta/webhook'
@@ -600,6 +612,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/shopee-repair-v2'
     | '/api/public/hooks/shopee-reports-sync'
     | '/api/public/hooks/system-reaper'
+    | '/api/public/hooks/tunnel-health'
     | '/api/public/hooks/tunnel-url'
     | '/api/public/instagram/callback'
     | '/api/public/meta/webhook'
@@ -640,6 +653,7 @@ export interface RootRouteChildren {
   ApiPublicHooksShopeeRepairV2Route: typeof ApiPublicHooksShopeeRepairV2Route
   ApiPublicHooksShopeeReportsSyncRoute: typeof ApiPublicHooksShopeeReportsSyncRoute
   ApiPublicHooksSystemReaperRoute: typeof ApiPublicHooksSystemReaperRoute
+  ApiPublicHooksTunnelHealthRoute: typeof ApiPublicHooksTunnelHealthRoute
   ApiPublicHooksTunnelUrlRoute: typeof ApiPublicHooksTunnelUrlRoute
   ApiPublicInstagramCallbackRoute: typeof ApiPublicInstagramCallbackRoute
   ApiPublicMetaWebhookRoute: typeof ApiPublicMetaWebhookRoute
@@ -885,6 +899,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksTunnelUrlRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/tunnel-health': {
+      id: '/api/public/hooks/tunnel-health'
+      path: '/api/public/hooks/tunnel-health'
+      fullPath: '/api/public/hooks/tunnel-health'
+      preLoaderRoute: typeof ApiPublicHooksTunnelHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/system-reaper': {
       id: '/api/public/hooks/system-reaper'
       path: '/api/public/hooks/system-reaper'
@@ -1055,6 +1076,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicHooksShopeeRepairV2Route: ApiPublicHooksShopeeRepairV2Route,
   ApiPublicHooksShopeeReportsSyncRoute: ApiPublicHooksShopeeReportsSyncRoute,
   ApiPublicHooksSystemReaperRoute: ApiPublicHooksSystemReaperRoute,
+  ApiPublicHooksTunnelHealthRoute: ApiPublicHooksTunnelHealthRoute,
   ApiPublicHooksTunnelUrlRoute: ApiPublicHooksTunnelUrlRoute,
   ApiPublicInstagramCallbackRoute: ApiPublicInstagramCallbackRoute,
   ApiPublicMetaWebhookRoute: ApiPublicMetaWebhookRoute,
