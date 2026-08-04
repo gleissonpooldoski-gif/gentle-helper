@@ -17,10 +17,21 @@ export const Route = createFileRoute("/api/public/hooks/evolution-healthcheck")(
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-        const evoBase = process.env.EVOLUTION_API_URL;
-        const evoKey = process.env.EVOLUTION_API_KEY;
-        if (!evoBase || !evoKey) {
-          return Response.json({ ok: false, error: "Evolution API não configurada" }, { status: 500 });
+        // Fonte única da URL: public.evolution_settings (não process.env).
+        let evoBase: string;
+        let evoKey: string;
+        try {
+          const { getEvolutionConfig } = await import(
+            "@/modules/whatsapp/evolution/client.server"
+          );
+          const cfg = await getEvolutionConfig();
+          evoBase = cfg.baseUrl;
+          evoKey = cfg.apiKey;
+        } catch (e) {
+          return Response.json(
+            { ok: false, error: e instanceof Error ? e.message : "Evolution API não configurada" },
+            { status: 500 },
+          );
         }
 
         const { data: instances } = await supabaseAdmin
