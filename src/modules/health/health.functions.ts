@@ -77,7 +77,16 @@ async function pingEvolution(): Promise<SystemHealth["evolution"]> {
       signal: ctrl.signal,
     });
     const latencyMs = Date.now() - started;
-    if (!res.ok) return { online: false, latencyMs, error: `HTTP ${res.status}` };
+    if (!res.ok) {
+      const tunnelOffline = [530, 522, 523, 524].includes(res.status);
+      return {
+        online: false,
+        latencyMs,
+        error: tunnelOffline
+          ? "Tunnel Cloudflare offline. Atualize a URL da Evolution API."
+          : `HTTP ${res.status}`,
+      };
+    }
     return { online: true, latencyMs, error: null };
   } catch (e) {
     return {
