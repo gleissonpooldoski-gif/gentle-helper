@@ -52,9 +52,22 @@ function minutesSince(iso: string | null | undefined): number | null {
 }
 
 async function pingEvolution(): Promise<SystemHealth["evolution"]> {
-  const base = process.env.EVOLUTION_API_URL;
-  const key = process.env.EVOLUTION_API_KEY;
-  if (!base || !key) return { online: false, latencyMs: null, error: "Evolution API não configurada" };
+  // Fonte única da URL: public.evolution_settings (nunca process.env, que fica
+  // desatualizado quando o túnel Cloudflare muda de hostname).
+  let base: string;
+  let key: string;
+  try {
+    const { getEvolutionConfig } = await import("@/modules/whatsapp/evolution/client.server");
+    const cfg = await getEvolutionConfig();
+    base = cfg.baseUrl;
+    key = cfg.apiKey;
+  } catch (e) {
+    return {
+      online: false,
+      latencyMs: null,
+      error: e instanceof Error ? e.message : "Evolution API não configurada",
+    };
+  }
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 6000);
   const started = Date.now();
