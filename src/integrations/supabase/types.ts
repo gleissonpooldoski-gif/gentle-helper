@@ -2619,6 +2619,7 @@ export type Database = {
     Functions: {
       cleanup_old_webhook_events: { Args: never; Returns: undefined }
       dispatch_automation_tick: { Args: never; Returns: number }
+      dispatch_tunnel_health: { Args: never; Returns: number }
       format_sales_label: { Args: { n: number }; Returns: string }
       run_retention_policies: { Args: never; Returns: Json }
       try_lock_automation_config: {
