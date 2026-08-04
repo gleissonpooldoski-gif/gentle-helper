@@ -89,7 +89,49 @@ function HealthPage() {
           <p className="text-sm text-muted-foreground">Carregando diagnóstico…</p>
         ) : (
           <div className="grid gap-4 lg:grid-cols-2">
+            <Card title="Cloudflare Tunnel">
+              <Row
+                label="Status"
+                value={
+                  <span>
+                    {data.tunnel.status === "OFFLINE" || data.tunnel.status === "ERROR"
+                      ? "🔴"
+                      : data.tunnel.status === "CHANGED"
+                        ? "🟡"
+                        : "🟢"}{" "}
+                    {data.tunnel.status === "ONLINE"
+                      ? "Online"
+                      : data.tunnel.status === "CHANGED"
+                        ? "URL alterada (sincronizada)"
+                        : data.tunnel.status === "ERROR"
+                          ? "Configuração com erro"
+                          : "Offline"}
+                  </span>
+                }
+                tone={data.tunnel.status === "ONLINE" ? undefined : "bad"}
+              />
+              <Row label="URL atual" value={data.tunnel.currentUrl ?? "—"} />
+              {data.tunnel.previousUrl ? (
+                <Row label="URL anterior" value={data.tunnel.previousUrl} />
+              ) : null}
+              <Row label="Última verificação" value={fmt(data.tunnel.lastCheck)} />
+              <Row label="Última alteração" value={fmt(data.tunnel.lastChange)} />
+              {data.tunnel.errorMessage ? (
+                <Row label="Erro" value={data.tunnel.errorMessage} tone="bad" />
+              ) : null}
+            </Card>
+
             <Card title="Integrações">
+              <Row label="PostgreSQL" value={<span>🟢 Online</span>} />
+              <Row
+                label="Redis (Evolution)"
+                value={
+                  <span>
+                    {data.evolution.online ? "🟢 Online" : "🔴 Indisponível"}
+                  </span>
+                }
+                tone={data.evolution.online ? undefined : "bad"}
+              />
               <Row
                 label="Evolution API"
                 value={

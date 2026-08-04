@@ -20,8 +20,18 @@ export type InstanceHealth = {
   stalled: boolean;
 };
 
+export type TunnelHealth = {
+  status: "ONLINE" | "OFFLINE" | "CHANGED" | "ERROR";
+  currentUrl: string | null;
+  previousUrl: string | null;
+  lastCheck: string | null;
+  lastChange: string | null;
+  errorMessage: string | null;
+};
+
 export type SystemHealth = {
   checkedAt: string;
+  tunnel: TunnelHealth;
   evolution: { online: boolean; latencyMs: number | null; error: string | null };
   instances: InstanceHealth[];
   automation: {
@@ -186,8 +196,32 @@ export const getSystemDiagnostics = createServerFn({ method: "GET" })
 
     const lastSentAt = history[0]?.sent_at ?? null;
 
+    const tunnelRow = await db
+      .from("cloudflare_tunnel_status")
+      .select("current_url, previous_url, status, last_check, last_change, error_message")
+      .eq("id", "global")
+      .maybeSingle();
+    const t = tunnelRow.data as
+      | {
+          current_url: string | null;
+          previous_url: string | null;
+          status: string;
+          last_check: string | null;
+          last_change: string | null;
+          error_message: string | null;
+        }
+      | null;
+
     return {
       checkedAt: new Date().toISOString(),
+      tunnel: {
+        status: (t?.status as TunnelHealth["status"]) ?? "OFFLINE",
+        currentUrl: t?.current_url ?? null,
+        previousUrl: t?.previous_url ?? null,
+        lastCheck: t?.last_check ?? null,
+        lastChange: t?.last_change ?? null,
+        errorMessage: t?.error_message ?? null,
+      },
       evolution,
       instances,
       automation: {

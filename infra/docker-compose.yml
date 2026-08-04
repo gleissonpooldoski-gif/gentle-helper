@@ -1,0 +1,113 @@
+version: "3.8"
+
+# ---------------------------------------------------------------------------
+# Stack de referência: Evolution API + Postgres + Redis + Cloudflare Quick
+# Tunnel (grátis, sem domínio próprio) + watcher que sincroniza a URL no SaaS.
+#
+# Copie infra/.env.example para infra/.env e preencha antes de subir:
+#   docker compose -f infra/docker-compose.yml --env-file infra/.env up -d
+# ---------------------------------------------------------------------------
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: evolution_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: evolution
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d evolution"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - evolution-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: evolution_redis
+    restart: always
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - evolution-net
+
+  evolution_api:
+    image: atendai/evolution-api:v2.3.7
+    container_name: evolution_api
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY}
+      DATABASE_ENABLED: "true"
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/evolution
+      CACHE_REDIS_ENABLED: "true"
+      CACHE_REDIS_URI: redis://redis:6379/6
+      CACHE_REDIS_PREFIX_KEY: evolution
+      CACHE_LOCAL_ENABLED: "false"
+      # Webhook global aponta para o SaaS (URL estável, não depende do túnel)
+      WEBHOOK_GLOBAL_URL: ${APP_URL}/api/public/whatsapp/webhook
+      WEBHOOK_GLOBAL_ENABLED: "true"
+      WEBHOOK_GLOBAL_WEBHOOK_BY_EVENTS: "false"
+    volumes:
+      - evolution_instances:/evolution/instances
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/ >/dev/null || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+    networks:
+      - evolution-net
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared
+    restart: always
+    depends_on:
+      - evolution_api
+    command: tunnel --no-autoupdate --url http://evolution_api:8080
+    networks:
+      - evolution-net
+
+  tunnel_watcher:
+    image: docker:cli
+    container_name: tunnel_watcher
+    restart: always
+    depends_on:
+      - cloudflared
+    environment:
+      APP_URL: ${APP_URL}
+      CRON_SECRET: ${CRON_SECRET}
+      TUNNEL_CONTAINER: cloudflared
+      CHECK_INTERVAL: "15"
+    volumes:
+      # Necessário para ler o log do cloudflared e extrair a URL nova
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./tunnel-watcher/watch.sh:/watch.sh:ro
+    entrypoint: ["/bin/sh", "/watch.sh"]
+    networks:
+      - evolution-net
+
+volumes:
+  postgres_data:
+  redis_data:
+  evolution_instances:
+
+networks:
+  evolution-net:
+    driver: bridge
