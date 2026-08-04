@@ -504,6 +504,48 @@ export type Database = {
         }
         Relationships: []
       }
+      cloudflare_tunnel_status: {
+        Row: {
+          created_at: string
+          current_url: string | null
+          error_message: string | null
+          id: string
+          last_change: string | null
+          last_check: string | null
+          last_http_status: number | null
+          previous_url: string | null
+          status: string
+          updated_at: string
+          updated_by_source: string | null
+        }
+        Insert: {
+          created_at?: string
+          current_url?: string | null
+          error_message?: string | null
+          id?: string
+          last_change?: string | null
+          last_check?: string | null
+          last_http_status?: number | null
+          previous_url?: string | null
+          status?: string
+          updated_at?: string
+          updated_by_source?: string | null
+        }
+        Update: {
+          created_at?: string
+          current_url?: string | null
+          error_message?: string | null
+          id?: string
+          last_change?: string | null
+          last_check?: string | null
+          last_http_status?: number | null
+          previous_url?: string | null
+          status?: string
+          updated_at?: string
+          updated_by_source?: string | null
+        }
+        Relationships: []
+      }
       cron_secrets: {
         Row: {
           name: string
