@@ -20,8 +20,18 @@ export type InstanceHealth = {
   stalled: boolean;
 };
 
+export type TunnelHealth = {
+  status: "ONLINE" | "OFFLINE" | "CHANGED" | "ERROR";
+  currentUrl: string | null;
+  previousUrl: string | null;
+  lastCheck: string | null;
+  lastChange: string | null;
+  errorMessage: string | null;
+};
+
 export type SystemHealth = {
   checkedAt: string;
+  tunnel: TunnelHealth;
   evolution: { online: boolean; latencyMs: number | null; error: string | null };
   instances: InstanceHealth[];
   automation: {
