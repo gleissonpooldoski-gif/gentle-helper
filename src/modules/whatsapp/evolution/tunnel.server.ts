@@ -193,6 +193,7 @@ export async function resyncEvolutionWebhooks(): Promise<{ synced: number; faile
   let failed = 0;
   for (const name of names) {
     try {
+      if (!evolutionProvider.setWebhook) break;
       await evolutionProvider.setWebhook(name, url);
       synced += 1;
       tunnelLog("WEBHOOK", "SYNCED", { instance: name });
