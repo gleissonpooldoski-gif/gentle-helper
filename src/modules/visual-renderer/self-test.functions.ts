@@ -10,51 +10,23 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { VTElement } from "@/modules/visual-templates/presets";
-import { renderVisualTemplatePng } from "./render-template.server";
-
-const TEST_ELEMENTS: VTElement[] = [
-  { id: "bg", type: "background", x: 0, y: 0, w: 1080, h: 1920, z: 0, props: { fill: "#fde047" } },
-  {
-    id: "hdr",
-    type: "text",
-    x: 60,
-    y: 100,
-    w: 960,
-    h: 120,
-    z: 1,
-    props: { text: "⚡ OFERTA RELÂMPAGO", font: "Inter", size: 78, weight: 900, color: "#111111", align: "center" },
-  },
-  { id: "card", type: "shape", x: 60, y: 260, w: 960, h: 1100, z: 2, props: { fill: "#ffffff", radius: 32 } },
-  { id: "img", type: "product_image", x: 140, y: 320, w: 800, h: 700, z: 3, props: {} },
-  {
-    id: "ttl",
-    type: "text",
-    x: 100,
-    y: 1050,
-    w: 880,
-    h: 200,
-    z: 4,
-    props: { bind: "{{title}}", font: "Inter", size: 56, weight: 800, color: "#111111", align: "center" },
-  },
-  {
-    id: "sales",
-    type: "sold",
-    x: 100,
-    y: 1260,
-    w: 880,
-    h: 60,
-    z: 5,
-    props: { bind: "{{sales}} vendidos", font: "Inter", size: 40, weight: 600, color: "#374151", align: "center" },
-  },
-  { id: "price", type: "price", x: 60, y: 1440, w: 960, h: 260, z: 6, props: { mode: "both", bg: "#dc2626", color: "#ffffff", radius: 32 } },
-];
 
 export const runVisualRendererSelfTest = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    const { renderVisualTemplatePng } = await import("./render-template.server");
+    const testElements: VTElement[] = [
+      { id: "bg", type: "background", x: 0, y: 0, w: 1080, h: 1920, z: 0, props: { fill: "#fde047" } },
+      { id: "hdr", type: "text", x: 60, y: 100, w: 960, h: 120, z: 1, props: { text: "⚡ OFERTA RELÂMPAGO", font: "Inter", size: 78, weight: 900, color: "#111111", align: "center" } },
+      { id: "card", type: "shape", x: 60, y: 260, w: 960, h: 1100, z: 2, props: { fill: "#ffffff", radius: 32 } },
+      { id: "img", type: "product_image", x: 140, y: 320, w: 800, h: 700, z: 3, props: {} },
+      { id: "ttl", type: "text", x: 100, y: 1050, w: 880, h: 200, z: 4, props: { bind: "{{title}}", font: "Inter", size: 56, weight: 800, color: "#111111", align: "center" } },
+      { id: "sales", type: "sold", x: 100, y: 1260, w: 880, h: 60, z: 5, props: { bind: "{{sales}} vendidos", font: "Inter", size: 40, weight: 600, color: "#374151", align: "center" } },
+      { id: "price", type: "price", x: 60, y: 1440, w: 960, h: 260, z: 6, props: { mode: "both", bg: "#dc2626", color: "#ffffff", radius: 32 } },
+    ];
     const result = await renderVisualTemplatePng({
       userId: context.userId,
-      template: { elements: TEST_ELEMENTS, format: "ig_story" },
+      template: { elements: testElements, format: "ig_story" },
       product: {
         id: "test",
         title: "Produto Teste Shopee",

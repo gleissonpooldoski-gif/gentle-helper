@@ -1,7 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { apiClient } from "@/lib/api-client";
-import { invalidateEvolutionConfigCache } from "./client.server";
 
 export interface EvolutionSettingsDTO {
   baseUrl: string;
@@ -53,6 +52,7 @@ export const saveEvolutionSettings = createServerFn({ method: "POST" })
       .select("base_url, updated_at")
       .single();
     if (error) throw new Error(error.message);
+    const { invalidateEvolutionConfigCache } = await import("./client.server");
     invalidateEvolutionConfigCache();
     return {
       baseUrl: String(row.base_url ?? ""),
@@ -73,6 +73,7 @@ export const testEvolutionConnection = createServerFn({ method: "POST" })
     baseUrl: data?.baseUrl ? String(data.baseUrl).trim().replace(/\/+$/, "") : "",
   }))
   .handler(async ({ data, context }): Promise<EvolutionTestResult> => {
+    const { invalidateEvolutionConfigCache } = await import("./client.server");
     invalidateEvolutionConfigCache();
     let baseUrl = data.baseUrl;
     if (!baseUrl) {
