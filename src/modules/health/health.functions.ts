@@ -51,70 +51,64 @@ export type SystemHealth = {
   failures: { unresolved: number; recent: Array<{ id: string; message: string; createdAt: string }> };
 };
 
-const STALLED_MINUTES = 60;
-const STUCK_CLAIM_MINUTES = 10;
-
-function minutesSince(iso: string | null | undefined): number | null {
-  if (!iso) return null;
-  const t = new Date(iso).getTime();
-  if (!Number.isFinite(t)) return null;
-  return Math.floor((Date.now() - t) / 60_000);
-}
-
-async function pingEvolution(): Promise<SystemHealth["evolution"]> {
-  // Fonte única da URL: public.evolution_settings (nunca process.env, que fica
-  // desatualizado quando o túnel Cloudflare muda de hostname).
-  let base: string;
-  let key: string;
-  try {
-    const { getEvolutionConfig } = await import("@/modules/whatsapp/evolution/client.server");
-    const cfg = await getEvolutionConfig();
-    base = cfg.baseUrl;
-    key = cfg.apiKey;
-  } catch (e) {
-    return {
-      online: false,
-      latencyMs: null,
-      error: e instanceof Error ? e.message : "Evolution API não configurada",
-    };
-  }
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 6000);
-  const started = Date.now();
-  try {
-    const res = await fetch(`${base.replace(/\/$/, "")}/instance/fetchInstances`, {
-      headers: { apikey: key },
-      signal: ctrl.signal,
-    });
-    const latencyMs = Date.now() - started;
-    if (!res.ok) {
-      const tunnelOffline = [530, 522, 523, 524].includes(res.status);
-      return {
-        online: false,
-        latencyMs,
-        error: tunnelOffline
-          ? "Tunnel Cloudflare offline. Atualize a URL da Evolution API."
-          : `HTTP ${res.status}`,
-      };
-    }
-    return { online: true, latencyMs, error: null };
-  } catch (e) {
-    return {
-      online: false,
-      latencyMs: Date.now() - started,
-      error: e instanceof Error ? e.message : "Falha de rede",
-    };
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
 export const getSystemDiagnostics = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<SystemHealth> => {
+    const stalledMinutes = 60;
+    const stuckClaimMinutes = 10;
+    const minutesSince = (iso: string | null | undefined): number | null => {
+      if (!iso) return null;
+      const timestamp = new Date(iso).getTime();
+      if (!Number.isFinite(timestamp)) return null;
+      return Math.floor((Date.now() - timestamp) / 60_000);
+    };
+    const pingEvolution = async (): Promise<SystemHealth["evolution"]> => {
+      let base: string;
+      let key: string;
+      try {
+        const { getEvolutionConfig } = await import("@/modules/whatsapp/evolution/client.server");
+        const config = await getEvolutionConfig();
+        base = config.baseUrl;
+        key = config.apiKey;
+      } catch (error) {
+        return {
+          online: false,
+          latencyMs: null,
+          error: error instanceof Error ? error.message : "Evolution API não configurada",
+        };
+      }
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 6_000);
+      const started = Date.now();
+      try {
+        const response = await fetch(`${base.replace(/\/$/, "")}/instance/fetchInstances`, {
+          headers: { apikey: key },
+          signal: controller.signal,
+        });
+        const latencyMs = Date.now() - started;
+        if (!response.ok) {
+          return {
+            online: false,
+            latencyMs,
+            error: [522, 523, 524, 530].includes(response.status)
+              ? "Tunnel Cloudflare offline. Aguardando atualização automática da URL."
+              : `HTTP ${response.status}`,
+          };
+        }
+        return { online: true, latencyMs, error: null };
+      } catch (error) {
+        return {
+          online: false,
+          latencyMs: Date.now() - started,
+          error: error instanceof Error ? error.message : "Falha de rede",
+        };
+      } finally {
+        clearTimeout(timer);
+      }
+    };
     const db = context.supabase as any;
     const since24h = new Date(Date.now() - 24 * 3600_000).toISOString();
-    const stuckCutoff = new Date(Date.now() - STUCK_CLAIM_MINUTES * 60_000).toISOString();
+    const stuckCutoff = new Date(Date.now() - stuckClaimMinutes * 60_000).toISOString();
 
     const [
       evolution,
@@ -190,7 +184,7 @@ export const getSystemDiagnostics = createServerFn({ method: "GET" })
         lastSeenAt: i.last_seen_at,
         lastSentAt,
         minutesIdle: idle,
-        stalled: connected && activeInstanceIds.has(i.id) && (idle === null || idle > STALLED_MINUTES),
+        stalled: connected && activeInstanceIds.has(i.id) && (idle === null || idle > stalledMinutes),
       };
     });
 

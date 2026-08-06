@@ -8,17 +8,6 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { VTElement, VTFormat } from "@/modules/visual-templates/presets";
-import { renderVisualTemplatePng } from "./render-template.server";
-import { resolveVisualTemplateForProduct } from "@/modules/visual-templates/resolve.server";
-
-function bufferToBase64(buf: Uint8Array): string {
-  let bin = "";
-  const chunk = 0x8000;
-  for (let i = 0; i < buf.length; i += chunk) {
-    bin += String.fromCharCode(...buf.subarray(i, i + chunk));
-  }
-  return btoa(bin);
-}
 
 export const previewVisualTemplateForProduct = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -31,6 +20,15 @@ export const previewVisualTemplateForProduct = createServerFn({ method: "POST" }
       .parse(d),
   )
   .handler(async ({ data, context }) => {
+    const { renderVisualTemplatePng } = await import("./render-template.server");
+    const bufferToBase64 = (buffer: Uint8Array): string => {
+      let binary = "";
+      const chunk = 0x8000;
+      for (let index = 0; index < buffer.length; index += chunk) {
+        binary += String.fromCharCode(...buffer.subarray(index, index + chunk));
+      }
+      return btoa(binary);
+    };
     const { data: tpl, error: tplErr } = await context.supabase
       .from("visual_templates")
       .select("id,format,elements")
@@ -118,6 +116,16 @@ export const previewActiveVisualTemplateForProduct = createServerFn({ method: "P
       .parse(d),
   )
   .handler(async ({ data, context }) => {
+    const { renderVisualTemplatePng } = await import("./render-template.server");
+    const { resolveVisualTemplateForProduct } = await import("@/modules/visual-templates/resolve.server");
+    const bufferToBase64 = (buffer: Uint8Array): string => {
+      let binary = "";
+      const chunk = 0x8000;
+      for (let index = 0; index < buffer.length; index += chunk) {
+        binary += String.fromCharCode(...buffer.subarray(index, index + chunk));
+      }
+      return btoa(binary);
+    };
     const { data: prod, error: prodErr } = await context.supabase
       .from("products")
       .select(
