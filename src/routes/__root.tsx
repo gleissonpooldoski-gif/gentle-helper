@@ -4,10 +4,11 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -78,14 +79,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { title: "Divulga Links | Automação de Afiliados" },
+      { name: "description", content: "Gestão de produtos, canais e automações de afiliados para WhatsApp e Instagram." },
+      { name: "author", content: "Divulga Links" },
+      { property: "og:title", content: "Divulga Links | Automação de Afiliados" },
+      { property: "og:description", content: "Gestão de produtos, canais e automações de afiliados para WhatsApp e Instagram." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:site", content: "@Lovable" },
     ],
     links: [
       {
@@ -130,21 +130,29 @@ function isPublicPath(pathname: string): boolean {
 
 function AuthGate({ children }: { children: ReactNode }) {
   const router = useRouter();
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const publicPath = isPublicPath(pathname);
+  const [readyPath, setReadyPath] = useState<string | null>(publicPath ? pathname : null);
   useEffect(() => {
     let cancelled = false;
     let unsub: (() => void) | undefined;
 
     const evaluate = async () => {
       if (typeof window === "undefined") return;
-      const pathname = window.location.pathname;
-      if (isPublicPath(pathname)) return;
+      if (publicPath) {
+        setReadyPath(pathname);
+        return;
+      }
+      setReadyPath(null);
       const { supabase } = await import("@/integrations/supabase/client");
       const { data } = await supabase.auth.getSession();
       if (cancelled) return;
       if (!data.session) {
         const redirect = encodeURIComponent(pathname + window.location.search);
         router.navigate({ to: "/auth", search: { redirect } as never, replace: true });
+        return;
       }
+      setReadyPath(pathname);
       const sub = supabase.auth.onAuthStateChange((_e, session) => {
         if (!session && !isPublicPath(window.location.pathname)) {
           router.navigate({ to: "/auth", replace: true });
@@ -158,7 +166,15 @@ function AuthGate({ children }: { children: ReactNode }) {
       cancelled = true;
       unsub?.();
     };
-  }, [router]);
+  }, [pathname, publicPath, router]);
+
+  if (!publicPath && readyPath !== pathname) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background" role="status" aria-label="Verificando sessão">
+        <div className="size-8 animate-spin rounded-full border-2 border-muted border-t-primary" />
+      </div>
+    );
+  }
 
   return <>{children}</>;
 }
