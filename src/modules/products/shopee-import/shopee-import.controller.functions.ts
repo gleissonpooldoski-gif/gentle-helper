@@ -23,7 +23,7 @@ const RowSchema = z.object({
 
 const InputSchema = z.object({
   channelId: z.string().uuid(),
-  sourceGroupJid: z.string().trim().min(1),
+  sourceGroupJid: z.string().trim().optional().default(""),
   rows: z.array(RowSchema).min(1).max(500),
 });
 
