@@ -3921,10 +3921,6 @@ function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {})
   const removeTag = (id: string) => setTags((t) => t.filter((x) => x.id !== id));
 
   const handlePickCsv = () => {
-    if (!importGroupJid) {
-      toast.error("Nenhum grupo vinculado a este canal. Vincule um grupo antes de importar.");
-      return;
-    }
     fileInputRef.current?.click();
   };
 
@@ -4283,7 +4279,7 @@ function ShopeePanel({ onCountsChanged }: { onCountsChanged?: () => void } = {})
             </div>
             <Button
               type="button"
-              disabled={importing || !importGroupJid}
+              disabled={importing}
               onClick={handlePickCsv}
               className="w-full gap-2 rounded-full bg-primary hover:bg-primary/90"
             >
