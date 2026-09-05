@@ -44,15 +44,16 @@ export const importShopeeBatch = createServerFn({ method: "POST" })
       .limit(1)
       .maybeSingle();
     if (groupError) throw new Error(groupError.message);
-    if (!group) {
-      throw new Error("Nenhum grupo de captura ativo está vinculado a este canal.");
-    }
+    // Sem grupo de captura vinculado, o catálogo do canal ainda pode ser
+    // importado por planilha: usamos um marcador estável por canal.
+    const groupJid = group?.group_jid || data.sourceGroupJid || `csv:${data.channelId}`;
+    const groupName = group?.group_name ?? null;
     const outcome = await importBatch(
       context.supabase,
       context.userId,
       data.channelId,
-      group.group_jid,
-      group.group_name ?? null,
+      groupJid,
+      groupName,
       data.rows as ShopeeCsvRow[],
     );
     return outcome;
