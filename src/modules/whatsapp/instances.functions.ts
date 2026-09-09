@@ -544,6 +544,10 @@ export const fetchWhatsAppGroups = createServerFn({ method: "POST" })
     const selRows: Array<{ group_jid: string; group_name: string | null }> = sel ?? [];
     const selectedSet = new Set(selRows.map((s) => s.group_jid));
 
+    if (evoError && evoList.length === 0 && selRows.length === 0) {
+      throw new Error(evoError);
+    }
+
     // 2b) Seleções deste canal em OUTRAS instâncias — para exibir "já em uso".
     const { data: otherSel } = await (supabase as any)
       .from("whatsapp_group_selections")
