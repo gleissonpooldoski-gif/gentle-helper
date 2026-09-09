@@ -509,6 +509,7 @@ export const fetchWhatsAppGroups = createServerFn({ method: "POST" })
       participants: number | null;
       pictureUrl: string | null;
     }> = [];
+    let evoError: string | null = null;
     try {
       const { getWhatsAppProvider } = await import("./index.server");
       const groups = await getWhatsAppProvider(row.provider).fetchGroups(
@@ -523,12 +524,14 @@ export const fetchWhatsAppGroups = createServerFn({ method: "POST" })
           pictureUrl: g.pictureUrl ?? null,
         }));
     } catch (error) {
-      // Não transformar falha da Evolution em uma lista vazia enganosa.
-      throw new Error(
+      // Falha na Evolution não derruba a tela: caímos para os grupos já
+      // salvos deste canal. Só propagamos se não houver nada salvo.
+      evoError =
         error instanceof Error
           ? error.message
-          : "Falha ao buscar os grupos na Evolution API",
-      );
+          : "Falha ao buscar os grupos na Evolution API";
+      // eslint-disable-next-line no-console
+      console.warn(`[WA] fetchGroups falhou (${row.instance_name}):`, evoError);
     }
 
     // 2) Seleção salva SOMENTE deste channel/grupo-config + instância.
