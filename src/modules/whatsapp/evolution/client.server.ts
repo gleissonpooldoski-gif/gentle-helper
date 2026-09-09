@@ -50,6 +50,20 @@ export function isTunnelOfflineStatus(status: number): boolean {
   return status === 530 || status === 522 || status === 523 || status === 524;
 }
 
+/**
+ * Mensagem apresentada quando o socket Baileys da instância está em estado
+ * fantasma: a Evolution responde 500 com `Connection Closed`.
+ */
+export const SOCKET_CLOSED_MSG =
+  "A sessão do WhatsApp travou na Evolution API (Connection Closed). Reconectando a instância automaticamente — tente novamente em alguns segundos.";
+
+/** Detecta o erro `Connection Closed` retornado pela Evolution/Baileys. */
+export function isSocketClosedText(text: string | null | undefined): boolean {
+  return /connection closed|connection lost|connection terminated|socket closed/i.test(
+    String(text ?? ""),
+  );
+}
+
 /** Erros transitórios que devem ser retentados automaticamente. */
 function isRetriableStatus(status: number): boolean {
   return status === 429 || status === 502 || status === 503 || status === 504;
@@ -177,6 +191,11 @@ export async function evolutionJson<T = unknown>(
   if (!res.ok) {
     if (isTunnelOfflineStatus(res.status) || /error code: ?1016|error code: ?1033|cloudflare/i.test(text)) {
       throw new Error(TUNNEL_OFFLINE_MSG);
+    }
+    if (isSocketClosedText(text)) {
+      const err = new Error(SOCKET_CLOSED_MSG);
+      (err as any).code = "SOCKET_CLOSED";
+      throw err;
     }
     if (isRetriableStatus(res.status)) {
       throw new Error(
