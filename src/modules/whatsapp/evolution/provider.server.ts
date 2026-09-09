@@ -4,7 +4,34 @@ import type {
   WhatsAppInstanceStatus,
   WhatsAppGroup,
 } from "../provider";
-import { evolutionFetch, evolutionJson } from "./client.server";
+import { evolutionFetch, evolutionJson, isSocketClosedText } from "./client.server";
+
+function isSocketClosedError(err: unknown): boolean {
+  return (
+    (err as any)?.code === "SOCKET_CLOSED" ||
+    isSocketClosedText((err as Error)?.message ?? String(err))
+  );
+}
+
+/**
+ * Socket Baileys travado (`Connection Closed`): reinicia a instância na
+ * Evolution e aguarda o socket subir novamente.
+ */
+async function restartInstance(instanceName: string): Promise<void> {
+  // eslint-disable-next-line no-console
+  console.warn(`[Evolution] socket travado, reiniciando instância ${instanceName}`);
+  try {
+    await evolutionFetch(`/instance/restart/${encodeURIComponent(instanceName)}`, {
+      method: "POST",
+      retries: 0,
+      timeoutMs: 20_000,
+    });
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn("[Evolution] restart falhou:", (err as Error)?.message ?? err);
+  }
+  await new Promise((r) => setTimeout(r, 4_000));
+}
 
 function mapState(state: string | undefined | null): WhatsAppInstanceStatus {
   switch ((state ?? "").toLowerCase()) {
@@ -211,10 +238,15 @@ export const evolutionProvider: WhatsAppProvider = {
     const path = `/group/fetchAllGroups/${encodeURIComponent(instanceName)}?getParticipants=false`;
     // Em contas com muitos grupos, a Evolution pode levar mais que o timeout
     // padrão de 15s para montar a lista, mesmo sem participantes.
-    const res = await evolutionJson<any>(path, {
-      method: "GET",
-      timeoutMs: 60_000,
-    });
+    let res: any;
+    try {
+      res = await evolutionJson<any>(path, { method: "GET", timeoutMs: 60_000 });
+    } catch (err) {
+      if (!isSocketClosedError(err)) throw err;
+      // Auto-recuperação: reinicia o socket e tenta mais uma vez.
+      await restartInstance(instanceName);
+      res = await evolutionJson<any>(path, { method: "GET", timeoutMs: 60_000 });
+    }
     const arr: any[] = Array.isArray(res)
       ? res
       : Array.isArray(res?.groups)
