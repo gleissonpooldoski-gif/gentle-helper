@@ -612,26 +612,6 @@ async function tickOneForConfig(admin: any, cfg: any): Promise<void> {
   // `availability='active'` da query abaixo.
 
   const ANTI_REPEAT_HOURS = 24;
-  /**
-   * Anti-duplicidade por OFERTA (não só por linha do catálogo).
-   *
-   * O catálogo Shopee tem o MESMO anúncio cadastrado várias vezes com
-   * `item_id` diferente (reposts/variações da importação em massa). Como o
-   * claim é por `product_id`, o mesmo produto acabava indo ao grupo 2-3x.
-   * Aqui bloqueamos qualquer produto cujo TÍTULO normalizado já tenha sido
-   * enviado para o mesmo destino na janela abaixo.
-   */
-  const ANTI_REPEAT_TITLE_HOURS = 24 * 7;
-
-  function titleKey(t: unknown): string {
-    return String(t ?? "")
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-z0-9]+/g, " ")
-      .trim()
-      .slice(0, 120);
-  }
 
   async function pickNext(): Promise<any | null> {
     // Inventário obrigatório por canal + grupo. Legados sem grupo ficam
@@ -640,8 +620,7 @@ async function tickOneForConfig(admin: any, cfg: any): Promise<void> {
 
     // Sends do ciclo + histórico anti-repetição em paralelo (1 round-trip).
     const since = new Date(Date.now() - ANTI_REPEAT_HOURS * 3600_000).toISOString();
-    const sinceTitle = new Date(Date.now() - ANTI_REPEAT_TITLE_HOURS * 3600_000).toISOString();
-    const [sentRes, recentRes, titleRes] = await Promise.all([
+    const [sentRes, recentRes] = await Promise.all([
       admin.from("automation_group_sends").select("product_id").eq("config_id", cfg.id),
       admin
         .from("whatsapp_campaign_history")
@@ -649,25 +628,10 @@ async function tickOneForConfig(admin: any, cfg: any): Promise<void> {
         .eq("config_id", cfg.id)
         .eq("status", "sent")
         .gte("sent_at", since),
-      // Mesmo destino (grupo), independente da config, para cobrir troca de
-      // instância/config sem perder a memória de duplicidade.
-      admin
-        .from("whatsapp_campaign_history")
-        .select("product_name")
-        .eq("user_id", cfg.user_id)
-        .eq("group_id", cfg.group_id)
-        .eq("status", "sent")
-        .gte("sent_at", sinceTitle)
-        .limit(2000),
     ]);
     const excluded = new Set<string>();
     for (const r of sentRes.data ?? []) if (r?.product_id) excluded.add(r.product_id);
     for (const r of recentRes.data ?? []) if (r?.product_id) excluded.add(r.product_id);
-    const sentTitles = new Set<string>();
-    for (const r of titleRes.data ?? []) {
-      const k = titleKey(r?.product_name);
-      if (k) sentTitles.add(k);
-    }
 
     // Seleção enxuta (colunas usadas) ordenada pelos menos-validados.
     let q = admin
@@ -686,7 +650,7 @@ async function tickOneForConfig(admin: any, cfg: any): Promise<void> {
       .neq("image_url", "")
 
       .order("last_validated_at", { ascending: true, nullsFirst: true })
-      .limit(120);
+      .limit(30);
 
     if (excluded.size > 0) {
       q = q.not("id", "in", `(${Array.from(excluded).join(",")})`);
@@ -696,23 +660,9 @@ async function tickOneForConfig(admin: any, cfg: any): Promise<void> {
     const shuffled = [...(data ?? [])].sort(() => Math.random() - 0.5);
     // LOTE 26 — sem validação síncrona. Todos os candidatos já são 'active'
     // (garantido pelo filtro acima). O cron `products-validate` mantém isso
-    // atualizado.
-    const fresh = shuffled.find((p) => {
-      const k = titleKey(p?.title);
-      return !k || !sentTitles.has(k);
-    });
-    if (fresh) return fresh;
-    if (shuffled.length > 0) {
-      log("ANTI_DUPLICATE_EXHAUSTED", {
-        config_id: cfg.id,
-        group_id: cfg.group_id,
-        candidates: shuffled.length,
-        window_hours: ANTI_REPEAT_TITLE_HOURS,
-      });
-    }
-    return null;
+    // atualizado. Retorna o primeiro candidato disponível.
+    return shuffled[0] ?? null;
   }
-
 
   let product = await pickNext();
 
