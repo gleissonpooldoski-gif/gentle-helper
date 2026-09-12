@@ -1,58 +1,32 @@
+# Estabilização definitiva do WhatsApp
 
-# Auditoria Completa do Divulga Links
+## Objetivo
+Eliminar quedas recorrentes entre Cloudflare Quick Tunnel e Evolution API, recuperar sessões travadas automaticamente e manter o envio protegido contra duplicidade.
 
-Escopo: só o que existe hoje no projeto. Sem Facebook, sem YouTube, sem multi-projeto, sem features novas.
+## Correções
+1. **Origem do túnel**
+   - Padronizar o túnel para apontar ao serviço Evolution correto dentro do Docker, sem depender de `127.0.0.1:8081`.
+   - Fazer o Cloudflare aguardar a Evolution ficar saudável antes de iniciar.
+   - Adicionar verificação de saúde e reinício automático do túnel quando a origem parar de responder.
 
-## Módulos que serão auditados
+2. **Watcher resiliente**
+   - Verificar continuamente container, origem e URL pública.
+   - Detectar mudança de URL mesmo após reinícios e sincronizá-la novamente com o SaaS.
+   - Evitar considerar a URL sincronizada quando ela deixou de responder.
 
-1. **WhatsApp / Automação de envios** (Evolution API, `automation_configs`, `automation-tick`, filas, dedup por instância/grupo)
-2. **Instagram Admin** (Stories cron, webhook Meta, InstaBotHelp, publicação de posts)
-3. **Afiliados** (Shopee Open API v2, Mercado Livre OAuth, Magalu, transformação de links)
-4. **Captura de produtos** (webhook Evolution, `capture.server.ts`, enrich de imagem/preço, `product_price_history`)
-5. **Site / Vitrine pública** (`g/$slug`, `site_configs`, ordenação, limite)
-6. **Relatórios** (`shopee_conversions`, filtros, CSV export, gráficos)
-7. **Dashboard e Layout de Post** (variáveis, cabeçalhos dinâmicos, header discount vs normal)
-8. **Banco / RLS / Índices** (grants, políticas, constraints, índices em queries quentes)
-9. **Cron jobs `pg_cron`** (schedule, secrets, endpoints chamados)
-10. **Segurança** (secrets, endpoints `/api/public/*`, HMAC, `requireSupabaseAuth`)
+3. **Cliente Evolution**
+   - Separar timeout de consultas rápidas e operações lentas de grupos.
+   - Tratar cancelamentos de transporte como falha transitória sem marcar a sessão como desconectada.
+   - Reiniciar a sessão somente para `Connection Closed`, com espera e confirmação do estado antes da nova tentativa.
 
-## Como vou entregar
+4. **Health check e recuperação**
+   - Usar o cliente central em todas as verificações, evitando chamadas concorrentes com timeouts diferentes.
+   - Registrar falhas consecutivas e só degradar o estado após confirmação, reduzindo falsos alarmes.
 
-Uma rodada por módulo, nesta ordem (priorizado por impacto atual):
+5. **Validação**
+   - Testes do túnel, timeout, `Connection Closed` e recuperação.
+   - Verificação das instâncias atuais e do endpoint de grupos.
+   - Confirmar que nenhum retry adicional foi introduzido no envio real de mensagens.
 
-1. WhatsApp/Automação
-2. Instagram Stories/Admin
-3. Captura + Afiliados
-4. Banco/RLS/Índices + Cron
-5. Relatórios + Site + Dashboard
-6. Segurança (varredura final)
-
-Em cada rodada eu:
-- Leio o código do módulo
-- Rodo queries de sanidade no banco quando fizer sentido
-- Escrevo um **relatório curto** (problemas encontrados + severidade + causa raiz)
-- **Peço aprovação** antes de aplicar qualquer correção
-- Aplico só o que você aprovar
-
-Nada é reescrito "por estética". Só mexo no que estiver **quebrado, inseguro ou instável**.
-
-## Regras que vou seguir
-
-- Não crio nada novo (sem features, sem tabelas novas exceto índice/constraint pra corrigir bug).
-- Não toco em módulo que não está na rodada atual.
-- Se achar algo fora do escopo (ex: bug no site enquanto audito WhatsApp), eu **anoto e sigo** — só volto depois.
-- Toda correção que mexer no banco passa por migração aprovada.
-
-## Primeira rodada — WhatsApp/Automação
-
-Foco imediato porque é o problema ativo que você relatou (instância disparando 3x):
-
-- Mapear `automation_configs` ativos e a regra "1 instância = 1 grupo por vez"
-- Revisar `automation-tick.ts`: locking, dedup, ordem de envio, fanout
-- Revisar `sendWhatsAppProduct`: retry, circuit breaker, tratamento de 502
-- Revisar constraint em `automation_configs` (deveria ter unique em `(user_id, instance_id, group_id)` quando ativo?)
-- Rodar query pra achar duplicatas / configs órfãs / configs sem `instance_id`
-
-Ao final da rodada 1, eu te mando o relatório e as correções propostas pra aprovar.
-
-**Confirma que posso começar pela rodada 1 (WhatsApp)?**
+## Observação técnica
+O log `Incoming request ended abruptly: context canceled` indica que uma chamada foi encerrada antes da resposta da origem. O ponto mais importante é que o túnel em execução está apontando para `http://127.0.0.1:8081`, enquanto a configuração versionada usa a rede Docker e `http://evolution_api:8080`; a correção elimina essa configuração divergente.
