@@ -79,8 +79,11 @@ services:
     container_name: cloudflared
     restart: always
     depends_on:
-      - evolution_api
-    command: tunnel --no-autoupdate --url http://evolution_api:8080
+      evolution_api:
+        condition: service_healthy
+    # HTTP/2 evita instabilidade de UDP/QUIC em redes domésticas. A origem é
+    # sempre o nome do serviço Docker; nunca use 127.0.0.1:8081 aqui.
+    command: tunnel --no-autoupdate --protocol http2 --url http://evolution_api:8080
     networks:
       - evolution-net
 
@@ -94,12 +97,15 @@ services:
       APP_URL: ${APP_URL}
       CRON_SECRET: ${CRON_SECRET}
       TUNNEL_CONTAINER: cloudflared
+      EVOLUTION_CONTAINER: evolution_api
+      ORIGIN_URL: http://evolution_api:8080
       CHECK_INTERVAL: "15"
+      FAILURE_THRESHOLD: "3"
     volumes:
       # Necessário para ler o log do cloudflared e extrair a URL nova
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./tunnel-watcher/watch.sh:/watch.sh:ro
-    entrypoint: ["/bin/sh", "/watch.sh"]
+    entrypoint: ["/bin/sh", "-c", "apk add --no-cache curl >/dev/null && exec /bin/sh /watch.sh"]
     networks:
       - evolution-net
 

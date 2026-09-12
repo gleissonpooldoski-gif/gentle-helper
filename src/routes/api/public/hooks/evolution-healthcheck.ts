@@ -18,15 +18,11 @@ export const Route = createFileRoute("/api/public/hooks/evolution-healthcheck")(
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
         // Fonte única da URL: public.evolution_settings (não process.env).
-        let evoBase: string;
-        let evoKey: string;
         try {
           const { getEvolutionConfig } = await import(
             "@/modules/whatsapp/evolution/client.server"
           );
-          const cfg = await getEvolutionConfig();
-          evoBase = cfg.baseUrl;
-          evoKey = cfg.apiKey;
+          await getEvolutionConfig();
         } catch (e) {
           return Response.json(
             { ok: false, error: e instanceof Error ? e.message : "Evolution API não configurada" },
@@ -45,16 +41,14 @@ export const Route = createFileRoute("/api/public/hooks/evolution-healthcheck")(
 
         for (const inst of rows) {
           try {
-            const ctrl = new AbortController();
-            const t = setTimeout(() => ctrl.abort(), 6000);
-            const r = await fetch(`${evoBase.replace(/\/$/, "")}/instance/connectionState/${encodeURIComponent(inst.instance_name)}`, {
-              headers: { apikey: evoKey },
-              signal: ctrl.signal,
-            });
-            clearTimeout(t);
+            const { evolutionJson } = await import(
+              "@/modules/whatsapp/evolution/client.server"
+            );
+            const body = await evolutionJson<{ instance?: { state?: string }; state?: string }>(
+              `/instance/connectionState/${encodeURIComponent(inst.instance_name)}`,
+              { method: "GET", timeoutMs: 15_000, retries: 1 },
+            );
             checked += 1;
-            if (!r.ok) continue; // transitório: mantém status atual
-            const body = (await r.json().catch(() => null)) as { instance?: { state?: string }; state?: string } | null;
             const state = body?.instance?.state ?? body?.state ?? null;
             const nextStatus = state === "open" ? "connected" : state === "close" ? "disconnected" : state ?? inst.status;
             if (nextStatus && nextStatus !== inst.status) {

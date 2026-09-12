@@ -18,9 +18,13 @@ set -eu
 APP_URL="${APP_URL:?defina APP_URL}"
 CRON_SECRET="${CRON_SECRET:?defina CRON_SECRET}"
 TUNNEL_CONTAINER="${TUNNEL_CONTAINER:-cloudflared}"
+EVOLUTION_CONTAINER="${EVOLUTION_CONTAINER:-evolution_api}"
+ORIGIN_URL="${ORIGIN_URL:-http://evolution_api:8080}"
 CHECK_INTERVAL="${CHECK_INTERVAL:-15}"
+FAILURE_THRESHOLD="${FAILURE_THRESHOLD:-3}"
 
 LAST_URL=""
+FAILURES=0
 
 log() { echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] $*"; }
 
@@ -49,10 +53,47 @@ push_url() {
   return 1
 }
 
+origin_online() {
+  curl -fsS --max-time 10 "$ORIGIN_URL/" >/dev/null 2>&1
+}
+
+tunnel_online() {
+  url="$1"
+  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 \
+    -H "apikey: ${EVOLUTION_API_KEY:-}" \
+    "$url/instance/fetchInstances") || code=000
+  case "$code" in
+    200|401|403) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+recover_stack() {
+  log "[HEALTH] origem/túnel indisponível após $FAILURES verificações; recuperando containers"
+  docker restart "$EVOLUTION_CONTAINER" >/dev/null 2>&1 || true
+  for _ in $(seq 1 30); do
+    if origin_online; then break; fi
+    sleep 2
+  done
+  docker restart "$TUNNEL_CONTAINER" >/dev/null 2>&1 || true
+  LAST_URL=""
+  FAILURES=0
+}
+
 log "watcher iniciado (container=$TUNNEL_CONTAINER, intervalo=${CHECK_INTERVAL}s)"
 
 while true; do
   URL="$(detect_url || true)"
+  if ! origin_online || { [ -n "$URL" ] && ! tunnel_online "$URL"; }; then
+    FAILURES=$((FAILURES + 1))
+    log "[HEALTH] falha $FAILURES/$FAILURE_THRESHOLD (origem ou túnel sem resposta)"
+    if [ "$FAILURES" -ge "$FAILURE_THRESHOLD" ]; then
+      recover_stack
+    fi
+    sleep "$CHECK_INTERVAL"
+    continue
+  fi
+  FAILURES=0
   if [ -n "$URL" ] && [ "$URL" != "$LAST_URL" ]; then
     log "[TUNNEL] Nova URL detectada: $URL"
     if push_url "$URL"; then
