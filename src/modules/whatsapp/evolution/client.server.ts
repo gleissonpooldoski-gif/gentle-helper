@@ -64,6 +64,13 @@ export function isSocketClosedText(text: string | null | undefined): boolean {
   );
 }
 
+/** Cancelamentos e quedas de transporte não provam que a sessão desconectou. */
+export function isTransportCancellationText(text: string | null | undefined): boolean {
+  return /context canceled|context cancelled|request (?:was )?cancelled|request (?:was )?canceled|aborted|aborterror/i.test(
+    String(text ?? ""),
+  );
+}
+
 /** Erros transitórios que devem ser retentados automaticamente. */
 function isRetriableStatus(status: number): boolean {
   return status === 429 || status === 502 || status === 503 || status === 504;
@@ -71,7 +78,7 @@ function isRetriableStatus(status: number): boolean {
 
 function isRetriableError(err: unknown): boolean {
   const msg = String((err as Error)?.message ?? err).toLowerCase();
-  return /fetch failed|network|timeout|econnreset|econnrefused|etimedout|abort|socket|eai_again/.test(
+  return /fetch failed|network|timeout|econnreset|econnrefused|etimedout|abort|context cancel|socket|eai_again/.test(
     msg,
   );
 }
@@ -89,11 +96,11 @@ function friendlyError(err: unknown, path: string): Error {
     return new Error(TUNNEL_OFFLINE_MSG);
   }
   if (
-    /fetch failed|ENOTFOUND|ECONNREFUSED|ETIMEDOUT|network|Failed to fetch|abort/i.test(
+    /fetch failed|ENOTFOUND|ECONNREFUSED|ETIMEDOUT|network|Failed to fetch|abort|context cancel/i.test(
       msg,
     )
   ) {
-    return new Error("Evolution API indisponível. Verifique a conexão.");
+    return new Error("Evolution API temporariamente indisponível. A conexão será tentada novamente.");
   }
   return new Error(`Evolution ${path}: ${msg}`);
 }

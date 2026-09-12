@@ -21,16 +21,34 @@ async function restartInstance(instanceName: string): Promise<void> {
   // eslint-disable-next-line no-console
   console.warn(`[Evolution] socket travado, reiniciando instância ${instanceName}`);
   try {
-    await evolutionFetch(`/instance/restart/${encodeURIComponent(instanceName)}`, {
+    const response = await evolutionFetch(`/instance/restart/${encodeURIComponent(instanceName)}`, {
       method: "POST",
       retries: 0,
       timeoutMs: 20_000,
     });
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(`HTTP ${response.status}: ${body.slice(0, 300)}`);
+    }
   } catch (err) {
     // eslint-disable-next-line no-console
     console.warn("[Evolution] restart falhou:", (err as Error)?.message ?? err);
   }
-  await new Promise((r) => setTimeout(r, 4_000));
+  // Aguarda o socket realmente voltar em vez de depender de uma pausa fixa.
+  for (let attempt = 0; attempt < 6; attempt++) {
+    await new Promise((r) => setTimeout(r, attempt === 0 ? 3_000 : 2_000));
+    try {
+      const state = await evolutionJson<any>(
+        `/instance/connectionState/${encodeURIComponent(instanceName)}`,
+        { method: "GET", retries: 0, timeoutMs: 10_000 },
+      );
+      const value = state?.instance?.state ?? state?.state ?? state?.status;
+      if (mapState(value) === "connected") return;
+    } catch {
+      // A Evolution ainda está reiniciando; continua dentro do limite.
+    }
+  }
+  throw new Error(`A sessão ${instanceName} não voltou após a reinicialização automática.`);
 }
 
 function mapState(state: string | undefined | null): WhatsAppInstanceStatus {
