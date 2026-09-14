@@ -236,7 +236,21 @@ export const saveAutomationConfig = createServerFn({ method: "POST" })
   })
   .handler(async ({ data, context }): Promise<AutomationConfigDTO> => {
     const { supabase, userId } = context;
+    // Só é permitido vincular uma sessão WhatsApp conectada ao envio automático.
+    if (data.instanceId) {
+      const { data: inst } = await supabase
+        .from("whatsapp_instances")
+        .select("instance_name, status")
+        .eq("user_id", userId)
+        .eq("id", data.instanceId)
+        .maybeSingle();
+      if (!inst) throw new Error("Sessão WhatsApp não encontrada.");
+      if (String(inst.status ?? "").toLowerCase() !== "connected") {
+        throw new Error(`Sessão "${inst.instance_name}" não está conectada. Escolha a sessão conectada.`);
+      }
+    }
     const cfg = await ensureConfig(supabase, userId, data.channelId, data.groupId, data.groupName);
+
     const { data: upd, error } = await supabase
       .from("automation_configs")
       .update({
