@@ -700,11 +700,11 @@ async function tickOneForConfig(admin: any, cfg: any): Promise<void> {
   // válido; se a instância não existir, aborta com erro permanente. Isso
   // elimina a rota paralela onde dois workers podiam enviar via instâncias
   // diferentes para o mesmo grupo/produto.
-  let inst: { id: string; instance_name: string } | null = null;
+  let inst: { id: string; instance_name: string; status: string | null } | null = null;
   if (cfg.instance_id) {
     const { data: row } = await admin
       .from("whatsapp_instances")
-      .select("id, instance_name")
+      .select("id, instance_name, status")
       .eq("user_id", cfg.user_id)
       .eq("id", cfg.instance_id)
       .maybeSingle();
@@ -720,6 +720,18 @@ async function tickOneForConfig(admin: any, cfg: any): Promise<void> {
     }).eq("id", cfg.id);
     return;
   }
+  // Guarda dura: o envio automático só pode sair por uma sessão WhatsApp
+  // efetivamente conectada. Sessões antigas/desconectadas (ex.: GLEISSON01,
+  // GLEISSON-2, RAINHA) nunca são usadas como origem de disparo.
+  if (String(inst.status ?? "").toLowerCase() !== "connected") {
+    await admin.from("automation_configs").update({
+      status: "error",
+      last_error: `Sessão "${inst.instance_name}" não está conectada — vincule uma sessão conectada para este grupo.`,
+      next_run_at: new Date(Date.now() + cfg.intervalo_min * 60_000).toISOString(),
+    }).eq("id", cfg.id);
+    return;
+  }
+
 
   const instanceName = inst.instance_name;
 

@@ -349,13 +349,15 @@ export function AutomationPanel({
                     className="h-10 flex-1 rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20"
                   >
                     <option value="">Selecione…</option>
-                    {instances.map((i) => (
-                      <option key={i.id} value={i.id}>
-                        {i.phone ?? i.instanceName}
-                        {i.phone ? ` — ${i.instanceName}` : ""}
-                        {i.status === "connected" ? " ✅ Conectado" : " ⚪"}
-                      </option>
-                    ))}
+                    {instances
+                      .filter((i) => i.status === "connected")
+                      .map((i) => (
+                        <option key={i.id} value={i.id}>
+                          {i.phone ?? i.instanceName}
+                          {i.phone ? ` — ${i.instanceName}` : ""} ✅ Conectado
+                        </option>
+                      ))}
+
                   </select>
                   <Button
                     type="button"
